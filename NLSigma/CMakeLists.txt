@@ -102,6 +102,32 @@ endif()
 target_link_libraries(nlsmSolverNUTS dendro5 ${LAPACK_LIBRARIES}
                       ${MPI_LIBRARIES} m)
 
+
+set(SOURCE_FILES src/nlsm_spherical_interpolate.cpp src/nlsmCtx.cpp ${NLSM_SRC})
+add_executable(nlsmSphereInterp ${SOURCE_FILES})
+target_include_directories(nlsmSphereInterp
+                           PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(nlsmSphereInterp
+                           PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/include)
+target_include_directories(nlsmSphereInterp
+                           PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/include/test)
+target_include_directories(nlsmSphereInterp
+                           PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/examples/include)
+target_include_directories(nlsmSphereInterp
+                           PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/FEM/include)
+target_include_directories(nlsmSphereInterp
+    PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/ODE/include)
+target_include_directories(nlsmSphereInterp PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/LinAlg/include)
+target_include_directories(nlsmSphereInterp PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/IO/vtk/include)
+target_include_directories(nlsmSphereInterp PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/IO/zlib/inc)
+target_include_directories(nlsmSphereInterp PRIVATE ${MPI_INCLUDE_PATH})
+target_include_directories(nlsmSphereInterp PRIVATE ${GSL_INCLUDE_DIRS})
+if(WITH_CUDA)
+  target_include_directories(nlsmSphereInterp PRIVATE ${CUDA_INCLUDE_DIRS})
+endif()
+target_link_libraries(nlsmSphereInterp dendro5 ${LAPACK_LIBRARIES}
+                      ${MPI_LIBRARIES} m)
+
 if(WITH_CUDA)
   set(SOURCE_FILES src/nlsmCtxGPU.cu src/nlsm_cuda.cu ${NLSM_SRC})
   cuda_add_executable(nlsmSolverCUDA ${SOURCE_FILES})
