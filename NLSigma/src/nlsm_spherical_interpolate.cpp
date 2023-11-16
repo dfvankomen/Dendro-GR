@@ -8,6 +8,7 @@
  *
  */
 
+#include <cstdint>
 #define NLSM_FORCE_SAVE_BEFORE_AND_AFTER
 
 #include <climits>
@@ -25,6 +26,71 @@
 #include "nlsmCtx.h"
 #include "nlsmUtils.h"
 #include "octUtils.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
+
+std::vector<double> sphereical_points(double xcenter, double ycenter,
+                                      double zcenter, double r,
+                                      uint32_t npoints) {
+    // the output vector is a straight list of points of 3's
+    std::vector<double> out_vector;
+    // out_vector.resize(3 * npoints);
+
+    // sphere equation is (x - xcenter)^2 + (y - ycenter)^2 + (z - zcenter)^2 =
+    // r^2
+    //
+    // this is the fibonacci sphere algorithm that generates a uniform shell
+
+    // golden angle in radians
+    double phi = M_PI * (std::sqrt(5.0) - 1.0);
+
+    double x, y, z, radius, theta;
+
+    // coords for spherical location
+    double r_t, th, ph;
+
+    for (uint32_t ii = 0; ii < npoints; ii++) {
+        // this is y from 1 to -1
+        y = 1.0 - ((double)ii / ((double)npoints - 1)) * 2.0;
+        // calculate y's radius
+        radius = std::sqrt(1.0 - y * y);
+        // adjust the golden angle
+        theta = phi * (double)ii;
+
+        // then calculate x and z
+        x = std::cos(theta) * radius;
+        z = std::sin(theta) * radius;
+
+        // these are now a unit sphere centered at 0, so we'll want to shift
+        // them out first adjust the radius
+
+        r_t = std::sqrt(x * x + y * y + z * z);
+        th = std::acos(z / r_t);
+        ph = std::atan2(y, x);
+
+        // now we can adjust our values to go back to x, y, and z, and move by
+        // center
+        x = r * std::sin(th) * std::cos(ph) + xcenter;
+        y = r * std::sin(th) * std::sin(ph) + ycenter;
+        z = r * std::cos(th) + zcenter;
+
+        out_vector.push_back(x);
+        out_vector.push_back(y);
+        out_vector.push_back(z);
+    }
+
+    return out_vector;
+}
+
+// std::vector<double> spherical_via_sunflower(double xcenter, double ycenter,
+//                                             double zcenter, double r,
+//                                             uint32_t npoints) {
+//     std::vector<double> out_vector;
+//
+//     return out_vector;
+// }
 
 int main(int argc, char** argv) {
     if (argc < 2)
