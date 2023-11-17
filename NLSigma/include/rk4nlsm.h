@@ -140,6 +140,13 @@ class RK4_NLSM : public RK {
                     const unsigned int *evolVarIndices,
                     const unsigned int *constVarIndices);
 
+    /**@brief write the solution to vtu file. */
+    void writeBlocksToBinary(double **evolZipVarIn, double **constrZipVarIn,
+                             unsigned int numEvolVars,
+                             unsigned int numConstVars,
+                             const unsigned int *evolVarIndices,
+                             const unsigned int *constVarIndices);
+
     /**@brief: Implementation of the base class time step function*/
     void performSingleIteration();
 

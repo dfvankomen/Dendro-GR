@@ -9,6 +9,10 @@
 
 #include "rk4nlsm.h"
 
+#include "block.h"
+#include "nlsmUtils.h"
+#include "parameters.h"
+
 namespace ode {
 namespace solver {
 
@@ -507,6 +511,213 @@ void RK4_NLSM::writeToVTU(double **evolZipVarIn, double **constrZipVarIn,
 #endif
 
     nlsm::timer::t_ioVtu.stop();
+}
+
+void RK4_NLSM::writeBlocksToBinary(double **evolUZipVarIn,
+                                   double **constrUZipVarIn,
+                                   unsigned int numEvolVars,
+                                   unsigned int numConstVars,
+                                   const unsigned int *evolVarIndices,
+                                   const unsigned int *constVarIndices) {
+    if (!(m_uiMesh->isActive())) return;
+
+    unsigned int rank = m_uiMesh->getMPIRank();
+    unsigned int npes = m_uiMesh->getMPICommSize();
+
+    if (!rank) {
+        char fname_main[256];
+        sprintf(fname_main, "%s_%d.bin.desc",
+                nlsm::NLSM_VTU_FILE_PREFIX.c_str(), m_uiCurrentStep);
+
+        std::ofstream fout_temp(fname_main);
+
+        for (unsigned int pf = 0; pf < npes; pf++) {
+            fout_temp << nlsm::NLSM_VTU_FILE_PREFIX << "_" << m_uiCurrentStep
+                      << "_" << pf << "_" << npes << ".bin" << std::endl;
+        }
+
+        fout_temp.close();
+    }
+
+    Point dmin = m_uiMesh->getDomainMinPt();
+    Point dmax = m_uiMesh->getDomainMaxPt();
+
+    const double invRg = 1.0 / ((double)(1u << m_uiMaxDepth));
+
+    int retval;
+
+    char fname[256];
+    char str[2048];
+
+    const ot::Block *blkList = m_uiMesh->getLocalBlockList().data();
+    const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
+
+    unsigned int offset;
+    double ptmin[3], ptmax[3];
+    unsigned int sz[3];
+    double dx, dy, dz;
+    const unsigned int PW = nlsm::NLSM_PADDING_WIDTH;
+
+    const Point pt_min(nlsm::NLSM_COMPD_MIN[0], nlsm::NLSM_COMPD_MIN[1],
+                       nlsm::NLSM_COMPD_MIN[2]);
+    const Point pt_max(nlsm::NLSM_COMPD_MAX[0], nlsm::NLSM_COMPD_MAX[1],
+                       nlsm::NLSM_COMPD_MAX[2]);
+
+    int nPointsBlock = (nlsm::NLSM_ELE_ORDER + 1) * (nlsm::NLSM_ELE_ORDER + 1) *
+                       (nlsm::NLSM_ELE_ORDER + 1);
+
+    double *outputBuffer = (double *)malloc(sizeof(double) * nPointsBlock);
+
+    sprintf(fname, "%s_%d_%d_%d.bin", nlsm::NLSM_VTU_FILE_PREFIX.c_str(),
+            m_uiCurrentStep, rank, npes);
+
+    std::ofstream fout(fname, std::ios::binary);
+
+    // print some header information
+    fout.write(reinterpret_cast<const char *>(&rank), sizeof(rank));
+    fout.write(reinterpret_cast<const char *>(&npes), sizeof(npes));
+
+    fout.write(reinterpret_cast<const char *>(&numEvolVars),
+               sizeof(numEvolVars));
+    fout.write(reinterpret_cast<const char *>(&numConstVars),
+               sizeof(numConstVars));
+
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MIN[0]),
+               sizeof(nlsm::NLSM_COMPD_MIN[0]));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MIN[1]),
+               sizeof(nlsm::NLSM_COMPD_MIN[1]));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MIN[2]),
+               sizeof(nlsm::NLSM_COMPD_MIN[2]));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MAX[0]),
+               sizeof(nlsm::NLSM_COMPD_MAX[0]));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MAX[1]),
+               sizeof(nlsm::NLSM_COMPD_MAX[1]));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_COMPD_MAX[2]),
+               sizeof(nlsm::NLSM_COMPD_MAX[2]));
+
+    fout.write(reinterpret_cast<const char *>(&numBlocks), sizeof(numBlocks));
+    fout.write(reinterpret_cast<const char *>(&nlsm::NLSM_ELE_ORDER),
+               sizeof(nlsm::NLSM_ELE_ORDER));
+
+    // ALL OF THIS TO GET THE NAMES WE'RE DUMPING!
+    std::vector<std::string> pDataNames;
+    for (unsigned int i = 0; i < numEvolVars; i++) {
+        pDataNames.push_back(
+            std::string(nlsm::NLSM_VAR_NAMES[evolVarIndices[i]]));
+    }
+    // for (unsigned int i = 0; i < numConstVars; i++) {
+    //     pDataNames.push_back(
+    //         std::string(nlsm::NLSM_CONST_NAMES[constVarIndices[i]]));
+    // }
+
+    std::vector<char *> pDataNames_char;
+    pDataNames_char.reserve(pDataNames.size());
+
+    for (unsigned int i = 0; i < pDataNames.size(); i++) {
+        std::string tmpstr = pDataNames[i];
+        unsigned int size = tmpstr.size();
+        fout.write(reinterpret_cast<const char *>(&size), sizeof(size));
+        fout.write(reinterpret_cast<const char *>(&tmpstr[0]), size);
+    }
+
+    for (unsigned int blk = 0; blk < numBlocks; blk++) {
+        offset = blkList[blk].getOffset();
+        sz[0] = blkList[blk].getAllocationSzX();
+        sz[1] = blkList[blk].getAllocationSzY();
+        sz[2] = blkList[blk].getAllocationSzZ();
+
+        dx = blkList[blk].computeDx(pt_min, pt_max);
+        dy = blkList[blk].computeDy(pt_min, pt_max);
+        dz = blkList[blk].computeDz(pt_min, pt_max);
+        ptmin[0] = GRIDX_TO_X(blkList[blk].getBlockNode().minX()) - PW * dx;
+        ptmin[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().minY()) - PW * dy;
+        ptmin[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().minZ()) - PW * dz;
+        ptmax[0] = GRIDX_TO_X(blkList[blk].getBlockNode().maxX()) + PW * dx;
+        ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
+        ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
+        unsigned int pp;
+
+        // reallocate the size of the output buffer since blocks are likely
+        // different
+        nPointsBlock = (sz[0] - 2 * PW) * (sz[1] - 2 * PW) * (sz[2] - 2 * PW);
+        outputBuffer =
+            (double *)realloc(outputBuffer, sizeof(double) * nPointsBlock);
+
+        // save the block ID number
+        fout.write(reinterpret_cast<const char *>(&blk), sizeof(blk));
+
+        // then make sure we save the size, otherwise we'll have a problem
+        fout.write(reinterpret_cast<const char *>(&sz[0]),
+                   sizeof(unsigned int));
+        fout.write(reinterpret_cast<const char *>(&sz[1]),
+                   sizeof(unsigned int));
+        fout.write(reinterpret_cast<const char *>(&sz[2]),
+                   sizeof(unsigned int));
+
+        // then our dx, dy, and dz
+        fout.write(reinterpret_cast<const char *>(&dx), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&dy), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&dz), sizeof(double));
+
+        // then our ptmins and maxes
+        fout.write(reinterpret_cast<const char *>(&ptmin[0]), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&ptmin[1]), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&ptmin[2]), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&ptmax[0]), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&ptmax[1]), sizeof(double));
+        fout.write(reinterpret_cast<const char *>(&ptmax[2]), sizeof(double));
+
+        for (unsigned int varid = 0; varid < numEvolVars; varid++) {
+            double *varOffset = &evolUZipVarIn[varid][offset];
+
+            // now we can just get the ijk that we want
+            unsigned int currPoint = 0;
+
+            // fill out our buffer
+            for (unsigned int kk = PW; kk < (sz[2] - PW); kk++) {
+                for (unsigned int jj = PW; jj < (sz[1] - PW); jj++) {
+                    for (unsigned int ii = PW; ii < (sz[0] - PW); ii++) {
+                        pp = ii + sz[0] * (jj + sz[1] * kk);
+                        outputBuffer[currPoint] = varOffset[pp];
+
+                        currPoint++;
+                    }
+                }
+            }
+
+            // now write the data
+            fout.write(reinterpret_cast<const char *>(outputBuffer),
+                       sizeof(double) * nPointsBlock);
+        }
+
+        // then we can dump the constraints
+        for (unsigned int varid = 0; varid < numConstVars; varid++) {
+            double *varOffset = &constrUZipVarIn[varid][offset];
+
+            // now we can just get the ijk that we want
+            unsigned int currPoint = 0;
+
+            // fill out our buffer
+            for (unsigned int kk = PW; kk < (sz[2] - PW); kk++) {
+                for (unsigned int jj = PW; jj < (sz[1] - PW); jj++) {
+                    for (unsigned int ii = PW; ii < (sz[0] - PW); ii++) {
+                        pp = ii + sz[0] * (jj + sz[1] * kk);
+                        outputBuffer[currPoint] = varOffset[pp];
+
+                        currPoint++;
+                    }
+                }
+            }
+
+            // now write the data
+            fout.write(reinterpret_cast<const char *>(outputBuffer),
+                       sizeof(double) * nPointsBlock);
+        }
+    }
+
+    fout.close();
+
+    free(outputBuffer);
 }
 
 void RK4_NLSM::performGhostExchangeVars(double **zipIn) {
@@ -1078,6 +1289,10 @@ void RK4_NLSM::rkSolve() {
                        nlsm::NLSM_NUM_EVOL_VARS_VTU_OUTPUT, 0,
                        nlsm::NLSM_VTU_OUTPUT_EVOL_INDICES, NULL);
             // #endif
+            //
+            writeBlocksToBinary(m_uiUnzipVar, m_uiConstraintVars,
+                                nlsm::NLSM_NUM_EVOL_VARS_VTU_OUTPUT, 0,
+                                nlsm::NLSM_VTU_OUTPUT_EVOL_INDICES, NULL);
         }
 
         nlsm::timer::t_rkStep.start();
