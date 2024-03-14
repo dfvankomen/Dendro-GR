@@ -21,6 +21,9 @@
 namespace bssn
 {
 
+    extern unsigned int GLOBAL_STEP_COUNTER;
+    extern unsigned int GLOBAL_RK_STEP_COUNTER;
+
     extern mem::memory_pool<double> BSSN_MEM_POOL;
     /**@brief element order*/
     extern unsigned int BSSN_ELE_ORDER;

@@ -14,6 +14,7 @@
 #include <iostream>
 #include "octUtils.h"
 #include "meshUtils.h"
+#include "parameters.h"
 #include "rkBSSN.h"
 #include "sdc.h"
 #include "bssnCtx.h"
@@ -299,6 +300,10 @@ int main (int argc, char** argv)
           bssnCtx->write_checkpt();
         
         ets->evolve();
+
+            // then update the global counter
+            bssn::GLOBAL_RK_STEP_COUNTER = 0;
+            bssn::GLOBAL_STEP_COUNTER++;
       }
 
       #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__

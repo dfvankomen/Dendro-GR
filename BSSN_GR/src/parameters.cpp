@@ -12,6 +12,9 @@
 namespace bssn
 {
 
+    unsigned int GLOBAL_STEP_COUNTER = 0;
+    unsigned int GLOBAL_RK_STEP_COUNTER = 0;
+
     mem::memory_pool<double> BSSN_MEM_POOL = mem::memory_pool<double>(0,16);
     unsigned int BSSN_ELE_ORDER =6;
     unsigned int BSSN_PADDING_WIDTH=BSSN_ELE_ORDER>>1u;

@@ -32,7 +32,14 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars, const ot::Block* blk
 void bssnrhs(double **uzipVarsRHS, const double **uZipVars,
              const unsigned int &offset,
              const double *ptmin, const double *ptmax, const unsigned int *sz,
-             const unsigned int &bflag);
+             const unsigned int &bflag, const unsigned int &blockid);
+
+
+std::ofstream prepare_file(std::string filename, const unsigned int blockid, const unsigned int *sz, const double *pmin, const double *pmax, const unsigned int bflag);
+
+inline void add_to_file(std::ofstream *file, const double* var, const unsigned int total_size) {
+    file->write((char*)var, sizeof(double) * total_size);
+}
 
 
 // void bssnrhs_sep(double **uzipVarsRHS, const double **uZipVars,
