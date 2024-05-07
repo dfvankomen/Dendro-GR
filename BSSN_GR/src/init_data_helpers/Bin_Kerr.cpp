@@ -60,9 +60,10 @@ double AT11_2;
 double AT12_2;
 double AT22_2;
 
-double offset = bssn::BINARY_SEPARATION;
-double mass   = bssn::BINARY_MASS_1;
-double a_spin = bssn::BINARY_SPIN_1;
+// FIXME: this separation should be calculated from the binary locations!
+double offset = 1.0;
+double mass   = bssn::BH1.getBHMass();
+double a_spin = bssn::BH1.getBHSpin();
 // double mass = emda::EMDA_SINGLE_BH_MASS ;
 // double a_spin = emda::EMDA_SINGLE_BH_SPIN ;
 double rbar;
@@ -210,8 +211,8 @@ if (std::isnan(rbar)) {
     foundNaN = true;
 }
 
-double mass_2   = bssn::BINARY_MASS_2;
-double a_spin_2 = bssn::BINARY_SPIN_2;
+double mass_2   = bssn::BH2.getBHMass();
+double a_spin_2 = bssn::BH2.getBHSpin();
 // double mass_2 = emda::EMDA_SINGLE_BH_mass_2 ;
 // double a_spin_2 = emda::EMDA_SINGLE_BH_SPIN ;
 double rbar_2;
