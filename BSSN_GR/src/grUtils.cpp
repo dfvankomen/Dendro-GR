@@ -214,8 +214,25 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"];
     }
 
-    if (parFile.find("BSSN_VTU_Z_SLICE_ONLY") != parFile.end())
-        bssn::BSSN_VTU_Z_SLICE_ONLY = parFile["BSSN_VTU_Z_SLICE_ONLY"];
+    if (parFile.find("BSSN_VTU_X_SLICE") != parFile.end())
+        bssn::BSSN_VTU_X_SLICE = parFile["BSSN_VTU_X_SLICE"];
+
+    if (parFile.find("BSSN_VTU_Y_SLICE") != parFile.end())
+        bssn::BSSN_VTU_Y_SLICE = parFile["BSSN_VTU_Y_SLICE"];
+
+    if (parFile.find("BSSN_VTU_Z_SLICE") != parFile.end())
+        bssn::BSSN_VTU_Z_SLICE = parFile["BSSN_VTU_Z_SLICE"];
+
+    if (parFile.find("BSSN_VTU_Z_SLICE_ONLY") != parFile.end()) {
+        bssn::BSSN_VTU_X_SLICE = false;
+        bssn::BSSN_VTU_Y_SLICE = false;
+        if (parFile["BSSN_VTU_Z_SLICE_ONLY"]) {
+            // force override if the file has Z_slice only!
+            bssn::BSSN_VTU_Z_SLICE = true;
+        } else {
+            bssn::BSSN_VTU_Z_SLICE = false;
+        }
+    }
 
     if (parFile.find("BSSN_GW_EXTRACT_FREQ") != parFile.end()) {
         bssn::BSSN_GW_EXTRACT_FREQ = parFile["BSSN_GW_EXTRACT_FREQ"];
@@ -459,9 +476,12 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW
              << "\tBSSN_PROFILE_FILE_PREFIX :" << bssn::BSSN_PROFILE_FILE_PREFIX
              << NRM << std::endl;
-        sout << YLW
-             << "\tBSSN_VTU_Z_SLICE_ONLY :" << bssn::BSSN_VTU_Z_SLICE_ONLY
-             << NRM << std::endl;
+        sout << YLW << "\tBSSN_VTU_X_SLICE :" << bssn::BSSN_VTU_X_SLICE << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_VTU_Y_SLICE :" << bssn::BSSN_VTU_Y_SLICE << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_VTU_Z_SLICE :" << bssn::BSSN_VTU_Z_SLICE << NRM
+             << std::endl;
         sout << YLW << "\tBSSN_IO_OUTPUT_GAP :" << bssn::BSSN_IO_OUTPUT_GAP
              << NRM << std::endl;
         sout << YLW << "\tBSSN_DENDRO_GRAIN_SZ :" << bssn::BSSN_DENDRO_GRAIN_SZ

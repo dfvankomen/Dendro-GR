@@ -1575,7 +1575,7 @@ void RK_BSSN::rkSolve() {
                            bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT,
                            bssn::BSSN_VTU_OUTPUT_EVOL_INDICES,
                            bssn::BSSN_VTU_OUTPUT_CONST_INDICES,
-                           bssn::BSSN_VTU_Z_SLICE_ONLY);
+                           bssn::BSSN_VTU_Z_SLICE);
 #endif
 
 #ifdef BSSN_EXTRACT_BH_LOCATIONS

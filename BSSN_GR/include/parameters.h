@@ -338,8 +338,14 @@ extern RefinementMode BSSN_REFINEMENT_MODE;
  * initial grid converge */
 extern bool BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE;
 
+/**@brief: if true output only the x slice*/
+extern bool BSSN_VTU_X_SLICE;
+
+/**@brief: if true output only the y slice*/
+extern bool BSSN_VTU_Y_SLICE;
+
 /**@brief: if true output only the z slice*/
-extern bool BSSN_VTU_Z_SLICE_ONLY;
+extern bool BSSN_VTU_Z_SLICE;
 
 /**@brief TS off set for LTS in BSSN*/
 extern unsigned int BSSN_LTS_TS_OFFSET;

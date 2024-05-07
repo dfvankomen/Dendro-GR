@@ -160,7 +160,9 @@ RefinementMode BSSN_REFINEMENT_MODE             = RefinementMode::WAMR;
 
 bool BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE = false;
 
-bool BSSN_VTU_Z_SLICE_ONLY                      = true;
+bool BSSN_VTU_X_SLICE                           = false;
+bool BSSN_VTU_Y_SLICE                           = false;
+bool BSSN_VTU_Z_SLICE                           = true;
 
 unsigned int BSSN_LTS_TS_OFFSET                 = 4;
 
@@ -328,9 +330,25 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     if (parFile.contains("BSSN_CFL_FACTOR"))
         bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"].as_floating();
 
-    if (parFile.contains("BSSN_VTU_Z_SLICE_ONLY"))
-        bssn::BSSN_VTU_Z_SLICE_ONLY =
-            parFile["BSSN_VTU_Z_SLICE_ONLY"].as_boolean();
+    if (parFile.contains("BSSN_VTU_X_SLICE"))
+        bssn::BSSN_VTU_X_SLICE = parFile["BSSN_VTU_X_SLICE"].as_boolean();
+
+    if (parFile.contains("BSSN_VTU_Y_SLICE"))
+        bssn::BSSN_VTU_Y_SLICE = parFile["BSSN_VTU_Y_SLICE"].as_boolean();
+
+    if (parFile.contains("BSSN_VTU_Z_SLICE"))
+        bssn::BSSN_VTU_Z_SLICE = parFile["BSSN_VTU_Z_SLICE"].as_boolean();
+
+    if (parFile.contains("BSSN_VTU_Z_SLICE_ONLY")) {
+        bssn::BSSN_VTU_X_SLICE = false;
+        bssn::BSSN_VTU_Y_SLICE = false;
+        if (parFile["BSSN_VTU_Z_SLICE_ONLY"].as_boolean()) {
+            // force override if the file has Z_slice only!
+            bssn::BSSN_VTU_Z_SLICE = true;
+        } else {
+            bssn::BSSN_VTU_Z_SLICE = false;
+        }
+    }
 
     if (parFile.contains("BSSN_GW_EXTRACT_FREQ"))
         bssn::BSSN_GW_EXTRACT_FREQ =
