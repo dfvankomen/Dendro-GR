@@ -2124,6 +2124,34 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             const double lg_eps =
                 std::log10(eps_disable) + slope * (T_CURRENT - t_lim);
             return std::pow(10.0, lg_eps);
+
+    } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 7) {
+        const double r = sqrt(x * x + y * y + z * z);
+        Point grid_p(x, y, z);
+        const double T_CURRENT = bssn::BSSN_CURRENT_RK_COORD_TIME;
+        if (T_CURRENT - bssn::TEUK_WIDTH < bssn::TEUK_R_0) {
+            if (r >= bssn::TEUK_R_0 + bssn::TEUK_WIDTH - T_CURRENT) {
+                const double W_RR = bssn::BSSN_WAVELET_TOL_MAX;
+                double WTOL_EXP_FAC =
+                    (r - bssn::TEUK_WIDTH - bssn::TEUK_R_0 + T_CURRENT) /
+                    std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
+                return std::min(
+                    bssn::BSSN_WAVELET_TOL_MAX,
+                    ((std::pow(10, WTOL_EXP_FAC)) * bssn::BSSN_WAVELET_TOL));
+            }
+            if (bssn::TEUK_R_0 - bssn::TEUK_WIDTH - T_CURRENT < r &&
+                r < TEUK_R_0 + bssn::TEUK_WIDTH - T_CURRENT) {
+                return bssn::BSSN_WAVELET_TOL;
+            } else {
+                return bssn::BSSN_WAVELET_TOL_MAX;
+            }
+        } else {
+            const double W_RR = bssn::BSSN_WAVELET_TOL_MAX;
+            double WTOL_EXP_FAC =
+                (r) / std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
+            return std::min(
+                bssn::BSSN_WAVELET_TOL_MAX,
+                ((std::pow(10, WTOL_EXP_FAC)) * bssn::BSSN_WAVELET_TOL));
         }
     } else {
         // return global wavelet tolerance, irrespective of position
