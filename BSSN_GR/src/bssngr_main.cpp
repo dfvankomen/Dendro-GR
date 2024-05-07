@@ -231,30 +231,36 @@ bssn:
         if (!rank)
             std::cout << YLW << "Using function2Octree. AMR enabled " << NRM
                       << std::endl;
-        const unsigned int f2olmin =
-            std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
-        if (f2olmin < MAXDEAPTH_LEVEL_DIFF + 2) {
-            if (!rank)
-                std::cout << "BH min level should be larger than "
-                          << (MAXDEAPTH_LEVEL_DIFF + 2) << std::endl;
 
-            MPI_Abort(comm, 0);
-        }
-
-        std::function<void(double, double, double, double*)>* f_init_use;
-
-        // TODO: Need to add some custom logic here to determine if
-        // function2Octree should use flat initialization or
-        //
-        if (true) {
-            f_init_use = &f_init;
+        // f2olmin is like the max depth we want to refine to.
+        // if we don't have two puncture initial data, then it should just be
+        // the max depth
+        unsigned int maxDepthIn;
+        if (bssn::BSSN_ID_TYPE != 0) {
+            // max depth in to the function2Octree must be 3 less than the max
+            // depth
+            maxDepthIn = m_uiMaxDepth - 3;
         } else {
-            f_init_use = &f_init_flat;
+            const unsigned int f2olmin =
+                std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
+            if (!rank) {
+                std::cout << "f2olmin is: " << f2olmin << std::endl;
+            }
+            if (f2olmin < MAXDEAPTH_LEVEL_DIFF + 2) {
+                if (!rank) {
+                    std::cout << "BH min level should be larger than "
+                              << (MAXDEAPTH_LEVEL_DIFF + 2) << std::endl;
+                }
+
+                MPI_Abort(comm, 0);
+            }
+
+            maxDepthIn = (f2olmin - MAXDEAPTH_LEVEL_DIFF - 2);
         }
 
-        function2Octree(*f_init_use, bssn::BSSN_NUM_VARS, varIndex, interpVars,
-                        tmpNodes, (f2olmin - MAXDEAPTH_LEVEL_DIFF - 2),
-                        bssn::BSSN_WAVELET_TOL, bssn::BSSN_ELE_ORDER, comm);
+        function2Octree(f_init, bssn::BSSN_NUM_VARS, varIndex, interpVars,
+                        tmpNodes, maxDepthIn, bssn::BSSN_WAVELET_TOL,
+                        bssn::BSSN_ELE_ORDER, comm);
     }
 
     ot::Mesh* mesh =
