@@ -268,6 +268,9 @@ extern double BSSN_LAMBDA_F[2];
 extern double BSSN_ETA_R0;
 extern double BSSN_ETA_POWER[2];
 
+/**brief : parameters to set gauge choices for alpha*/
+extern double BSSN_A_LAMBDA[3];
+
 /**@brief : parameters for RIT eta_damping function */
 extern unsigned int RIT_ETA_FUNCTION;
 extern double RIT_ETA_OUTER;
@@ -291,6 +294,9 @@ extern double ETA_DAMPING_EXP;
 
 /**@brief: chi floor value */
 extern double CHI_FLOOR;
+
+/**@brief: ALPHA floor value */
+extern double ALPHA_FLOOR;
 
 /**@brief: dissipation type */
 extern unsigned int DISSIPATION_TYPE;

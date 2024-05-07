@@ -113,6 +113,7 @@ double BSSN_RK45_TIME_STEP_SIZE = BSSN_CFL_FACTOR *
                                   (1.0 / (double)(1u << BSSN_MAXDEPTH));
 
 unsigned int BSSN_LAMBDA[4]                              = {1, 1, 1, 1};
+double BSSN_A_LAMBDA[3]                                  = {0.0, 2.0, 0.0};
 double BSSN_LAMBDA_F[2]                                  = {1.0, 0.0};
 double BSSN_TRK0                                         = 0.0;
 double ETA_CONST                                         = 2.0;
@@ -120,6 +121,7 @@ double ETA_R0                                            = 50.0;
 double ETA_DAMPING                                       = 1.0;
 double ETA_DAMPING_EXP                                   = 1.0;
 double CHI_FLOOR                                         = 0.1;
+double ALPHA_FLOOR                                       = 1e-6;
 double KO_DISS_SIGMA                                     = 0.01;
 
 unsigned int RIT_ETA_FUNCTION                            = 1;
@@ -282,14 +284,27 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_LAMBDA_F[0] = parFile["BSSN_LAMBDA_F"][0].as_floating();
     bssn::BSSN_LAMBDA_F[1] = parFile["BSSN_LAMBDA_F"][1].as_floating();
 
-    bssn::BSSN_XI[0]       = (unsigned int)parFile["BSSN_XI"][0].as_integer();
-    bssn::BSSN_XI[1]       = (unsigned int)parFile["BSSN_XI"][1].as_integer();
-    bssn::BSSN_XI[2]       = (unsigned int)parFile["BSSN_XI"][2].as_integer();
+    if (parFile.contains("BSSN_A_LAMBDA")) {
+        bssn::BSSN_A_LAMBDA[0] = parFile["BSSN_A_LAMBDA"][0].as_integer();
+        bssn::BSSN_A_LAMBDA[1] = parFile["BSSN_A_LAMBDA"][1].as_integer();
+        bssn::BSSN_A_LAMBDA[2] = parFile["BSSN_A_LAMBDA"][2].as_integer();
+    }
+
+    bssn::BSSN_XI[0] = (unsigned int)parFile["BSSN_XI"][0].as_integer();
+    bssn::BSSN_XI[1] = (unsigned int)parFile["BSSN_XI"][1].as_integer();
+    bssn::BSSN_XI[2] = (unsigned int)parFile["BSSN_XI"][2].as_integer();
 
     if (parFile.contains("BSSN_ELE_ORDER"))
         bssn::BSSN_ELE_ORDER = parFile["BSSN_ELE_ORDER"].as_integer();
 
     bssn::CHI_FLOOR = parFile["CHI_FLOOR"].as_floating();
+
+    if (parFile.contains("ALPHA_FLOOR")) {
+        bssn::ALPHA_FLOOR = parFile["ALPHA_FLOOR"].as_floating();
+    } else {
+        bssn::ALPHA_FLOOR = bssn::CHI_FLOOR;
+    }
+
     bssn::BSSN_TRK0 = parFile["BSSN_TRK0"].as_floating();
     if (parFile.contains("DISSIPATION_TYPE"))
         bssn::DISSIPATION_TYPE = parFile["DISSIPATION_TYPE"].as_integer();

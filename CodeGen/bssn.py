@@ -15,6 +15,8 @@ from sympy import *
 l1, l2, l3, l4, eta = symbols("lambda[0] lambda[1] lambda[2] lambda[3] eta")
 lf0, lf1 = symbols("lambda_f[0] lambda_f[1]")
 
+al0, al1, al2 = symbols("A_lambda[0] A_lambda[1] A_lambda[2]")
+
 # Additional parameters for damping term
 R0 = symbols("BSSN_ETA_R0")
 ep1, ep2 = symbols("BSSN_ETA_POWER[0] BSSN_ETA_POWER[1]")
@@ -68,7 +70,9 @@ eta_func = (
 )
 
 
-def bssn_puncture_gauge(eta_damp, isStaged=False, prefix="", sslGaugeCondition=False):
+def bssn_puncture_gauge(
+    eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, useALambda=True
+):
     """
     BSSN puncture gauge (HAD/ traditional BSSN puncture gaugue) with const eta damping
     """
@@ -80,17 +84,18 @@ def bssn_puncture_gauge(eta_damp, isStaged=False, prefix="", sslGaugeCondition=F
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             W = chi**0.5
             h = 0.6
             sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            a_rhs -= -W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
@@ -241,17 +246,18 @@ def bssn_puncture_gauge(eta_damp, isStaged=False, prefix="", sslGaugeCondition=F
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             W = chi**0.5
             h = 0.6
             sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            a_rhs -= -W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
@@ -408,17 +414,18 @@ def bssn_rochester_puncture_gauge(
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             W = chi**0.5
             h = 0.6
             sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            a_rhs -= -W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (
@@ -554,17 +561,18 @@ def bssn_rochester_puncture_gauge(
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             W = chi**0.5
             h = 0.6
             sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            a_rhs -= -W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (

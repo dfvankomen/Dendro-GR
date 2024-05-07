@@ -153,14 +153,30 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_LAMBDA_F[0] = parFile["BSSN_LAMBDA_F"]["BSSN_LAMBDA_F0"];
     bssn::BSSN_LAMBDA_F[1] = parFile["BSSN_LAMBDA_F"]["BSSN_LAMBDA_F1"];
 
-    bssn::BSSN_XI[0]       = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_0"];
-    bssn::BSSN_XI[1]       = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_1"];
-    bssn::BSSN_XI[2]       = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_2"];
+    if (parFile.find("BSSN_A_LAMBDA") != parFile.end()) {
+        bssn::BSSN_A_LAMBDA[0] =
+            (unsigned int)parFile["BSSN_A_LAMBDA"]["BSSN_A_LAMBDA_1"];
+        bssn::BSSN_A_LAMBDA[1] =
+            (unsigned int)parFile["BSSN_A_LAMBDA"]["BSSN_A_LAMBDA_2"];
+        bssn::BSSN_A_LAMBDA[2] =
+            (unsigned int)parFile["BSSN_A_LAMBDA"]["BSSN_A_LAMBDA_3"];
+    }
+
+    bssn ::BSSN_XI[0] = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_0"];
+    bssn::BSSN_XI[1]  = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_1"];
+    bssn::BSSN_XI[2]  = (unsigned int)parFile["BSSN_XI"]["BSSN_XI_2"];
 
     if (parFile.find("BSSN_ELE_ORDER") != parFile.end())
         bssn::BSSN_ELE_ORDER = parFile["BSSN_ELE_ORDER"];
 
     bssn::CHI_FLOOR = parFile["CHI_FLOOR"];
+
+    if (parFile.find("ALPHA_FLOOR") != parFile.end()) {
+        bssn::ALPHA_FLOOR = parFile["ALPHA_FLOOR"];
+    } else {
+        bssn::ALPHA_FLOOR = bssn::CHI_FLOOR;
+    }
+
     bssn::BSSN_TRK0 = parFile["BSSN_TRK0"];
     if (parFile.find("DISSIPATION_TYPE") != parFile.end()) {
         bssn::DISSIPATION_TYPE = parFile["DISSIPATION_TYPE"];
@@ -555,12 +571,17 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tBSSN_LAMBDA : (" << bssn::BSSN_LAMBDA[0] << " ,"
              << bssn::BSSN_LAMBDA[1] << "," << bssn::BSSN_LAMBDA[2]
              << bssn::BSSN_LAMBDA[3] << " )" << NRM << std::endl;
+        sout << YLW << "\tBSSN_A_LAMBDA : (" << bssn::BSSN_A_LAMBDA[0] << " ,"
+             << bssn::BSSN_A_LAMBDA[1] << " ," << bssn::BSSN_A_LAMBDA[2] << ")"
+             << NRM << std::endl;
         sout << YLW << "\tBSSN_LAMBDA_F : (" << bssn::BSSN_LAMBDA_F[0] << " ,"
              << bssn::BSSN_LAMBDA_F[1] << " )" << NRM << std::endl;
         sout << YLW << "\tBSSN_XI : (" << bssn::BSSN_XI[0] << " ,"
              << bssn::BSSN_XI[1] << " ," << bssn::BSSN_XI[2] << " )" << NRM
              << std::endl;
         sout << YLW << "\tCHI_FLOOR :" << bssn::CHI_FLOOR << NRM << std::endl;
+        sout << YLW << "\tALPHA_FLOOR :" << bssn::ALPHA_FLOOR << NRM
+             << std::endl;
         sout << YLW << "\tBSSN_TRK0 :" << bssn::BSSN_TRK0 << NRM << std::endl;
         sout << YLW << "\tDISSIPATION_TYPE :" << bssn::DISSIPATION_TYPE << NRM
              << std::endl;

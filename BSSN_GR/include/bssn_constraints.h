@@ -4,6 +4,11 @@
 #include "grDef.h"
 #include "grUtils.h"
 #include "parameters.h"
+
+#define ENABLE_METRIC_CHECK_EXIT       0
+#define ENABLE_DET_GT_EXIT             0
+#define MAKE_ALPHA_FLOOR_ONLY_POSITIVE 1
+
 using namespace bssn;
 
 /*----------------------------------------------------------------------;
@@ -44,9 +49,10 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
 
     if (det_gtd < 0.0) {
         std::cout << "metric determinent is negative " << det_gtd << std::endl;
+#if ENABLE_METRIC_CHECK_EXIT
         exit(0);
-        /* FIXME What to do here? The metric is not physical. Do we reset the
-         * metric to be flat? */
+        /* FIXME What to do here? The metric is not
+         * physical. Do we reset the metric to be flat? */
         gtd[0][0] = 1.0;
         gtd[0][1] = 0.0;
         gtd[0][2] = 0.0;
@@ -75,7 +81,8 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
 
     if (fabs(detgt_m1) > 1.0e-6) {
         std::cout.precision(14);
-        std::cout << "enforce_bssn_constraint: det(gtd) != 1. det="
+        std::cout << "enforce_bssn_constraint: det(gtd) != "
+                     "1. det="
                   << std::fixed << det_gtd << std::endl;
         std::cout << "      gtd(1,1)=" << gtd[0][0] << std::endl;
         std::cout << "      gtd(1,2)=" << gtd[0][1] << std::endl;
@@ -84,7 +91,9 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         std::cout << "      gtd(2,3)=" << gtd[1][2] << std::endl;
         std::cout << "      gtd(3,3)=" << gtd[2][2] << std::endl;
 
+#if ENABLE_DET_GT_EXIT
         exit(0);
+#endif
     }
 
     double gtu[3][3];
@@ -147,17 +156,20 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
 
     /* apply a floor to chi */
     if (uiVar[VAR::U_CHI][node] < CHI_FLOOR) {
-        /* FIXME This needs to be fixed when we add a fluid to the code. */
+        /* FIXME This needs to be fixed when we add a fluid
+         * to the code. */
         /* ! First rescale the densitized fluid variables.
-            ! The include file bssn_puncture_fluid_rescale.inc
-            ! must be provided in the BSSN_*MHD project.
+            ! The include file
+           bssn_puncture_fluid_rescale.inc ! must be
+           provided in the BSSN_*MHD project.
 
-            ! Chi must be positive to do the rescaling of fluid variables.
-            if ( chi <= 0.0) {
-                chi = pars.chi_floor;
+            ! Chi must be positive to do the rescaling of
+           fluid variables. if ( chi <= 0.0) { chi =
+           pars.chi_floor;
             }
             else {
-                // ok... go ahead and rescale the fluid variables.
+                // ok... go ahead and rescale the fluid
+           variables.
             }
 
 
@@ -168,5 +180,16 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     }
 
     /* apply a floor to alpha */
-    uiVar[VAR::U_ALPHA][node] = std::max(uiVar[VAR::U_ALPHA][node], CHI_FLOOR);
+#if MAKE_ALPHA_FLOOR_ONLY_POSITIVE
+    uiVar[VAR::U_ALPHA][node] =
+        std::max(uiVar[VAR::U_ALPHA][node], ALPHA_FLOOR);
+#else
+    if (uiVar[VAR::U_ALPHA][node] > 0) {
+        uiVar[VAR::U_ALPHA][node] =
+            std::max(uiVar[VAR::U_ALPHA][node], ALPHA_FLOOR);
+    } else if (uiVar[VAR::U_ALPHA][node] < 0) {
+        uiVar[VAR::U_ALPHA][node] =
+            std::min(uiVar[VAR::U_ALPHA][node], -1.0 * ALPHA_FLOOR);
+    }
+#endif
 }

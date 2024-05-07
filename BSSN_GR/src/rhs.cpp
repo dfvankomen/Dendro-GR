@@ -153,6 +153,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     const unsigned int lambda[4]         = {BSSN_LAMBDA[0], BSSN_LAMBDA[1],
                                             BSSN_LAMBDA[2], BSSN_LAMBDA[3]};
+
+    const double A_lambda[3]             = {BSSN_A_LAMBDA[0], BSSN_A_LAMBDA[1],
+                                            BSSN_A_LAMBDA[2]};
+
     const double lambda_f[2]             = {BSSN_LAMBDA_F[0], BSSN_LAMBDA_F[1]};
 
     int idx[3];
@@ -249,7 +253,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
       #include "bssneqs_eta_func_standard_gauge.cpp"
     #else
       #pragma message("BSSN: using const eta damping")
-      #include "bssneqs_eta_const_standard_gauge.cpp"
+      // #include "bssneqs_eta_const_standard_gauge.cpp"
+      #include "bssneqs_eta_const_standard_gauge+.cpp"
     #endif
   #endif
 // END IF for USE_SSL GAUGE
