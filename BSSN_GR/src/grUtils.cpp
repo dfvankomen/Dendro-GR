@@ -759,6 +759,81 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
             sout << YLW << "\t\tBSSN_PSILON_CAKO_OTHER: "
                  << bssn::BSSN_EPSILON_CAKO_OTHER << NRM << std::endl;
         }
+
+        if (bssn::BSSN_ID_TYPE == 7 ||
+            bssn::BSSN_ID_TYPE == 9) {  // If Teukolsky print TEUK
+            // parameters
+            sout << "//////////////TEUKOLSKY "
+                    "PARAMETERS/////////////////////\n"
+                 << std::endl;
+            sout << "\tGuage: ";
+            switch (bssn::TEUK_GAUGE) {
+                case 0:
+                    sout << "Transverse Traceless" << std::endl;
+                    break;
+                case 1:
+                    sout << "LATE" << std::endl;
+                    break;
+            }
+            sout << "\tDynamics Type: ";
+            switch (TEUK_ID_DYNAMICS_TYPE) {
+                case 0:
+                    sout << "Time symmetric" << std::endl;
+                    break;
+                case 1:
+                    sout << "Ingoing" << std::endl;
+                    break;
+                case 2:
+                    sout << "Outgoing" << std::endl;
+                    break;
+                case 3:
+                    sout << "Time anti-symmetric" << std::endl;
+                    break;
+                case 4:
+                    sout << "General" << std::endl;
+                    break;
+            }
+            sout << "\tMultipole Parity:";
+            switch (MULTIPOLE_PARITY) {
+                case 0:
+                    sout << "even" << std::endl;
+                    break;
+                case 1:
+                    sout << "odd" << std::endl;
+                    break;
+            }
+            sout << "\tFunctional Form: ";
+            switch (TEUK_ID_FUNCTIONAL_FORM) {
+                case 0:
+                    sout << "Ck Polynomial of order " << TEUK_KK << std::endl;
+                    break;
+                case 1:
+                    sout << "Guassian" << std::endl;
+                    break;
+                case 2:
+                    sout << "Bump Function" << std::endl;
+                    break;
+            }
+            sout << "\tAmplitude: " << TEUK_AMP << std::endl;
+            sout << "\tR0: " << TEUK_R_0 << std::endl;
+            sout << "\tHalf Width: " << TEUK_WIDTH << std::endl;
+            sout << "\tl mode: " << TEUK_L_MODE << std::endl;
+            sout << "\tm mode: " << TEUK_M_MODE << std::endl;
+            sout << "\tRefinement_R0: " << TEUK_REFINEMENT_R0 << std::endl;
+
+            sout << "\n////////////////////////////////////////////////////"
+                    "///\n"
+                 << std::endl;
+        }
+        if (bssn::BSSN_ID_TYPE == 11) {
+            sout << "//////////////BINARY PARAMETERS/////////////////////\n";
+
+            sout << "//////////////BLACK HOLE 1 PARAMETERS "
+                    "PARAMETERS/////////////////////\n";
+
+            sout << "//////////////BLACK HOLE 2 PARAMETERS "
+                    "PARAMETERS/////////////////////\n";
+        }
     }
 }
 
@@ -827,12 +902,33 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
             break;
 
         case 5:
-        // minkowski initial data is flat space!
-        bssn:
-            minkowskiInitialData(xx_grid, yy_grid, zz_grid, var);
-
+            bssn::SchwarzschildData(xx_grid, yy_grid, zz_grid, var);
             break;
-            // MORE CAN BE ADDED HERE
+
+        case 6:
+            bssn::kerrData(xx_grid, yy_grid, zz_grid, var);
+            break;
+
+        case 7:
+            bssn::TeukData(xx_grid, yy_grid, zz_grid, var);
+            break;
+
+        case 8:
+            bssn::SCData(xx_grid, yy_grid, zz_grid, var);
+            break;
+
+        case 9:
+            bssn::NLTeukData(xx_grid, yy_grid, zz_grid, var);
+            break;
+
+        case 11:
+            bssn::Bin_KerrData(xx_grid, yy_grid, zz_grid, var);
+            break;
+
+        case 10:
+            // minkowski initial data is flat space!
+            minkowskiInitialData(xx_grid, yy_grid, zz_grid, var);
+            break;
 
         default:
             int rank;
@@ -1078,7 +1174,7 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
 
     var[VAR::U_ALPHA] = 1.0 / (vpsibl_u * vpsibl_u);
     // std::cout<<"Alpha: "<<u[U_ALPHA]<<" vpsibl_u: "<< vpsibl_u<<std::endl;
-    var[VAR::U_ALPHA] = std::max(var[VAR::U_ALPHA], CHI_FLOOR);
+    var[VAR::U_ALPHA] = std::max(var[VAR::U_ALPHA], ALPHA_FLOOR);
 
     v2                = 1.0 / pow(vpsibl_u, 4);
     var[VAR::U_CHI]   = v2;
@@ -1272,6 +1368,253 @@ void KerrSchildData(const double xx1, const double yy1, const double zz1,
             var[VAR::U_SYMAT4] = -(((1.0/5.0+M/(10.0*rv1))*sqrt(rv1/(M/5.0+rv1))*x1*y1)/(50.0*sqrt(10.0)*M*rv1)+(M*M*sqrt(rv1/(M/5.0+rv1))*(3.0*M/10.0*rv1)*y1*z1)/(750.0*sqrt(10.0)*rv1*rv1*(M/5.0*rv1)))/pow(0.1+M/(50.0*rv1),1.0/3.0); //YZ
             var[VAR::U_SYMAT5] = (sqrt(rv1/(M/5.0+rv1))*(rv1-(1.0/5.0+M/(10.0*rv1))*z1*z1)-M*sqrt(rv1/(M/5.0+rv1))*(3.0*M/10.0+rv1)*(1.0/10.0+M*x1*x1/(50.0*rv1*rv1))/(150.0*sqrt(10.0)*(M/5.0+rv1)*rv1))/pow(0.1+M/(50.0*rv1),1.0/3.0); //ZZ
 #endif
+}
+
+void SchwarzschildData(const double xx1, const double yy1, const double zz1,
+                       double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "init_data_helpers/SC_vars.cpp"
+#include "init_data_helpers/schwarzschildInit.cpp"
+}
+
+void SCData(const double xx1, const double yy1, const double zz1, double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+    // TODO: FIXME: thanks
+    // #include "init_data_helpers/SC_init.cpp"
+    // #include "init_data_helpers/SC_vars.cpp"
+}
+
+void kerrData(const double xx1, const double yy1, const double zz1,
+              double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "init_data_helpers/Kerr.cpp"
+#include "init_data_helpers/kerr_vars.cpp"
+}
+void TeukData(const double xx1, const double yy1, const double zz1,
+              double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "init_data_helpers/Teuk_vars.cpp"
+#include "init_data_helpers/Teukolsky.init.cpp"
+
+    var[VAR::U_ALPHA]  = 1.0;
+    var[VAR::U_BETA0]  = 0.0;
+    var[VAR::U_BETA1]  = 0.0;
+    var[VAR::U_BETA2]  = 0.0;
+
+    var[VAR::U_B0]     = 0.0;
+    var[VAR::U_B1]     = 0.0;
+    var[VAR::U_B2]     = 0.0;
+
+    var[VAR::U_GT0]    = 0.0;
+    var[VAR::U_GT1]    = 0.0;
+    var[VAR::U_GT2]    = 0.0;
+
+    var[VAR::U_SYMGT0] = g_xx;
+    var[VAR::U_SYMGT1] = g_xy;
+    var[VAR::U_SYMGT2] = g_xz;
+    var[VAR::U_SYMGT3] = g_yy;
+    var[VAR::U_SYMGT4] = g_yz;
+    var[VAR::U_SYMGT5] = g_zz;
+
+    //	var[VAR::U_G00] = g_xx;
+    //	var[VAR::U_G01] = g_xy;
+    //	var[VAR::U_G02] = g_xz;
+    //	var[VAR::U_G11] = g_yy;
+    //	var[VAR::U_G12] = g_yz;
+    //	var[VAR::U_G22] = g_zz;
+
+    var[VAR::U_SYMAT0] = 0.0;
+    var[VAR::U_SYMAT1] = 0.0;
+    var[VAR::U_SYMAT2] = 0.0;
+    var[VAR::U_SYMAT3] = 0.0;
+    var[VAR::U_SYMAT4] = 0.0;
+    var[VAR::U_SYMAT5] = 0.0;
+
+    var[VAR::U_CHI]    = 1.0;
+    var[VAR::U_K]      = 0.0;
+    //	var[VAR::U_THETA] = 0.0;
+
+    //	var[VAR::U_FLAG] = 0.0;
+    //	var[VAR::U_TUU00] = 0.0;
+    //	var[VAR::U_TUU01] = 0.0;
+    //	var[VAR::U_TUU02] = 0.0;
+    //	var[VAR::U_TUU03] = 0.0;
+    //	var[VAR::U_TUU11] = 0.0;
+    //	var[VAR::U_TUU12] = 0.0;
+    //	var[VAR::U_TUU13] = 0.0;
+    //	var[VAR::U_TUU22] = 0.0;
+    //	var[VAR::U_TUU23] = 0.0;
+    //	var[VAR::U_TUU33] = 0.0;
+}
+
+void NLTeukData(const double xx1, const double yy1, const double zz1,
+                double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "init_data_helpers/NLTeuk_vars.cpp"
+#include "init_data_helpers/NLTeukolsky.init.cpp"
+}
+
+void Bin_KerrData(const double xx1, const double yy1, const double zz1,
+                  double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "init_data_helpers/Bin_Kerr.cpp"
+#include "init_data_helpers/NLTeuk_vars.cpp"
 }
 
 void noiseData(const double xx1, const double yy1, const double zz1,

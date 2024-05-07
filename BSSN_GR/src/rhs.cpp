@@ -4,6 +4,8 @@
 #include "hadrhs.h"
 #include "parameters.h"
 
+// #define DEBUG_FOR_TEUK
+
 using namespace std;
 using namespace bssn;
 
@@ -209,6 +211,122 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                     (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
                     bssn::RIT_ETA_OUTER;
 
+#ifdef DEBUG_FOR_TEUK
+                if ((x > -0.0001 && x < 0.0001) &&
+                    (y > -0.0001 && y < 0.0001) &&
+                    (z > -0.0001 && z < 0.0001)) {
+                    std::cout << "  [originUpdate] - Alpha at (" << x << ", "
+                              << y << ", " << z << ") : " << alpha[pp]
+                              << "  - step: " << bssn::BSSN_CURRENT_RK_STEP
+                              << " (t = " << bssn::BSSN_CURRENT_RK_COORD_TIME
+                              << ")" << std::endl;
+                }
+                double det_gtd =
+                    gt0[pp] * (gt3[pp] * gt5[pp] - gt4[pp] * gt4[pp]) -
+                    gt1[pp] * gt1[pp] * gt5[pp] +
+                    2.0 * gt1[pp] * gt2[pp] * gt4[pp] -
+                    gt2[pp] * gt2[pp] * gt3[pp];
+
+                if (det_gtd < 0.0) {
+                    std::cout << "metric determinant is negative at " << det_gtd
+                              << std::endl;
+                    std::cout
+                        << "[FatalError] - The determinant is negative at ("
+                        << x << ", " << y << ", " << z << ") : " << det_gtd
+                        << " - step: " << bssn::BSSN_CURRENT_RK_STEP
+                        << " (t = " << bssn::BSSN_CURRENT_RK_COORD_TIME << ")"
+                        << std::endl;
+
+                    std::cout << "gt0[pp]: " << gt0[pp] << std::endl;
+                    std::cout << "gt1[pp]: " << gt1[pp] << std::endl;
+                    std::cout << "gt2[pp]: " << gt2[pp] << std::endl;
+                    std::cout << "gt3[pp]: " << gt3[pp] << std::endl;
+                    std::cout << "gt4[pp]: " << gt4[pp] << std::endl;
+                    std::cout << "gt5[pp]: " << gt5[pp] << std::endl;
+                    std::cout << "At0[pp]: " << At0[pp] << std::endl;
+                    std::cout << "At1[pp]: " << At1[pp] << std::endl;
+                    std::cout << "At2[pp]: " << At2[pp] << std::endl;
+                    std::cout << "At3[pp]: " << At3[pp] << std::endl;
+                    std::cout << "At4[pp]: " << At4[pp] << std::endl;
+                    std::cout << "At5[pp]: " << At5[pp] << std::endl;
+
+                    // Debugging code for Teukolsky:
+                    if (std::isnan(alpha[pp]))
+                        std::cout << "alpha[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(chi[pp]))
+                        std::cout << "chi[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(K[pp]))
+                        std::cout << "K[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt0[pp]))
+                        std::cout << "gt0[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt1[pp]))
+                        std::cout << "gt1[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt2[pp]))
+                        std::cout << "gt2[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt3[pp]))
+                        std::cout << "gt3[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt4[pp]))
+                        std::cout << "gt4[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(gt5[pp]))
+                        std::cout << "gt5[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(beta0[pp]))
+                        std::cout << "beta0[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(beta1[pp]))
+                        std::cout << "beta1[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(beta2[pp]))
+                        std::cout << "beta2[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At0[pp]))
+                        std::cout << "At0[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At1[pp]))
+                        std::cout << "At1[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At2[pp]))
+                        std::cout << "At2[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At3[pp]))
+                        std::cout << "At3[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At4[pp]))
+                        std::cout << "At4[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(At5[pp]))
+                        std::cout << "At5[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(Gt0[pp]))
+                        std::cout << "Gt0[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(Gt1[pp]))
+                        std::cout << "Gt1[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(Gt2[pp]))
+                        std::cout << "Gt2[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(B0[pp]))
+                        std::cout << "B0[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(B1[pp]))
+                        std::cout << "B1[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    if (std::isnan(B2[pp]))
+                        std::cout << "B2[pp] is NaN at (" << x << ", " << y
+                                  << ", " << z << ")" << std::endl;
+                    // exit(0);
+                }
+#endif
+
                 // clang-format off
 // formatting is off for this chunk to make it more readable, but still identifiable as compiler defs
 #ifdef BSSN_ENABLE_SSL_IN_RHS
@@ -345,10 +463,11 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 const unsigned int pp = i + nx * (j + ny * k);
 
                 // as part of the improved techniques paper
-                // (https://arxiv.org/pdf/2404.01137.pdf) they mentioned scaling
-                // the KO dissipation of the RHS by sqrt(chi) with a strong
-                // amount for the gauge variaables and a smaller amount for the
-                // non-gauge variables. This is an option the user can use.
+                // (https://arxiv.org/pdf/2404.01137.pdf) they mentioned
+                // scaling the KO dissipation of the RHS by sqrt(chi) with a
+                // strong amount for the gauge variaables and a smaller
+                // amount for the non-gauge variables. This is an option the
+                // user can use.
                 if (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL) {
                     sigma              = KO_DISS_SIGMA * sqrt(chi[pp]);
                     double sigma_gauge = sigma * bssn::BSSN_EPSILON_CAKO_GAUGE;
@@ -535,8 +654,9 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
 
     // std::cout<<"boundary bssnrhs: size [ "<<nx<<", "<<ny<<", "<<nz<<"
     // ]"<<std::endl; std::cout<<"boundary bssnrhs: pmin [ "<<pmin[0]<<",
-    // "<<pmin[1]<<", "<<pmin[2]<<" ]"<<std::endl; std::cout<<"boundary bssnrhs:
-    // pmax [ "<<pmax[0]<<", "<<pmax[1]<<", "<<pmax[2]<<" ]"<<std::endl;
+    // "<<pmin[1]<<", "<<pmin[2]<<" ]"<<std::endl; std::cout<<"boundary
+    // bssnrhs: pmax [ "<<pmax[0]<<", "<<pmax[1]<<", "<<pmax[2]<<"
+    // ]"<<std::endl;
 
     if (bflag & (1u << OCT_DIR_LEFT)) {
         double x = pmin[0] + ib * hx;
@@ -658,9 +778,9 @@ void max_spacetime_speeds(double *const lambda1max, double *const lambda2max,
         for (unsigned int j = jb; j < je; j++) {
             for (unsigned int i = ib; i < ie; i++) {
                 unsigned int pp = IDX(i, j, k);
-                /* note: gtu is the inverse tilde metric. It should have detgtd
-                 * = 1. So, for the purposes of calculating wavespeeds, I simple
-                 * set detgtd = 1. */
+                /* note: gtu is the inverse tilde metric. It should have
+                 * detgtd = 1. So, for the purposes of calculating
+                 * wavespeeds, I simple set detgtd = 1. */
                 double gtu11    = gtd22[pp] * gtd33[pp] - gtd23[pp] * gtd23[pp];
                 double gtu22    = gtd11[pp] * gtd33[pp] - gtd13[pp] * gtd13[pp];
                 double gtu33    = gtd11[pp] * gtd22[pp] - gtd12[pp] * gtd12[pp];

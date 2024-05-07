@@ -176,6 +176,18 @@ unsigned int BSSN_CURRENT_RK_STEP               = 0;
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
+unsigned int TEUK_GAUGE;
+int TEUK_L_MODE;
+int TEUK_M_MODE;
+unsigned int MULTIPOLE_PARITY;
+unsigned int TEUK_ID_DYNAMICS_TYPE;
+unsigned int TEUK_ID_FUNCTIONAL_FORM;
+double TEUK_AMP;
+double TEUK_WIDTH;
+double TEUK_R_0;
+unsigned int TEUK_KK;
+double TEUK_REFINEMENT_R0;
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
@@ -506,6 +518,21 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     if (parFile.contains("BSSN_REFINEMENT_MODE"))
         bssn::BSSN_REFINEMENT_MODE = static_cast<bssn::RefinementMode>(
             parFile["BSSN_REFINEMENT_MODE"].as_integer());
+
+    if (parFile.contains("TEUK_INITIAL_DATA")) {
+        bssn::TEUK_AMP = parFile["TEUK"]["AMP"].as_floating();
+        bssn::TEUK_ID_DYNAMICS_TYPE =
+            parFile["TEUK"]["ID_DYNAMICS_TYPE"].as_integer();
+        bssn::TEUK_L_MODE = parFile["TEUK"]["L_MODE"].as_integer();
+        bssn::TEUK_M_MODE = parFile["TEUK"]["M_MODE"].as_integer();
+        bssn::TEUK_WIDTH  = parFile["TEUK"]["WIDTH"].as_floating();
+        bssn::TEUK_ID_FUNCTIONAL_FORM =
+            parFile["TEUK"]["ID_FUNCTIONAL_FORM"].as_integer();
+        bssn::TEUK_KK  = parFile["TEUK"]["KK"].as_integer();
+        bssn::TEUK_R_0 = parFile["TEUK"]["R_0"].as_floating();
+        bssn::TEUK_REFINEMENT_R0 =
+            parFile["TEUK"]["REFINEMENT_R0"].as_floating();
+    }
 
     BSSN_OCTREE_MAX[0] = (double)(1u << bssn::BSSN_MAXDEPTH);
     BSSN_OCTREE_MAX[1] = (double)(1u << bssn::BSSN_MAXDEPTH);
