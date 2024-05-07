@@ -90,8 +90,9 @@ static const char* BSSN_CONSTRAINT_VAR_NAMES[] = {
  * EH : black hole event horizon based refinement.
  * EH_WAMR: both even horizon as well as WAMR based refinement.
  * BH_LOC BH location based refinement, if turned on track the bh locations.
+ * PURE_WAMR: Only do refinement based on WAMR
  */
-enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC };
+enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC, PURE_WAMR };
 
 }  // end of namespace bssn
 
