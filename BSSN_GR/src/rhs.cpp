@@ -153,6 +153,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     const unsigned int lambda[4]         = {BSSN_LAMBDA[0], BSSN_LAMBDA[1],
                                             BSSN_LAMBDA[2], BSSN_LAMBDA[3]};
+
+    const double A_lambda[3]             = {BSSN_A_LAMBDA[0], BSSN_A_LAMBDA[1],
+                                            BSSN_A_LAMBDA[2]};
+
     const double lambda_f[2]             = {BSSN_LAMBDA_F[0], BSSN_LAMBDA_F[1]};
 
     // for CAHD we need also need dt, dx_i, and dx_min
@@ -225,30 +229,29 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 // #include "bssn_eqns_SSL_HD.cpp"
 #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
 #else
-
-#pragma message( \
-    "BSSN: SSL and HD is **NOT** enabled! Using original formalism!")
-#ifdef USE_ROCHESTER_GAUGE
-#pragma message("BSSN: using rochester gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_rochester_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_rochester_gauge.cpp"
-#endif
-// else for USE_ROCHESTER_GAUGE
-#else
-#pragma message("BSSN: using standard gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_standard_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_standard_gauge.cpp"
-#endif
-#endif
-
+  #pragma message("BSSN: Not enabling SSL")
+  #ifdef USE_ROCHESTER_GAUGE
+    #pragma message("BSSN: using rochester gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_rochester_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      #include "bssneqs_eta_const_rochester_gauge.cpp"
+    #endif
+  // else for USE_ROCHESTER_GAUGE
+  #else
+    #pragma message("BSSN: using standard gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_standard_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      // #include "bssneqs_eta_const_standard_gauge.cpp"
+      #include "bssneqs_eta_const_standard_gauge+.cpp"
+    #endif
+  #endif
+// END IF for USE_SSL GAUGE
 #endif
             }
         }

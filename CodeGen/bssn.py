@@ -15,6 +15,8 @@ from sympy import *
 l1, l2, l3, l4, eta = symbols("lambda[0] lambda[1] lambda[2] lambda[3] eta")
 lf0, lf1 = symbols("lambda_f[0] lambda_f[1]")
 
+al0, al1, al2 = symbols("A_lambda[0] A_lambda[1] A_lambda[2]")
+
 # Additional parameters for damping term
 R0 = symbols("BSSN_ETA_R0")
 ep1, ep2 = symbols("BSSN_ETA_POWER[0] BSSN_ETA_POWER[1]")
@@ -78,7 +80,7 @@ eta_func = (
 
 
 def bssn_puncture_gauge(
-    eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, enableCAHD=False
+    eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, enableCAHD=False, useALambda=True
 ):
     """
     BSSN puncture gauge (HAD/ traditional BSSN puncture gaugue) with const eta damping
@@ -96,21 +98,30 @@ def bssn_puncture_gauge(
             + Rational(2, 3) * K**2
         )
 
+        a_rhs = l1 * dendro.lie(b, a)
+
+        # modify with ALambda first
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             # enable slow-start lapse
             W = chi**0.5
-
             h = symbols("h_ssl")
             sig = symbols("sig_ssl")
             # h = 0.6
             # sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+
+            # with the ALambda code above, the expression:
+            # a_rhs = (
+            #     l1 * dendro.lie(b, a)
+            #     - 2 * a * K     \\ ...... (or with the al0, al1, al2 term)
+            #     - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
+            # )
+            # should be complete
+            a_rhs -= W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
@@ -266,17 +277,35 @@ def bssn_puncture_gauge(
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
-        if sslGaugeCondition:
-            W = chi**0.5
-            h = 0.6
-            sig = 20
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
+        ham_computation = (
+            sum(chi * igt[j, k] * R[j, k] for j, k in dendro.e_ij)
+            - dendro.sqr(At)
+            + Rational(2, 3) * K**2
+        )
+
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
         else:
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            a_rhs -= 2 * a * K
+
+        if sslGaugeCondition:
+            # enable slow-start lapse
+            W = chi**0.5
+            h = symbols("h_ssl")
+            sig = symbols("sig_ssl")
+            # h = 0.6
+            # sig = 20
+
+            # with the ALambda code above, the expression:
+            # a_rhs = (
+            #     l1 * dendro.lie(b, a)
+            #     - 2 * a * K     \\ ...... (or with the al0, al1, al2 term)
+            #     - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
+            # )
+            # should be complete
+            a_rhs -= W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
@@ -425,7 +454,7 @@ def bssn_puncture_gauge(
 
 
 def bssn_rochester_puncture_gauge(
-    eta_damp, isStaged=False, prefix="", sslGaugeCondition=False
+    eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, enableCAHD=False, useALambda=True
 ):
     """
     Uses Rochester puncture gauge.
@@ -437,18 +466,35 @@ def bssn_rochester_puncture_gauge(
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        ham_computation = (
+            sum(chi * igt[j, k] * R[j, k] for j, k in dendro.e_ij)
+            - dendro.sqr(At)
+            + Rational(2, 3) * K**2
+        )
+
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             # enable slow-start lapse
             W = chi**0.5
-            h = 0.6  # M; Gaussian height
-            sig = 20  # M; Gaussian stddev
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:  # no SSL
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            h = symbols("h_ssl")
+            sig = symbols("sig_ssl")
+            # h = 0.6
+            # sig = 20
+
+            # with the ALambda code above, the expression:
+            # a_rhs = (
+            #     l1 * dendro.lie(b, a)
+            #     - 2 * a * K     \\ ...... (or with the al0, al1, al2 term)
+            #     - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
+            # )
+            # should be complete
+            a_rhs -= W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (
@@ -462,6 +508,11 @@ def bssn_rochester_puncture_gauge(
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
+
+        if enableCAHD:
+            # turn on curvature-adjusted Hamiltonian-constraint damping
+            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham # Etienne's method
+            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
 
         AikAkj = Matrix(
             [
@@ -583,18 +634,35 @@ def bssn_rochester_puncture_gauge(
         C2_spatial = dendro.get_complete_christoffel(chi)
         [R, Rt, Rphi, CalGt] = dendro.compute_ricci(Gt, chi)
 
+        ham_computation = (
+            sum(chi * igt[j, k] * R[j, k] for j, k in dendro.e_ij)
+            - dendro.sqr(At)
+            + Rational(2, 3) * K**2
+        )
+
+        a_rhs = l1 * dendro.lie(b, a)
+
+        if useALambda:
+            a_rhs -= (al0 * a**2 + al1 * a + al2) * K
+        else:
+            a_rhs -= 2 * a * K
+
         if sslGaugeCondition:
             # enable slow-start lapse
             W = chi**0.5
-            h = 0.6  # M; Gaussian height
-            sig = 20  # M; Gaussian stddev
-            a_rhs = (
-                l1 * dendro.lie(b, a)
-                - 2 * a * K
-                - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
-            )
-        else:  # no SSL
-            a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
+            h = symbols("h_ssl")
+            sig = symbols("sig_ssl")
+            # h = 0.6
+            # sig = 20
+
+            # with the ALambda code above, the expression:
+            # a_rhs = (
+            #     l1 * dendro.lie(b, a)
+            #     - 2 * a * K     \\ ...... (or with the al0, al1, al2 term)
+            #     - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
+            # )
+            # should be complete
+            a_rhs -= W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
 
         b_rhs = [
             (
@@ -608,6 +676,11 @@ def bssn_rochester_puncture_gauge(
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
+
+        if enableCAHD:
+            # turn on curvature-adjusted Hamiltonian-constraint damping
+            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham # Etienne's method
+            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
 
         AikAkj = Matrix(
             [
@@ -731,7 +804,7 @@ def bssn_rochester_puncture_gauge(
             dendro.generate_separate([outs[i]], [vnames[i]], "[pp]")
 
 
-def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
+def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd, use_alambda):
     if enable_ssl:
         print("// CODEGEN: SSL was enabled, adding term to gauge condition!")
 
@@ -744,19 +817,19 @@ def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
             print("//Codgen: using rochester gauge")
             if eta_damp == "func":
                 print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, True, prefix, enable_ssl)
+                bssn_rochester_puncture_gauge(eta_func, True, prefix, enable_ssl, enable_cahd, use_alambda)
             else:
                 print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, True, prefix, enable_ssl)
+                bssn_rochester_puncture_gauge(eta, True, prefix, enable_ssl, enable_cahd, use_alambda)
 
         else:
             print("//Codgen: using standard gauge")
             if eta_damp == "func":
                 print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, True, prefix, enable_ssl, enable_cahd)
+                bssn_puncture_gauge(eta_func, True, prefix, enable_ssl, enable_cahd, use_alambda)
             else:
                 print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, True, prefix, enable_ssl, enable_cahd)
+                bssn_puncture_gauge(eta, True, prefix, enable_ssl, enable_cahd, use_alambda)
 
     else:
         print("//Codgen: generating unstage version ")
@@ -764,19 +837,19 @@ def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
             print("//Codgen: using rochester gauge")
             if eta_damp == "func":
                 print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, False, prefix, enable_ssl)
+                bssn_rochester_puncture_gauge(eta_func, False, prefix, enable_ssl, enable_cahd, use_alambda)
             else:
                 print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, False, prefix, enable_ssl)
+                bssn_rochester_puncture_gauge(eta, False, prefix, enable_ssl, enable_cahd, use_alambda)
 
         else:
             print("//Codgen: using standard gauge")
             if eta_damp == "func":
                 print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, False, prefix, enable_ssl, enable_cahd)
+                bssn_puncture_gauge(eta_func, False, prefix, enable_ssl, enable_cahd, use_alambda)
             else:
                 print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, False, prefix, enable_ssl, enable_cahd)
+                bssn_puncture_gauge(eta, False, prefix, enable_ssl, enable_cahd, use_alambda)
 
 
 if __name__ == "__main__":
@@ -823,6 +896,12 @@ if __name__ == "__main__":
         "--enable_cahd",
         action="store_true",
         help="Whether or not to enable CAHD",
+    )
+    parser.add_argument(
+        "-l",
+        "--enable_alambda",
+        action="store_true",
+        help="Whether or not to enable ALambda for alpha computation",
     )
 
     args = parser.parse_args()
