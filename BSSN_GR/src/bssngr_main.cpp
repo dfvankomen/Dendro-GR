@@ -237,6 +237,9 @@ bssn:
         // the max depth
         unsigned int maxDepthIn;
         if (bssn::BSSN_ID_TYPE != 0) {
+            // TODO: there are probably some initial data types that actually
+            // use two black holes they should be included here!
+
             // max depth in to the function2Octree must be 3 less than the max
             // depth
             maxDepthIn = m_uiMaxDepth - 3;
