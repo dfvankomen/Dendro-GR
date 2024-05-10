@@ -536,7 +536,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
             parFile["BSSN_REFINEMENT_MODE"].as_integer());
 
     if (parFile.contains("TEUK")) {
-        bssn::TEUK_AMP = parFile["TEUK"]["AMP"].as_floating();
+        bssn::TEUK_GAUGE = parFile["TEUK"]["GAUGE"].as_integer();
+        bssn::TEUK_AMP   = parFile["TEUK"]["AMP"].as_floating();
         bssn::TEUK_ID_DYNAMICS_TYPE =
             parFile["TEUK"]["ID_DYNAMICS_TYPE"].as_integer();
         bssn::TEUK_L_MODE = parFile["TEUK"]["L_MODE"].as_integer();
