@@ -463,12 +463,11 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 const unsigned int pp = i + nx * (j + ny * k);
 
                 // as part of the improved techniques paper
-                // (https://arxiv.org/pdf/2404.01137.pdf) they mentioned
-                // scaling the KO dissipation of the RHS by sqrt(chi) with a
-                // strong amount for the gauge variaables and a smaller
-                // amount for the non-gauge variables. This is an option the
-                // user can use.
-                if (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL) {
+                // (https://arxiv.org/pdf/2404.01137.pdf) they mentioned scaling
+                // the KO dissipation of the RHS by sqrt(chi) with a strong
+                // amount for the gauge variaables and a smaller amount for the
+                // non-gauge variables. This is an option the user can use.
+                if (bssn::BSSN_CAKO_ENABLED) {
                     sigma              = sqrt(chi[pp]);
                     double sigma_gauge = sigma * bssn::BSSN_EPSILON_CAKO_GAUGE;
                     double sigma_other = sigma * bssn::BSSN_EPSILON_CAKO_OTHER;
