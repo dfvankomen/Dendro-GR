@@ -665,6 +665,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.contains("AEH_SOLVER_FREQ"))
         AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"].as_integer();
+    
+    if (parFile.contains("AEH_TIME_START"))
+        AEH::AEH_TIME_START = parFile["AEH_TIME_START"].as_floating();
 
     if (parFile.contains("AEH_ALPHA"))
         AEH::AEH_ALPHA = parFile["AEH_ALPHA"].as_floating();
@@ -729,6 +732,7 @@ unsigned int AEH_MAXITER     = 50;
 double AEH_ATOL              = 1e-8;
 double AEH_RTOL              = 1e-8;
 unsigned int AEH_SOLVER_FREQ = 0;
+double AEH_TIME_START        = 25.0;
 
 double AEH_ALPHA             = 1.0;
 double AEH_BETA              = 0.1;

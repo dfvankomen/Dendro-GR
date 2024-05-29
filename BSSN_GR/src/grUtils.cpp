@@ -492,6 +492,9 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.find("AEH_SOLVER_FREQ") != parFile.end())
         AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"];
+    
+    if (parFile.find("AEH_TIME_START") != parFile.end())
+        AEH::AEH_TIME_START = parFile["AEH_TIME_START"];
 
     if (parFile.find("AEH_ALPHA") != parFile.end())
         AEH::AEH_ALPHA = parFile["AEH_ALPHA"];
@@ -795,6 +798,7 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tAEH_MAXITER: " << AEH::AEH_MAXITER << std::endl;
         sout << YLW << "\tAEH_ATOL: " << AEH::AEH_ATOL << std::endl;
         sout << YLW << "\tAEH_RTOL: " << AEH::AEH_RTOL << NRM << std::endl;
+        sout << YLW << "\tAEH_TIME_START " << AEH::AEH_TIME_START << NRM << std::endl;
 
         sout << YLW << "\tAEH_ALPHA: " << AEH::AEH_ALPHA << std::endl;
         sout << YLW << "\tAEH_BETA: " << AEH::AEH_BETA << NRM << std::endl;

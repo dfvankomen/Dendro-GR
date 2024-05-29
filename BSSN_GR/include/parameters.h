@@ -560,4 +560,7 @@ extern double AEH_ALPHA;
  * beta/alpha and dlambda = A / (1 + B * l * (l + 1) ) */
 extern double AEH_BETA;
 
+/**@brief when should the single AEH solver start?*/
+extern double AEH_TIME_START;
+
 }  // namespace AEH
