@@ -517,7 +517,7 @@ bssn:
                         
                         if (ets->curr_time() > start_time)
                         {
-                            std::cout <<"running single black hole AH solver..." std::endl;
+                            //std::cout <<"running single black hole AH solver..."<<std::endl;
                          for (unsigned int ll = 0; ll < lmax; ll += 2) {
                                 if (!pmesh->getMPIRankGlobal())
                                     std::cout << "sub cycle lmax = " << ll
