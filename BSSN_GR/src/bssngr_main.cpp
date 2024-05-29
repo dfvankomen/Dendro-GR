@@ -499,10 +499,11 @@ bssn:
                 const int ntheta            = AEH::AEH_Q_THETA;
                 const int nphi              = AEH::AEH_Q_PHI;
                 const unsigned int max_iter = AEH::AEH_MAXITER;
+                const double  start_time = AEH::AEH_TIME_START;
 
                 const double rel_tol        = AEH::AEH_ATOL;
                 const double abs_tol        = AEH::AEH_RTOL;
-                const bool single_ah        = bssnCtx->is_bh_merged(0.1);
+                const bool single_ah        = true;
                 const ot::Mesh* pmesh       = bssnCtx->get_mesh();
                 try {
                     aeh::SpectralAEHSolver<bssn::BSSNCtx, DendroScalar>
@@ -511,8 +512,47 @@ bssn:
                         aeh_solver.get_num_lm_modes();
                     double rlim[2] = {1e-6, 30};
 
-                    if (single_ah) {
-                    } else {
+                    if (single_ah) 
+                    {
+                        
+                        if (ets->curr_time() > start_time)
+                        {
+                            std::cout <<"running single black hole AH solver..." std::endl;
+                         for (unsigned int ll = 0; ll < lmax; ll += 2) {
+                                if (!pmesh->getMPIRankGlobal())
+                                    std::cout << "sub cycle lmax = " << ll
+                                              << std::endl;
+
+                                aeh::SpectralAEHSolver<bssn::BSSNCtx,
+                                                       DendroScalar>
+                                    s1(bssnCtx, ll, ntheta, nphi, false, false);
+                                s1.solve(bssnCtx->get_bh0_loc(), bssnCtx,
+                                         hh[0].data(), hh[1].data(), max_iter,
+                                         rel_tol, abs_tol, rlim);
+                                std::swap(hh[0], hh[1]);
+                            }
+
+                            char fname[256];
+                            sprintf(fname, "%s_%d_%d_%d_bh0_aeh.dat",
+                                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
+                                    lmax, ntheta, nphi);
+                            aeh_solver.solve(bssnCtx->get_bh0_loc(), bssnCtx,
+                                             hh[0].data(), hh[1].data(),
+                                             max_iter, rel_tol, abs_tol, rlim,
+                                             1u);
+                            aeh_solver.aeh_to_json(bssnCtx->get_bh0_loc(),
+                                                   bssnCtx, hh[1].data(), fname,
+                                                   std::ios_base::app);
+                            std::swap(hh[0], hh[1]);
+                        }
+                        
+                    else
+                    {
+
+                    }
+                    } 
+                    
+                    else {
                         {
                             for (unsigned int ll = 0; ll < lmax; ll += 2) {
                                 if (!pmesh->getMPIRankGlobal())

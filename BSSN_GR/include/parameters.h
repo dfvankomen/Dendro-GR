@@ -533,4 +533,7 @@ extern double AEH_RTOL;
 
 extern unsigned int AEH_SOLVER_FREQ;
 
+/**@brief when should the single AEH solver start?*/
+extern double AEH_TIME_START;
+
 }  // namespace AEH
