@@ -144,6 +144,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         &uZipConstVars[VAR_CONSTRAINT::C_PSI4_IMG][offset];
     const double *const riem_sqrd  = &uZipConstVars[VAR_CONSTRAINT::C_RIEM_SQRD][offset];
     const double *const pontryagin  = &uZipConstVars[VAR_CONSTRAINT::C_PONTRYAGIN][offset];
+    const double *const expansion  = &uZipConstVars[VAR_CONSTRAINT::C_EXPANSION][offset];
+
     mem::memory_pool<double> *__mem_pool = &BSSN_MEM_POOL;
 
     const unsigned int nx                = sz[0];
