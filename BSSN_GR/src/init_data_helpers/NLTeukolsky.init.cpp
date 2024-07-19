@@ -280,8 +280,8 @@ pi =
     3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986;
 
 // std::cout << "starting the loop in initial data ... /n";
-double offset = 0.01627605 / 7.0;
-double xbar   = xx + offset;
+//double offset = 0.01627605 / 7.0;
+double xbar   = xx;
 double ybar   = yy;
 double zbar   = zz;
 
