@@ -180,12 +180,133 @@ unsigned int BSSN_CURRENT_RK_STEP               = 0;
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
+std::set<std::string> BSSN_PARAMETER_TOML_KEYS  = {
+    "BSSN_IO_OUTPUT_FREQ", "BSSN_REMESH_TEST_FREQ", "BSSN_CHECKPT_FREQ",
+    "BSSN_IO_OUTPUT_GAP", "BSSN_VTU_FILE_PREFIX", "BSSN_CHKPT_FILE_PREFIX",
+    "BSSN_PROFILE_FILE_PREFIX", "BSSN_RESTORE_SOLVER", "BSSN_ID_TYPE",
+    "BSSN_ENABLE_BLOCK_ADAPTIVITY", "BSSN_BLK_MIN_X", "BSSN_BLK_MIN_Y",
+    "BSSN_BLK_MIN_Z", "BSSN_BLK_MAX_X", "BSSN_BLK_MAX_Y", "BSSN_BLK_MAX_Z",
+    "BSSN_DENDRO_GRAIN_SZ", "BSSN_ASYNC_COMM_K", "BSSN_DENDRO_AMR_FAC",
+    "BSSN_LOAD_IMB_TOL", "BSSN_RK_TIME_BEGIN", "BSSN_RK_TIME_END",
+    "BSSN_RK_TYPE", "BSSN_RK45_TIME_STEP_SIZE", "BSSN_RK45_DESIRED_TOL",
+    "BSSN_DIM", "BSSN_MAXDEPTH", "BSSN_BH1", "BSSN_BH2", "BSSN_GRID_MIN_X",
+    "BSSN_GRID_MAX_X", "BSSN_GRID_MIN_Y", "BSSN_GRID_MAX_Y", "BSSN_GRID_MIN_Z",
+    "BSSN_GRID_MAX_Z", "ETA_CONST", "ETA_R0", "ETA_DAMPING", "ETA_DAMPING_EXP",
+    "RIT_ETA_FUNCTION", "RIT_ETA_OUTER", "RIT_ETA_CENTRAL", "RIT_ETA_WIDTH",
+    "BSSN_AMR_R_RATIO", "BSSN_KO_SIGMA_SCALE_BY_CONFORMAL",
+    "BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY",
+    "BSSN_EPSILON_CAKO_GAUGE", "BSSN_EPSILON_CAKO_OTHER", "BSSN_CAHD_C",
+    "BSSN_LAMBDA", "BSSN_LAMBDA_F", "BSSN_XI", "BSSN_ELE_ORDER", "CHI_FLOOR",
+    "BSSN_TRK0", "DISSIPATION_TYPE", "KO_DISS_SIGMA", "BSSN_ETA_R0",
+    "BSSN_ETA_POWER", "BSSN_USE_WAVELET_TOL_FUNCTION", "BSSN_WAVELET_TOL",
+    "BSSN_WAVELET_TOL_MAX", "BSSN_WAVELET_TOL_FUNCTION_R0",
+    "BSSN_WAVELET_TOL_FUNCTION_R1", "BSSN_NUM_REFINE_VARS",
+    "BSSN_REFINE_VARIABLE_INDICES", "BSSN_NUM_EVOL_VARS_VTU_OUTPUT",
+    "BSSN_NUM_CONST_VARS_VTU_OUTPUT", "BSSN_VTU_OUTPUT_EVOL_INDICES",
+    "BSSN_VTU_OUTPUT_CONST_INDICES", "BSSN_CFL_FACTOR", "BSSN_VTU_Z_SLICE_ONLY",
+    "BSSN_GW_EXTRACT_FREQ", "BSSN_TIME_STEP_OUTPUT_FREQ", "BSSN_BH1_AMR_R",
+    "BSSN_BH2_AMR_R", "BSSN_AMR_R_RATIO", "BSSN_BH1_MAX_LEV",
+    "BSSN_BH2_MAX_LEV", "BSSN_INIT_GRID_ITER", "BSSN_GW_REFINE_WTOL",
+    "BSSN_MINDEPTH", "BSSN_BH1_CONSTRAINT_R", "BSSN_BH2_CONSTRAINT_R",
+    "BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE", "TPID_TARGET_M_PLUS",
+    "TPID_TARGET_M_MINUS", "TPID_PAR_B", "TPID_CENTER_OFFSET",
+    "TPID_INITIAL_LAPSE_PSI_EXPONENT", "TPID_NPOINTS_A", "TPID_NPOINTS_B",
+    "TPID_NPOINTS_PHI", "TPID_GIVE_BARE_MASS", "INITIAL_LAPSE",
+    "TPID_SOLVE_MOMENTUM_CONSTRAINT", "TPID_GRID_SETUP_METHOD", "TPID_VERBOSE",
+    "TPID_ADM_TOL", "TPID_NEWTON_TOL", "TPID_FILEPREFIX",
+    "TPID_REPLACE_LAPSE_WITH_SQRT_CHI", "EXTRACTION_VAR_ID", "EXTRACTION_TOL",
+    "BSSN_GW_NUM_RADAII", "BSSN_GW_NUM_LMODES", "BSSN_GW_L_MODES",
+    "BSSN_GW_RADAII", "BSSN_GW_L_MODES", "BSSN_EH_COARSEN_VAL",
+    "BSSN_EH_REFINE_VAL", "BSSN_REFINEMENT_MODE",
+    // AEH pars
+    "AEH_LMAX", "AEH_Q_THETA", "AEH_Q_PHI", "AEH_MAXITER", "AEH_ATOL",
+    "AEH_RTOL", "AEH_SOLVER_FREQ", "AEH_ALPHA", "AEH_BETA"
+
+};
+
+std::set<std::string> BSSN_BH_PARAMETER_TOML_KEYS = {
+    "MASS", "X",   "Y",    "Z",          "V_X",
+    "V_Y",  "V_Z", "SPIN", "SPIN_THETA", "SPIN_PHI"};
+
+void verifyKeysInTOML(const toml::value& v, std::set<std::string>& found_keys) {
+    // this check is to make sure that the table exists, if block is ready for
+    // any recursion we want to do (since TOML can have lots of nested
+    // dictionaries)
+
+    // TODO: does it make sense to mark a recursion level so that it errors out
+    // if the file is empty or invalid? TOML does lots of checks on its own
+    if (v.is_table()) {
+        // iterate through the keys and values
+        for (const auto& [key, val] : v.as_table()) {
+            if (!val_in_set(key, BSSN_PARAMETER_TOML_KEYS)) {
+                throw std::invalid_argument(
+                    "ERROR: found an unsupported key in the input TOML file: " +
+                    key);
+            }
+
+            // check for nested keys in Black Hole Data
+            if ((key == "BSSN_BH1") || (key == "BSSN_BH2")) {
+                for (const auto& [bhkey, bhval] : val.as_table()) {
+                    if (!val_in_set(bhkey, BSSN_BH_PARAMETER_TOML_KEYS)) {
+                        throw std::invalid_argument(
+                            "ERROR: found an unsupported Black Hole Key in " +
+                            key + ": " + bhkey);
+                    }
+                }
+            }
+            // TODO: consider making AEH and TPID parameters in their own sub
+            // dictionary
+
+            found_keys.insert(key);
+        }
+    } else if (v.is_array()) {
+        // no check for if the key is an array
+    } else {
+        // otherwise it's just a value if we recurse in, no "key" here
+    }
+}
+
+void doParFileVerification(const toml::value& tab) {
+    std::set<std::string> found_keys = {};
+    std::cout << " Now performing verification of TOML file..." << std::endl;
+
+    verifyKeysInTOML(tab, found_keys);
+
+    // a flag for if the "header" was printed for this message
+    bool printed_output = false;
+
+    // iterate through all keys the toml reading supports, give a warning
+    // message if the parameter wasn't found
+    for (const auto& to_test : BSSN_PARAMETER_TOML_KEYS) {
+        if (!val_in_set(to_test, found_keys)) {
+            if (!printed_output) {
+                std::cout << YLW
+                          << "WARNING: did not find parameters for the "
+                             "following. Either the default values will be "
+                             "used or the program will error if required!"
+                          << NRM << std::endl
+                          << "    ";
+            }
+            printed_output = true;
+            std::cout << YLW << to_test << "  " << NRM;
+        }
+    }
+    // cleanup the output to be safe...
+    if (printed_output) std::cout << NRM << std::endl;
+
+    std::cout << "  Verified TOML file!" << std::endl << std::endl;
+}
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
 
-    auto parFile                = toml::parse(fName);
+    auto parFile = toml::parse(fName);
+
+    // make sure we do a verification of the file *first*, it gives more
+    // information
+    doParFileVerification(parFile);
 
     bssn::BSSN_IO_OUTPUT_FREQ   = parFile["BSSN_IO_OUTPUT_FREQ"].as_integer();
     bssn::BSSN_REMESH_TEST_FREQ = parFile["BSSN_REMESH_TEST_FREQ"].as_integer();
