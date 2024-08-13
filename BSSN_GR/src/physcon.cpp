@@ -86,6 +86,9 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
                     psi4_real[pp] = 0.0;
                     psi4_img[pp]  = 0.0;
                 }
+             if (fabs(x) <= 1e-7 && fabs(y) <= 1e-7 && fabs(z)<= 1e-7) {
+                    expansion[pp] = 1.0;
+                }
             }
         }
     }

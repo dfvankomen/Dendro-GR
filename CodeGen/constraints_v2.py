@@ -473,17 +473,17 @@ C3 = dendro.get_complete_christoffel(chi)
 
 Kij = (1 / chi) * (At + Rational(1, 3) * gt * K)
 
-expansion = sum([ d(i,r_vec[i]) for i in dendro.e_i])+ sum([sum([C3[i,i,j] for i in dendro.e_i])*r_vec[j]for j in dendro.e_i]) - K + sum([ Kij[i,i]* r_vec[i]*r_vec[i] for i in dendro.e_i]) + 2* sum([sum([Kij[i,j]*r_vec[i]*r_vec[j] for j in range(i+1,3) ]) for i in range(0,2) ])
+expansion = 2/(sqrt(inner_product)) + sum([sum([C3[i,i,j] for i in dendro.e_i])*r_vec[j]for j in dendro.e_i]) - K + sum([ Kij[i,i]* r_vec[i]*r_vec[i] for i in dendro.e_i]) + 2* sum([sum([Kij[i,j]*r_vec[i]*r_vec[j] for j in range(i+1,3) ]) for i in range(0,2) ])
 
 
 ###################################################################
 # generate code
 ###################################################################
 # uncomment to terminal code gen
-outs = [psi4_real, psi4_img, ham, mom, riemann_sqrd, pontryagin]
+outs = [psi4_real, psi4_img, ham, mom, riemann_sqrd, pontryagin,expansion]
 #outs = [psi4_real, psi4_img, ham, mom, riemann_sqrd]
-#outs = [psi4_real, psi4_img, ham, mom]
-vnames = ['psi4_real', 'psi4_img', 'ham', 'mom', 'riem_sqrd', 'pontryagin']
-#vnames = ['psi4_real', 'psi4_img', 'ham', 'mom', 'riem_sqrd']
+#outs = [expansion]
+vnames = ['psi4_real', 'psi4_img', 'ham', 'mom', 'riem_sqrd', 'pontryagin', 'expansion']
+#vnames = ['expansion']
 #vnames = ['psi4_real', 'psi4_img', 'ham', 'mom']
 dendro.generate_cpu(outs, vnames, '[pp]')
