@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <iostream>
+#include <set>
 #include <toml.hpp>
 
 #include "bh.h"
@@ -19,6 +20,9 @@
 #include "memory_pool.h"
 
 namespace bssn {
+
+extern std::set<std::string> BSSN_PARAMETER_TOML_KEYS;
+extern std::set<std::string> BSSN_BH_PARAMETER_TOML_KEYS;
 
 extern mem::memory_pool<double> BSSN_MEM_POOL;
 /**@brief element order*/
@@ -383,6 +387,13 @@ const unsigned int BSSN_NUM_DERIVS = 138 + 74;
 const unsigned int BSSN_NUM_DERIVS = 138;
 #endif
 
+template <typename T>
+bool val_in_set(const T& val, std::set<T>& set_check) {
+    return set_check.find(val) != set_check.end();
+}
+
+void verifyKeysInTOML(const toml::value& v, std::set<std::string>& found_keys);
+void doParFileVerification(const toml::value& tab);
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
 
 }  // namespace bssn

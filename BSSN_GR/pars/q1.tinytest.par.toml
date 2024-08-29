@@ -98,7 +98,7 @@ BSSN_NUM_REFINE_VARS = 24
 BSSN_REFINE_VARIABLE_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
 
 # FD Intergrid transfer mode
-BSSN_USE_FD_GRID_TRANSFER = false
+# BSSN_USE_FD_GRID_TRANSFER = false
 
 # Which refinement mode to use
 # 0 - WAMR
@@ -151,7 +151,7 @@ BSSN_LAMBDA_F = [ 1.0, 0.0 ]
 BSSN_XI = [ 0, 0, 0 ]
 BSSN_ETA_POWER = [ 2.0, 2.0 ]
 
-ANG_PAR = 0.01
+# ANG_PAR = 0.01
 CHI_FLOOR = 0.0001
 BSSN_TRK0 = 0.0
 KO_DISS_SIGMA = 0.4
