@@ -2441,7 +2441,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         if (r < R_0)
             return bssn::BSSN_WAVELET_TOL;
         else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coord_time),bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coordtime),bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
         }
     } else {
         return bssn::BSSN_WAVELET_TOL;

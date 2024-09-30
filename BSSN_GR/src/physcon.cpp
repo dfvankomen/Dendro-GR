@@ -31,6 +31,26 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     double *const riem_sqrd  = &uZipConVars[VAR_CONSTRAINT::C_RIEM_SQRD][offset];
     double *const pontryagin  = &uZipConVars[VAR_CONSTRAINT::C_PONTRYAGIN][offset];
     double *const expansion  = &uZipConVars[VAR_CONSTRAINT::C_EXPANSION][offset];
+        // Set pointers to temporary variables
+    double *const temp_beta_010 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_010][offset];
+    double *const temp_beta_011 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_011][offset];
+    double *const temp_beta_012 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_012][offset];
+    double *const temp_beta_020 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_020][offset];
+    double *const temp_beta_021 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_021][offset];
+    double *const temp_beta_022 = &uZipConVars[VAR_CONSTRAINT::C_TEMP_BETA_022][offset];
+    double *const temp_B_010    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_010][offset];
+    double *const temp_B_011    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_011][offset];
+    double *const temp_B_012    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_012][offset];
+    double *const temp_B_020    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_020][offset];
+    double *const temp_B_021    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_021][offset];
+    double *const temp_B_022    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_022][offset];
+    double *const temp_B_030    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_030][offset];
+    double *const temp_B_031    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_031][offset];
+    double *const temp_B_032    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_032][offset];
+    double *const temp_B_040    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_040][offset];
+    double *const temp_B_041    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_041][offset];
+    double *const temp_B_042    = &uZipConVars[VAR_CONSTRAINT::C_TEMP_B_042][offset];
+
 
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];

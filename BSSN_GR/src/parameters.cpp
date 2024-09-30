@@ -148,7 +148,19 @@ unsigned int BSSN_VTU_OUTPUT_EVOL_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
     12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
 unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[BSSN_CONSTRAINT_NUM_VARS] = {
-    0, 1, 2, 3, 4, 5};
+    0,  1,  2,  3,  4,  5,  6,  7,  8,  // Main constraint variables
+    9,  10, 11, 12, 13, 14,              // Temp_beta variables
+    15, 16, 17, 18, 19, 20,              // Temp_B variables
+    21, 22, 23, 24, 25                   // Remaining Temp_B variables
+};
+// Update the array size to 26 to match the number of elements
+// unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[26] = {
+//     0,  1,  2,  3,  4,  5,  6,  7,  8,  // Main constraint variables
+//     9,  10, 11, 12, 13, 14,              // Temp_beta variables
+//     15, 16, 17, 18, 19, 20,              // Temp_B variables
+//     21, 22, 23, 24, 25                   // Remaining Temp_B variables
+// };
+
 
 unsigned int BSSN_XI[3]                         = {0, 0, 0};
 

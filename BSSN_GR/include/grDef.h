@@ -75,7 +75,25 @@ enum VAR_CONSTRAINT {
     C_PSI4_IMG,
     C_RIEM_SQRD,
     C_PONTRYAGIN,
-    C_EXPANSION
+    C_EXPANSION,
+    C_TEMP_BETA_010,
+    C_TEMP_BETA_011,
+    C_TEMP_BETA_012,
+    C_TEMP_BETA_020,
+    C_TEMP_BETA_021,
+    C_TEMP_BETA_022,
+    C_TEMP_B_010,
+    C_TEMP_B_011,
+    C_TEMP_B_012,
+    C_TEMP_B_020,
+    C_TEMP_B_021,
+    C_TEMP_B_022,
+    C_TEMP_B_030,
+    C_TEMP_B_031,
+    C_TEMP_B_032,
+    C_TEMP_B_040,
+    C_TEMP_B_041,
+    C_TEMP_B_042,
 };
 
 static const char* BSSN_VAR_NAMES[] = {
@@ -85,8 +103,34 @@ static const char* BSSN_VAR_NAMES[] = {
     "U_SYMAT0", "U_SYMAT1", "U_SYMAT2", "U_SYMAT3", "U_SYMAT4", "U_SYMAT5"};
 
 static const char* BSSN_CONSTRAINT_VAR_NAMES[] = {
-    "C_HAM", "C_MOM0", "C_MOM1", "C_MOM2", "C_PSI4_REAL", "C_PSI4_IMG", "C_RIEM_SQRD", "C_PONTRYAGIN", "C_EXPANSION"};
-
+    "C_HAM",
+    "C_MOM0",
+    "C_MOM1",
+    "C_MOM2",
+    "C_PSI4_REAL",
+    "C_PSI4_IMG",
+    "C_RIEM_SQRD",
+    "C_PONTRYAGIN",
+    "C_EXPANSION",
+    "C_TEMP_BETA_010",
+    "C_TEMP_BETA_011",
+    "C_TEMP_BETA_012",
+    "C_TEMP_BETA_020",
+    "C_TEMP_BETA_021",
+    "C_TEMP_BETA_022",
+    "C_TEMP_B_010",
+    "C_TEMP_B_011",
+    "C_TEMP_B_012",
+    "C_TEMP_B_020",
+    "C_TEMP_B_021",
+    "C_TEMP_B_022",
+    "C_TEMP_B_030",
+    "C_TEMP_B_031",
+    "C_TEMP_B_032",
+    "C_TEMP_B_040",
+    "C_TEMP_B_041",
+    "C_TEMP_B_042"
+};
 /**
  * @brief Refinement mode types.
  * WAMR : Wavelet based refinement.
