@@ -29,6 +29,7 @@
 #include "parameters.h"
 #include "physcon.h"
 #include "rhs.h"
+#include "timer.h"
 
 namespace bssn {
 
@@ -249,6 +250,15 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     int grid_transfer(const ot::Mesh* m_new);
 
     void calculate_full_grid_size();
+
+    void test_compression_of_blocks();
+
+    void resetForNextStep() {
+        this->prepareBytesVectors();
+        timer::resetSnapshot();
+    }
+
+    void resetCountersForEvolve() { this->prepareBytesVectors(); }
 };
 
 }  // end of namespace bssn

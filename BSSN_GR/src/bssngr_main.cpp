@@ -20,6 +20,7 @@
 #include "parameters.h"
 #include "rkBSSN.h"
 #include "sdc.h"
+#include "timer.h"
 
 int main(int argc, char** argv) {
     // 0- NUTS 1-UTS
@@ -50,6 +51,12 @@ int main(int argc, char** argv) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
+
+    // initialize the flops timer
+    dsolve::timer::initFlops();
+
+    // begin the imer for total run time
+    dsolve::timer::total_runtime.start();
 
     if (!rank) {
         std::cout << "======================================" << std::endl;
@@ -215,7 +222,7 @@ bssn:
     double t_stat;
     double t_stat_g[3];
 
-    bssn::timer::t_f2o.start();
+    dsolve::timer::t_f2o.start();
 
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) {
         if (!rank)
@@ -492,6 +499,8 @@ bssn:
                               << std::endl;
 
                 bssnCtx->terminal_output();
+
+                // bssnCtx->test_compression_of_blocks();
             }
 
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ) == 0) {
@@ -669,7 +678,30 @@ bssn:
                 }
             }
 
+            bssnCtx->resetCountersForEvolve();
+
+            dsolve::timer::t_rkStep.start();
             ets->evolve();
+            dsolve::timer::t_rkStep.stop();
+
+            // write profile information **BEFORE** resetting and after all
+            // calculation
+            if ((step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
+                if (!rank_global)
+                    std::cout << BLD << BLU << "  --- WRITING PROFILE DATA"
+                              << NRM << std::endl;
+
+                dsolve::timer::profileInfoIntermediate(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), bssnCtx->get_mesh(),
+                    step, bssnCtx);
+
+                if (!rank_global)
+                    std::cout << BLD << GRN
+                              << "  --- FINISHED WRITING PROFILE DATA" << NRM
+                              << std::endl;
+            }
+
+            bssnCtx->resetForNextStep();
         }
 
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__

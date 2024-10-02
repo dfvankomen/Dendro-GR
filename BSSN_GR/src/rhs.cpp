@@ -3,6 +3,7 @@
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
+#include "timer.h"
 
 using namespace std;
 using namespace bssn;
@@ -168,7 +169,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
     const unsigned int n  = sz[0] * sz[1] * sz[2];
 
-    bssn::timer::t_deriv.start();
+    dsolve::timer::t_deriv.start();
 
     const unsigned int BLK_SZ = n;
     double *const deriv_base  = bssn::BSSN_DERIV_WORKSPACE;
@@ -179,7 +180,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     #include "bssnrhs_derivs_adv.h"
     // clang-format on
 
-    bssn::timer::t_deriv.stop();
+    dsolve::timer::t_deriv.stop();
 
     // loop dep. removed allowing compiler to optmize for vectorization.
     // if (bssn::RIT_ETA_FUNCTION == 0) {
@@ -190,7 +191,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     //     }
     // }
     // cout << "begin loop" << endl;
-    bssn::timer::t_rhs.start();
+    dsolve::timer::t_rhs.start();
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
 #ifdef BSSN_ENABLE_AVX
@@ -267,10 +268,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             }
         }
     }
-    bssn::timer::t_rhs.stop();
+    dsolve::timer::t_rhs.stop();
 
     if (bflag != 0) {
-        bssn::timer::t_bdyc.start();
+        dsolve::timer::t_bdyc.start();
 
         bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, pmin,
                  pmax, 1.0, 1.0, sz, bflag);
@@ -326,14 +327,14 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
                  1.0, 1.0, sz, bflag);
 
-        bssn::timer::t_bdyc.stop();
+        dsolve::timer::t_bdyc.stop();
     }
 
-    bssn::timer::t_deriv.start();
+    dsolve::timer::t_deriv.start();
 #include "bssnrhs_ko_derivs.h"
-    bssn::timer::t_deriv.stop();
+    dsolve::timer::t_deriv.stop();
 
-    bssn::timer::t_rhs.start();
+    dsolve::timer::t_rhs.start();
 
     double sigma = KO_DISS_SIGMA;
 
@@ -491,10 +492,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         }
     }
 
-    bssn::timer::t_rhs.stop();
-
-    bssn::timer::t_deriv.start();
-    bssn::timer::t_deriv.stop();
+    dsolve::timer::t_rhs.stop();
 
 #if 0
         for (unsigned int m = 0; m < 24; m++) {

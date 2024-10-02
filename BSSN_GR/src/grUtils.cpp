@@ -764,6 +764,13 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
             sout << YLW << "\t\tBSSN_PSILON_CAKO_OTHER: "
                  << bssn::BSSN_EPSILON_CAKO_OTHER << NRM << std::endl;
         }
+
+        sout << YLW
+             << "\tBSSN_COMPRESSION_MODE: " << bssn::BSSN_COMPRESSION_MODE
+             << NRM << std::endl;
+        sout << YLW
+             << "\tBSSN_COMPRESSION_OPTIONS: " << bssn::BSSN_COMPRESSION_OPTIONS
+             << NRM << std::endl;
     }
 }
 

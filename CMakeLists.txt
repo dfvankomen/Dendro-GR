@@ -1,4 +1,3 @@
-# ##############################################################################
 # BASE CMAKE CONFIGURATION
 #
 # This file in particular contains all of the options that apply to all aspects
@@ -7,7 +6,6 @@
 #
 # Note that all options and compiler flags set here will propagate to other
 # directories such as src/ and dendro/
-# ##############################################################################
 
 cmake_minimum_required(VERSION 3.6)
 project(Dendro-5.0 C CXX Fortran)
@@ -44,7 +42,8 @@ if(MPI_LINK_FLAGS)
   set(LINK_FLAGS "${LINK_FLAGS} ${MPI_LINK_FLAGS}")
 endif()
 
-# options for dendro -- not sure if these need to be declared here, but they might be due to header definitions...
+# options for dendro -- not sure if these need to be declared here, but they
+# might be due to header definitions...
 option(USE_64BIT_INDICES "Use 64-Bit indices. Reverts to 32-bit if turned off"
        ON)
 option(HILBERT_ORDERING "Use Hilbert ordering instead of Morton" ON)
@@ -201,7 +200,7 @@ endif()
 
 if(DENDRO_VTK_BINARY)
   add_definitions(-DDENDRO_VTU_BINARY)
-if(DENDRO_VTK_ZLIB_COMPRES)
+  if(DENDRO_VTK_ZLIB_COMPRES)
     add_definitions(-DDENDRO_VTU_ZLIB)
   endif()
 else()
@@ -216,8 +215,11 @@ add_definitions(-DMATVEC_PROFILE)
 
 set(CHECK_GIT_INCLUDE_PATH ${CMAKE_SOURCE_DIR}/cmake-modules)
 include(${CHECK_GIT_INCLUDE_PATH}/CheckGit.cmake)
-message(STATUS "Setting up adding Git Information directly to compile options, header file should be in ${CHECK_GIT_INCLUDE_PATH}")
-CheckGitSetup()
+message(
+  STATUS
+    "Setting up adding Git Information directly to compile options, header file should be in ${CHECK_GIT_INCLUDE_PATH}"
+)
+checkgitsetup()
 
 # === END REQUIRED CONFIGURATIONS FOR DENDRO ===
 
@@ -229,7 +231,7 @@ add_subdirectory(dendrolib)
 # additional subdirectories that are their own "solvers"
 add_subdirectory(BSSN_GR)
 # add_subdirectory(CCZ4_GR)
-add_subdirectory(NLSigma)
+# add_subdirectory(NLSigma)
 add_subdirectory(Fluid)
 add_subdirectory(EM1)
 add_subdirectory(EM2)

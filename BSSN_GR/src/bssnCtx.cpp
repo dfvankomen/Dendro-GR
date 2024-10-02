@@ -55,6 +55,12 @@ BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     ot::alloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
 
+    this->prepareBytesVectors();
+
+    // set up the compression options
+    dendro_compress::set_compression_options(bssn::BSSN_COMPRESSION_MODE,
+                                             bssn::BSSN_COMPRESSION_OPTIONS);
+
     return;
 }
 
@@ -72,7 +78,9 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     // DendroScalar * sVar[BSSN_NUM_VARS];
     // in->to_2d(sVar);
 
-    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K);
+    dsolve::timer::t_unzip_async.start();
+    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K, true);
+    dsolve::timer::t_unzip_async.stop();
 
     // AT THIS POINT THE CONSTRAINT VARIABLES SHOULD BE CALCULATED.
     // Just need to set up the proper variable representation.
@@ -93,14 +101,18 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     const ot::Block* blkList     = m_uiMesh->getLocalBlockList().data();
     const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
 
+    dsolve::timer::t_rhs_outer.start();
     bssnRHS(unzipOut, (const DendroScalar**)unzipIn, blkList, numBlocks, time,
             (const DendroScalar**)consUnzipVar);
+    dsolve::timer::t_rhs_outer.stop();
 
 #ifdef __PROFILE_CTX__
     this->m_uiCtxpt[ts::CTXPROFILE::RHS].stop();
 #endif
 
+    dsolve::timer::t_zip.start();
     this->zip(m_var[CPU_EV_UZ_OUT], *out);
+    dsolve::timer::t_zip.stop();
 
     return 0;
 }
@@ -464,6 +476,8 @@ int BSSNCtx::initialize() {
     // // realloc bssn deriv space
     deallocate_bssn_deriv_workspace();
     allocate_bssn_deriv_workspace(m_uiMesh, 1);
+
+    this->prepareBytesVectors();
 
     unsigned int lmin, lmax;
     m_uiMesh->computeMinMaxLevel(lmin, lmax);
@@ -1156,8 +1170,8 @@ int BSSNCtx::restore_checkpt() {
         std::cout << "CHECKPOINT RESTORE SUCCESSFUL: " << NRM << std::endl;
         std::cout << "   checkpoint at step : " << m_uiTinfo._m_uiStep
                   << "active Comm. sz: " << activeCommSz
-                  << " restore successful: "
-                  << " restored mesh size: " << totalElems << std::endl
+                  << " restore successful: " << " restored mesh size: "
+                  << totalElems << std::endl
                   << std::endl;
         std::cout << " restored mesh min dx: " << bssn::BSSN_CURRENT_MIN_DX
                   << std::endl;
@@ -1190,7 +1204,8 @@ bool BSSNCtx::is_remesh() {
     DVec& m_evar     = m_var[VL::CPU_EV];
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
 
-    this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
+    // TODO: add compression here? Do we trust it for is_remesh?
+    this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K, false);
 
     DendroScalar* unzipVar[BSSN_NUM_VARS];
     m_evar_unz.to_2d(unzipVar);

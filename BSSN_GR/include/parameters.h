@@ -14,6 +14,7 @@
 #include <toml.hpp>
 
 #include "bh.h"
+#include "compression.h"
 #include "dendro.h"
 #include "grDef.h"
 #include "memory_pool.h"
@@ -382,6 +383,10 @@ const unsigned int BSSN_NUM_DERIVS = 138 + 74;
 #else
 const unsigned int BSSN_NUM_DERIVS = 138;
 #endif
+
+extern dendro_compress::CompressionType BSSN_COMPRESSION_MODE;
+
+extern dendro_compress::CompressionOptions BSSN_COMPRESSION_OPTIONS;
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
 

@@ -180,6 +180,11 @@ unsigned int BSSN_CURRENT_RK_STEP               = 0;
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
+dendro_compress::CompressionType BSSN_COMPRESSION_MODE =
+    dendro_compress::CompressionType::NONE;
+
+dendro_compress::CompressionOptions BSSN_COMPRESSION_OPTIONS;
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
@@ -512,6 +517,24 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     if (parFile.contains("BSSN_REFINEMENT_MODE"))
         bssn::BSSN_REFINEMENT_MODE = static_cast<bssn::RefinementMode>(
             parFile["BSSN_REFINEMENT_MODE"].as_integer());
+
+    if (parFile.contains("BSSN_COMPRESSION_OPTIONS")) {
+        bssn::BSSN_COMPRESSION_MODE =
+            static_cast<dendro_compress::CompressionType>(
+                parFile["BSSN_COMPRESSION_MODE"].as_integer());
+        bssn::BSSN_COMPRESSION_OPTIONS = dendro_compress::CompressionOptions{
+            bssn::BSSN_ELE_ORDER,
+            parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_COMPRESSOR"].as_string(),
+            (int)parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_CLEVEL"]
+                .as_integer(),
+            (int)parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_DO_SHUFFLE"]
+                .as_integer(),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_MODE"].as_string(),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_RATE"].as_floating(),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_ACCURACY"].as_floating(),
+            (size_t)parFile["BSSN_COMPRESSION_OPTIONS"]["CHEBY_N_REDUCED"]
+                .as_integer()};
+    }
 
     BSSN_OCTREE_MAX[0] = (double)(1u << bssn::BSSN_MAXDEPTH);
     BSSN_OCTREE_MAX[1] = (double)(1u << bssn::BSSN_MAXDEPTH);
