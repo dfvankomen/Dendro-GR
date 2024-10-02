@@ -34,7 +34,7 @@ BSSN_VTU_FILE_PREFIX = "bssn_gr_zfp"
 BSSN_CHKPT_FILE_PREFIX = "bssn_cp_zfp"
 
 # Profiling File Prefix, can be absolute or relative paths
-BSSN_PROFILE_FILE_PREFIX = "bssn_zfp/dgr_zfp"
+BSSN_PROFILE_FILE_PREFIX = "dgr_zfp"
 
 # Two-Puncture Initial Data (TPID) File Prefix
 TPID_FILEPREFIX = "rit_q1"

@@ -423,6 +423,9 @@ int BSSNCtx::initialize() {
         }
 
         if (isRefine) {
+            if (!rank_global) {
+                std::cout << "[bssnCtx] - Remesh triggered in initialize, now building new mesh..." << std::endl;
+            }
             ot::Mesh* newMesh =
                 this->remesh(bssn::BSSN_DENDRO_GRAIN_SZ,
                              bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX);

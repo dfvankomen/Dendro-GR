@@ -74,6 +74,8 @@ option(WITH_CUDA " build dendro with cuda " OFF)
 option(BUILD_WITH_PETSC " build dendro with PETSC " OFF)
 option(USE_FD_INTERP_FOR_UNZIP "use FD style interpolation for unzip" OFF)
 option(MPIX_CUDA_AWARE_SUPPORT "use FD style interpolation for unzip" OFF)
+option(DENDRO_ENABLE_GHOST_COMPRESSION
+       "Enable compression on Ghost Communication" ON)
 
 # option(KWAY "K parameter for alltoallv_kway" 128)
 set(KWAY
@@ -85,6 +87,11 @@ set(OCT2BLK_COARSEST_LEV
 set(NUM_NPES_THRESHOLD
     2
     CACHE STRING 2)
+
+# ghost compression needs to be defined outside dendrolib as well
+if(DENDRO_ENABLE_GHOST_COMPRESSION)
+  add_definitions(-DDENDRO_ENABLE_GHOST_COMPRESSION)
+endif()
 
 # set the build type to release by default.
 if(NOT CMAKE_BUILD_TYPE)

@@ -520,7 +520,7 @@ bool isReMeshWAMR(
 
     if (pMesh->isActive()) {
         if (!pMesh->getMPIRank())
-            printf("BH coord sep: %.8E \n",
+            printf("In remesh WAMR: BH coord sep: %.8E \n",
                    dBH);  // std::cout<<"BH coord sep: "<<dBH<<std::endl;
 
         const RefElement* refEl    = pMesh->getReferenceElement();
