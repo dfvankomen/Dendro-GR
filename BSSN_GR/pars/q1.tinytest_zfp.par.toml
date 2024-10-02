@@ -7,13 +7,13 @@
 BSSN_RESTORE_SOLVER = 0
 
 # Frequency for the VTU Output
-BSSN_IO_OUTPUT_FREQ = 5
+BSSN_IO_OUTPUT_FREQ = 100
 
 # Frequency to use for triggering the remeshing based on wavelets
 BSSN_REMESH_TEST_FREQ = 10
 
 # Extraction frequency for gravitational waves
-BSSN_GW_EXTRACT_FREQ = 5
+BSSN_GW_EXTRACT_FREQ = 100
 
 # Event horizon refinement value
 BSSN_EH_REFINE_VAL = 0.4
