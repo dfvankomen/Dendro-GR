@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bssnCtx.h"
+#include "dendroProfileParams.h"
 #include "mesh.h"
 #include "profiler.h"
 
@@ -995,6 +996,19 @@ void profileInfoIntermediate(
                 << "rhs_min\t rhs_mean\t rhs_max\t"
                 << "bdyc_min\t bdyc_mean\t bdyc_max\t"
                 << "rhs_outer_min\t rhs_outer_mean\t rhs_outer_max\t"
+                // compression
+                << "comp_extraction_min\t comp_extraction_mean\t "
+                   "comp_extraction_max\t"
+                << "comp_compress_min\t comp_compress_mean\t "
+                   "comp_compress_max\t"
+                << "comp_begin_coms_min\t comp_begin_comms_mean\t "
+                   "comp_begin_comms_max\t"
+                << "comp_wait_comms_min\t comp_wait_comms_mean\t "
+                   "comp_wait_comms_max\t"
+                << "comp_decompress_min\t comp_decompress_mean\t "
+                   "comp_decompress_max\t"
+                << "comp_unextract_min\t comp_unextract_mean\t "
+                   "comp_unextract_max\t"
                 << std::endl;
     }
 
@@ -1168,6 +1182,42 @@ void profileInfoIntermediate(
                 << "\t ";
 
     t_stat = t_rhs_outer.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_extraction.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_compress.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_begin_comms.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_wait_comms.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_decompress.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_unextract.snap;
     computeOverallStats(&t_stat, t_stat_g, comm);
     if (!rank)
         outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]

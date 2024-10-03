@@ -69,6 +69,13 @@ void initFlops() {
     t_rhs.start();
     t_rhs_outer.start();
 
+    dendro::timer::t_compression_extraction.start();
+    dendro::timer::t_compression_compress.start();
+    dendro::timer::t_compression_begin_comms.start();
+    dendro::timer::t_compression_wait_comms.start();
+    dendro::timer::t_compression_decompress.start();
+    dendro::timer::t_compression_unextract.start();
+
     // t_rhs_a.start();
     // t_rhs_b.start();
     // t_rhs_gt.start();
@@ -120,6 +127,13 @@ void resetSnapshot() {
     t_deriv.snapreset();
     t_rhs.snapreset();
     t_rhs_outer.snapreset();
+
+    dendro::timer::t_compression_extraction.snapreset();
+    dendro::timer::t_compression_compress.snapreset();
+    dendro::timer::t_compression_begin_comms.snapreset();
+    dendro::timer::t_compression_wait_comms.snapreset();
+    dendro::timer::t_compression_decompress.snapreset();
+    dendro::timer::t_compression_unextract.snapreset();
 
     // t_rhs_a.snapreset();
     // t_rhs_b.snapreset();
