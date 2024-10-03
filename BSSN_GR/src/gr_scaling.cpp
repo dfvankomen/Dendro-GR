@@ -8,22 +8,22 @@
  *
  */
 
+#include <ctime>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
 #include "TreeNode.h"
+#include "bssnCtx.h"
 #include "gr.h"
 #include "grUtils.h"
-#include "mesh.h"
-#include "mpi.h"
-// #include "rkBSSN.h"
-#include <ctime>
-#include <fstream>
-
-#include "bssnCtx.h"
 #include "mathUtils.h"
+#include "mesh.h"
 #include "meshUtils.h"
+#include "mpi.h"
 #include "octUtils.h"
+#include "parameters.h"
+#include "timer.h"
 
 int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
                 std::ostream& outfile, unsigned int ts_mode) {
@@ -141,8 +141,9 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
         else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK45)
             ets->set_ets_coefficients(ts::ETSType::RK5);
 
-        for (ets->init(); ets->curr_step() < (warm_up + num_step);
-             ets->evolve()) {
+        ets->init();
+
+        for (unsigned int ii = 0; ii < (warm_up + num_step); ii++) {
             const DendroIntL step   = ets->curr_step();
             const DendroScalar time = ets->curr_time();
             pMesh                   = bssnCtx->get_mesh();
@@ -167,155 +168,27 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
                           << "\tcurrent time :" << ets->curr_time()
                           << "\t dt:" << ets->ts_size() << "\t" << std::endl;
 
+            bssnCtx->resetCountersForEvolve();
+
+            dsolve::timer::t_rkStep.start();
+            ets->evolve();
+            dsolve::timer::t_rkStep.stop();
+
+            bssnCtx->resetForNextStep();
+
             MPI_Barrier(comm);
         }
 
-#if defined __PROFILE_ETS__ && __PROFILE_CTX__
-        pMesh = bssnCtx->get_mesh();
-        if (pMesh->isActive()) {
-            int active_rank, active_npes;
-            MPI_Comm active_comm = pMesh->getMPICommunicator();
+        char fname[256];
+        sprintf(fname, "bssnCtx_WS_%d_", npes);
 
-            MPI_Comm_rank(active_comm, &active_rank);
-            MPI_Comm_size(active_comm, &active_npes);
-
-            if (!active_rank)
-                outfile
-                    << "act_npes\tglb_npes\tmaxdepth\twarm_up\tnum_"
-                       "steps\tnumOcts\tdof_cg\tdof_uz\t"
-                    << "gele_min\tgele_mean\tgele_max\t"
-                       "lele_min\tlele_mean\tlele_max\t"
-                       "gnodes_min\tgnodes_mean\tgnodes_max\t"
-                       "lnodes_min\tlnodes_mean\tlnodes_max\t"
-                       "remsh_min\tremsh_mean\tremsh_max\t"
-                       "remsh_igt_min\tremsh_igt_mean\tremsh_igt_max\t"
-                       "evolve_min\tevolve_mean\tevolve_max\t"
-                       "unzip_wcomm_min\tunzip_wcomm_mean\tunzip_wcomm_max\t"
-                       "unzip_min\tunzip_mean\tunzip_max\t"
-                       "rhs_min\trhs_mean\trhs_max\t"
-                       "rhs_blk_min\trhs_blk_mean\trhs_blk_max\t"
-                       "zip_wcomm_min\tzip_wcomm_mean\tzip_wcomm_max\t"
-                       "zip_min\tzip_mean\tzip_max\t"
-                    << std::endl;
-
-            if (!rank) outfile << active_npes << "\t";
-            if (!rank) outfile << npes << "\t";
-            if (!rank) outfile << bssn::BSSN_MAXDEPTH << "\t";
-            if (!rank) outfile << warm_up << "\t";
-            if (!rank) outfile << num_step << "\t";
-
-            DendroIntL localSz = pMesh->getNumLocalMeshElements();
-            DendroIntL globalSz;
-
-            par::Mpi_Reduce(&localSz, &globalSz, 1, MPI_SUM, 0, active_comm);
-            if (!rank) outfile << globalSz << "\t";
-
-            localSz = pMesh->getNumLocalMeshNodes();
-            par::Mpi_Reduce(&localSz, &globalSz, 1, MPI_SUM, 0, active_comm);
-            if (!rank) outfile << globalSz << "\t";
-
-            localSz = pMesh->getDegOfFreedomUnZip();
-            par::Mpi_Reduce(&localSz, &globalSz, 1, MPI_SUM, 0, active_comm);
-            if (!rank) outfile << globalSz << "\t";
-
-            DendroIntL ghostElements = pMesh->getNumPreGhostElements() +
-                                       pMesh->getNumPostGhostElements();
-            DendroIntL localElements = pMesh->getNumLocalMeshElements();
-
-            double t_stat            = ghostElements;
-            double t_stat_g[3];
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = localElements;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            DendroIntL ghostNodes =
-                pMesh->getNumPreMeshNodes() + pMesh->getNumPostMeshNodes();
-            DendroIntL localNodes = pMesh->getNumLocalMeshNodes();
-
-            t_stat                = ghostNodes;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = localNodes;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::REMESH].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::GRID_TRASFER].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = ets->m_uiCtxpt[ts::ETSPROFILE::EVOLVE].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::UNZIP_WCOMM].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::UNZIP].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::RHS].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::RHS_BLK].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::ZIP_WCOMM].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-
-            t_stat = bssnCtx->m_uiCtxpt[ts::CTXPROFILE::ZIP].snap;
-            min_mean_max(&t_stat, t_stat_g, active_comm);
-            if (!rank)
-                outfile << t_stat_g[0] << "\t" << t_stat_g[1] << "\t"
-                        << t_stat_g[2] << "\t";
-            if (!rank) outfile << std::endl;
-        }
-#endif
-
-        // ets->m_uiCtxpt
-        // std::cout<<"reached end:"<<rank<<std::endl;
+        dsolve::timer::profileInfoIntermediate(fname, bssnCtx->get_mesh(),
+                                               ets->curr_step(), bssnCtx);
 
         ot::Mesh* tmp_mesh = bssnCtx->get_mesh();
         delete bssnCtx;
         delete tmp_mesh;
         delete ets;
-
     } else {
         if (!rank) RAISE_ERROR("invalid ts mode : " << ts_mode << "specifed");
 
@@ -330,11 +203,11 @@ int main(int argc, char** argv) {
     unsigned int ts_mode = 0;
 
     if (argc < 2) {
-        std::cout
-            << "Usage: " << argv[0]
-            << "paramFile TSMode(0){0-Spatially Adaptive Time Stepping(SATS, "
-            << GRN << "default" << NRM << ") , 1- Uniform Time Stepping.  }"
-            << std::endl;
+        std::cout << "Usage: " << argv[0]
+                  << "paramFile TSMode(0){0-Spatially Adaptive Time "
+                     "Stepping(SATS, "
+                  << GRN << "default" << NRM
+                  << ") , 1- Uniform Time Stepping.  }" << std::endl;
         return 0;
     }
 
@@ -454,9 +327,9 @@ int main(int argc, char** argv) {
 
     if (bssn::BSSN_GW_EXTRACT_FREQ > bssn::BSSN_IO_OUTPUT_FREQ) {
         if (!rank)
-            std::cout
-                << " BSSN_GW_EXTRACT_FREQ  should be less BSSN_IO_OUTPUT_FREQ "
-                << std::endl;
+            std::cout << " BSSN_GW_EXTRACT_FREQ  should be less "
+                         "BSSN_IO_OUTPUT_FREQ "
+                      << std::endl;
         MPI_Abort(comm, 0);
     }
 
@@ -486,7 +359,7 @@ int main(int argc, char** argv) {
     double t_stat_g[3];
 
     const unsigned int NUM_WARM_UP = 2;
-    const unsigned int NUM_STEPS   = 1;
+    const unsigned int NUM_STEPS   = 4;
 
     std::ofstream outfile;
     char fname[256];
@@ -497,13 +370,13 @@ int main(int argc, char** argv) {
         time_t now = time(0);
         // convert now to string form
         char* dt   = ctime(&now);
-        outfile
-            << "============================================================"
-            << std::endl;
+        outfile << "======================================================="
+                   "====="
+                << std::endl;
         outfile << "Current time : " << dt << " --- " << std::endl;
-        outfile
-            << "============================================================"
-            << std::endl;
+        outfile << "======================================================="
+                   "====="
+                << std::endl;
     }
 
     bssn_driver(comm, NUM_STEPS, NUM_WARM_UP, outfile, 1);

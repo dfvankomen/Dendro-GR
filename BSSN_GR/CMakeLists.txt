@@ -565,35 +565,35 @@ target_link_libraries(bssnSolverCtx bssn_lib dendro5 ${CUDA_LIBRARIES})
 target_link_libraries(bssnSolverCtx ${LAPACK_LIBRARIES} ${MPI_LIBRARIES}
                       ${GSL_LIBRARIES} m dendro_git_version_and_date)
 
-# set(SOURCE_FILES src/gr_scaling.cpp include/gr.h ${BSSN_INC} ${BSSN_SRC}
-# ${CUDA_GR_INCLUDE_H} ${CUDA_GR_SRC_CPP}) add_executable(bssnScalingTest
-# ${SOURCE_FILES}) target_include_directories(bssnScalingTest PRIVATE
-# ${CMAKE_CURRENT_BINARY_DIR}) target_include_directories(bssnScalingTest
-# PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/include) target_include_directories(bssnScalingTest
-# PRIVATE ${DENDRO_dendrolib_DIR}/test/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/examples/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/FEM/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/ODE/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/LinAlg/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/IO/vtk/include)
-# target_include_directories(bssnScalingTest PRIVATE
-# ${DENDRO_dendrolib_DIR}/IO/zlib/inc)
-# target_include_directories(bssnScalingTest PRIVATE ${MPI_INCLUDE_PATH})
-# target_include_directories(bssnScalingTest PRIVATE ${GSL_INCLUDE_DIRS})
-# if(WITH_CUDA) target_include_directories(bssnScalingTest PRIVATE
-# ${CUDA_INCLUDE_DIRS}) target_link_libraries(bssnScalingTest bssn_cuda)
-# target_link_libraries(bssnScalingTest ${CUDA_LIBRARIES}) endif()
-# target_link_libraries(bssnScalingTest dendro5 ${LAPACK_LIBRARIES}
-# ${MPI_LIBRARIES} ${GSL_LIBRARIES} m)
+set(SOURCE_FILES src/gr_scaling.cpp include/gr.h src/bssnCtx.cpp ${BSSN_INC} ${BSSN_SRC} ${CUDA_GR_INCLUDE_H} ${CUDA_GR_SRC_CPP})
+add_executable(bssnScalingTest ${SOURCE_FILES})
+target_include_directories(bssnScalingTest PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(bssnScalingTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(bssnScalingTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+target_include_directories(bssnScalingTest PRIVATE ${DENDRO_dendrolib_DIR}/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/test/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/examples/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/FEM/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/ODE/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/LinAlg/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/IO/vtk/include)
+target_include_directories(bssnScalingTest
+                           PRIVATE ${DENDRO_dendrolib_DIR}/IO/zlib/inc)
+target_include_directories(bssnScalingTest PRIVATE ${MPI_INCLUDE_PATH})
+target_include_directories(bssnScalingTest PRIVATE ${GSL_INCLUDE_DIRS})
+target_include_directories(bssnScalingTest PRIVATE ${EXTERNAL_LIB_HEADERS})
+if(WITH_CUDA)
+  target_include_directories(bssnScalingTest PRIVATE ${CUDA_INCLUDE_DIRS})
+  target_link_libraries(bssnScalingTest bssn_cuda)
+  target_link_libraries(bssnScalingTest ${CUDA_LIBRARIES})
+endif()
+target_link_libraries(bssnScalingTest dendro5 ${LAPACK_LIBRARIES} ${MPI_LIBRARIES} ${GSL_LIBRARIES} m dendro_git_version_and_date)
 
 set(SOURCE_FILES src/gr_wamr_test.cpp include/gr.h ${BSSN_INC} ${BSSN_SRC}
                  ${CUDA_GR_INCLUDE_H} ${CUDA_GR_SRC_CPP})
