@@ -12,6 +12,7 @@
 
 #include "bssnCtx.h"
 
+#include "compression.h"
 #include "parameters.h"
 
 namespace bssn {
@@ -79,7 +80,9 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     // in->to_2d(sVar);
 
     dsolve::timer::t_unzip_async.start();
-    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K, true);
+    this->unzip(
+        *in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K,
+        bssn::BSSN_COMPRESSION_MODE != dendro_compress::CompressionType::NONE);
     dsolve::timer::t_unzip_async.stop();
 
     // AT THIS POINT THE CONSTRAINT VARIABLES SHOULD BE CALCULATED.
@@ -424,7 +427,9 @@ int BSSNCtx::initialize() {
 
         if (isRefine) {
             if (!rank_global) {
-                std::cout << "[bssnCtx] - Remesh triggered in initialize, now building new mesh..." << std::endl;
+                std::cout << "[bssnCtx] - Remesh triggered in initialize, now "
+                             "building new mesh..."
+                          << std::endl;
             }
             ot::Mesh* newMesh =
                 this->remesh(bssn::BSSN_DENDRO_GRAIN_SZ,
