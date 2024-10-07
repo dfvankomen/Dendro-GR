@@ -11,6 +11,7 @@
 #include "TreeNode.h"
 #include "aeh.h"
 #include "bssnCtx.h"
+#include "dsolveTimer.h"
 #include "gr.h"
 #include "grUtils.h"
 #include "mesh.h"
@@ -20,7 +21,6 @@
 #include "parameters.h"
 #include "rkBSSN.h"
 #include "sdc.h"
-#include "timer.h"
 
 int main(int argc, char** argv) {
     // 0- NUTS 1-UTS
@@ -385,6 +385,8 @@ bssn:
         hh[2][0] = r_minus * sqrt(4 * M_PI);
 
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
+            bssnCtx->resetTimers();
+
             const DendroIntL step            = ets->curr_step();
             const DendroScalar time          = ets->curr_time();
 
@@ -686,7 +688,7 @@ bssn:
 
             // write profile information **BEFORE** resetting and after all
             // calculation
-            if ((step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
+            if ((step % bssn::BSSN_TIME_STEP_PROFILE_FREQ) == 0) {
                 if (!rank_global)
                     std::cout << BLD << BLU << "  --- WRITING PROFILE DATA"
                               << NRM << std::endl;

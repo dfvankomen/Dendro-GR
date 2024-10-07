@@ -15,6 +15,7 @@
 
 #include "TreeNode.h"
 #include "bssnCtx.h"
+#include "dsolveTimer.h"
 #include "gr.h"
 #include "grUtils.h"
 #include "mathUtils.h"
@@ -23,7 +24,6 @@
 #include "mpi.h"
 #include "octUtils.h"
 #include "parameters.h"
-#include "timer.h"
 
 int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
                 std::ostream& outfile, unsigned int ts_mode) {

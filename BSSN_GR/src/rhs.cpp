@@ -1,9 +1,9 @@
 #include "rhs.h"
 
+#include "dsolveTimer.h"
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
-#include "timer.h"
 
 using namespace std;
 using namespace bssn;

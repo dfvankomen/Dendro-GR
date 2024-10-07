@@ -1009,6 +1009,8 @@ void profileInfoIntermediate(
                    "comp_decompress_max\t"
                 << "comp_unextract_min\t comp_unextract_mean\t "
                    "comp_unextract_max\t"
+                << "uzip_postcomms_min\t uzip_postcomms_mean\t "
+                   "uzip_postcomms_max\t"
                 << std::endl;
     }
 
@@ -1133,7 +1135,7 @@ void profileInfoIntermediate(
         outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
                 << "\t ";
 
-    t_stat = t_unzip_async.seconds;
+    t_stat = t_unzip_async.snap;
     computeOverallStats(&t_stat, t_stat_g, comm);
     if (!rank)
         outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
@@ -1218,6 +1220,12 @@ void profileInfoIntermediate(
                 << "\t ";
 
     t_stat = dendro::timer::t_compression_unextract.snap;
+    computeOverallStats(&t_stat, t_stat_g, comm);
+    if (!rank)
+        outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]
+                << "\t ";
+
+    t_stat = dendro::timer::t_compression_uzip_post.snap;
     computeOverallStats(&t_stat, t_stat_g, comm);
     if (!rank)
         outfile << t_stat_g[0] << "\t " << t_stat_g[1] << "\t " << t_stat_g[2]

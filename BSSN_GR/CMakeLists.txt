@@ -214,7 +214,7 @@ set(BSSN_INC
     include/TwoPunctures.h
     include/dataUtils.h
     include/aeh.h
-    include/timer.h
+    include/dsolveTimer.h
     include/trumpet.h)
 
 set(BSSN_SRC
@@ -234,7 +234,7 @@ set(BSSN_SRC
     src/TwoPunctures.cpp
     src/dataUtils.cpp
     src/hadrhs.F90
-    src/timer.cpp
+    src/dsolveTimer.cpp
     src/trumpet.cpp)
 
 if(WITH_CUDA)

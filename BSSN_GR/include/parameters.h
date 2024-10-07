@@ -374,6 +374,8 @@ extern double BSSN_CURRENT_RK_COORD_TIME;
 /**@brief BSSN RK step*/
 extern unsigned int BSSN_CURRENT_RK_STEP;
 
+extern unsigned int BSSN_TIME_STEP_PROFILE_FREQ;
+
 /***@brief: derivs workspace*/
 extern double* BSSN_DERIV_WORKSPACE;
 

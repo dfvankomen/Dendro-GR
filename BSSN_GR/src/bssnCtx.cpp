@@ -1936,4 +1936,11 @@ void BSSNCtx::lts_smooth(DVec sIn, LTS_SMOOTH_MODE mode) {
 }
 #endif
 
+void BSSNCtx::resetForNextStep() { this->prepareBytesVectors(); }
+
+void BSSNCtx::resetTimers() {
+    timer::resetSnapshot();
+    dsolve::timer::resetSnapshot();
+}
+
 }  // end of namespace bssn.

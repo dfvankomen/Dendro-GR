@@ -1,6 +1,7 @@
 
-#include "timer.h"
+#include "dsolveTimer.h"
 
+#include "dendroProfileParams.h"
 #include "parameters.h"
 
 namespace dsolve {
@@ -75,6 +76,7 @@ void initFlops() {
     dendro::timer::t_compression_wait_comms.start();
     dendro::timer::t_compression_decompress.start();
     dendro::timer::t_compression_unextract.start();
+    dendro::timer::t_compression_uzip_post.start();
 
     // t_rhs_a.start();
     // t_rhs_b.start();
@@ -134,6 +136,7 @@ void resetSnapshot() {
     dendro::timer::t_compression_wait_comms.snapreset();
     dendro::timer::t_compression_decompress.snapreset();
     dendro::timer::t_compression_unextract.snapreset();
+    dendro::timer::t_compression_uzip_post.snapreset();
 
     // t_rhs_a.snapreset();
     // t_rhs_b.snapreset();

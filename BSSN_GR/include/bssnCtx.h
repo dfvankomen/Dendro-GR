@@ -20,6 +20,7 @@
 #include "checkPoint.h"
 #include "ctx.h"
 #include "dataUtils.h"
+#include "dsolveTimer.h"
 #include "grDef.h"
 #include "grUtils.h"
 #include "gwExtract.h"
@@ -29,7 +30,6 @@
 #include "parameters.h"
 #include "physcon.h"
 #include "rhs.h"
-#include "timer.h"
 
 namespace bssn {
 
@@ -253,10 +253,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     void test_compression_of_blocks();
 
-    void resetForNextStep() {
-        this->prepareBytesVectors();
-        timer::resetSnapshot();
-    }
+    void resetForNextStep();
+
+    void resetTimers();
 
     void resetCountersForEvolve() { this->prepareBytesVectors(); }
 };
