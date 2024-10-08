@@ -1305,7 +1305,7 @@ void BSSNCtx::write_grid_summary_data() {
                 file_grid_data << bssn::BSSN_CURRENT_RK_STEP << ",";
                 file_grid_data << bssn::BSSN_CURRENT_RK_COORD_TIME << ",";
                 file_grid_data << m_uiMesh->getMPICommSize() << ",";
-                file_grid_data << MPI_Wtime() << ",";
+                file_grid_data << MPI_Wtime() - bssn::BSSN_START_TIME << ",";
                 file_grid_data << m_uiGlobalMeshElements << ",";
                 file_grid_data << m_uiGlobalGridPoints << ",";
                 file_grid_data << bssn::BSSN_RK45_TIME_STEP_SIZE << "\n";

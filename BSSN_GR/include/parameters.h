@@ -379,6 +379,8 @@ extern unsigned int BSSN_TIME_STEP_PROFILE_FREQ;
 /***@brief: derivs workspace*/
 extern double* BSSN_DERIV_WORKSPACE;
 
+extern double BSSN_START_TIME;
+
 // note ko derivs are not included
 #ifdef BSSN_USE_ADVECTIVE_DERIVS
 const unsigned int BSSN_NUM_DERIVS = 138 + 74;

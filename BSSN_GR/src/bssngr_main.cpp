@@ -54,6 +54,8 @@ int main(int argc, char** argv) {
 
     // initialize the flops timer
     dsolve::timer::initFlops();
+    // initialize BSSN_START_TIME
+    bssn::BSSN_START_TIME = MPI_Wtime();
 
     // begin the imer for total run time
     dsolve::timer::total_runtime.start();
@@ -725,6 +727,9 @@ bssn:
         std::cout << RED << "Not starting solver, ts_mode needs to be set to 1!"
                   << NRM << std::endl;
     }
+
+    std::cout << "FINISHED RUNNING: took a total of "
+              << MPI_Wtime() - bssn::BSSN_START_TIME << " s" << std::endl;
 
     MPI_Finalize();
     return 0;

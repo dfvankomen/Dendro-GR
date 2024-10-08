@@ -181,6 +181,7 @@ unsigned int BSSN_CURRENT_RK_STEP               = 0;
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
 unsigned int BSSN_TIME_STEP_PROFILE_FREQ        = 1;
+double BSSN_START_TIME                          = 0;
 
 dendro_compress::CompressionType BSSN_COMPRESSION_MODE =
     dendro_compress::CompressionType::NONE;
