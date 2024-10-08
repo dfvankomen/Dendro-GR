@@ -728,8 +728,9 @@ bssn:
                   << NRM << std::endl;
     }
 
-    std::cout << "FINISHED RUNNING: took a total of "
-              << MPI_Wtime() - bssn::BSSN_START_TIME << " s" << std::endl;
+    if (!rank)
+        std::cout << "FINISHED RUNNING: took a total of "
+                  << MPI_Wtime() - bssn::BSSN_START_TIME << " s" << std::endl;
 
     MPI_Finalize();
     return 0;
