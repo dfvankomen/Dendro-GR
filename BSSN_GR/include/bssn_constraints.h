@@ -41,7 +41,6 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     Atd[2][1] = Atd[1][2];
     Atd[2][2] = uiVar[VAR::U_SYMAT5][node];
 
-#ifdef TEUK_DEBUG_OPTION
     double alpha = uiVar[VAR::U_ALPHA][node];
     double chi   = uiVar[VAR::U_CHI][node];
     double K     = uiVar[VAR::U_CHI][node];
@@ -164,7 +163,6 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         std::cout << "B2 is NaN " << std::endl;
         exit(0);
     }
-#endif
 
     double det_gtd =
         gtd[0][0] * (gtd[1][1] * gtd[2][2] - gtd[1][2] * gtd[1][2]) -
