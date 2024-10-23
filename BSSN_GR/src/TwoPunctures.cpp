@@ -604,46 +604,100 @@ void TPRestore(CCTK_REAL *&F, derivs &u, derivs &v, derivs &cf_v,
     MPI_Barrier(TP_MPI_COMM);
     if (!rank) std::cout << "TPID data read begin: " << std::endl;
 
-    fr_st = fread(&ntotal, sizeof(int), 1, read_ptr);
+    if (!rank) {
+        fr_st = fread(&ntotal, sizeof(int), 1, read_ptr);
 
-    F     = dvector(0, ntotal - 1);
-    allocate_derivs(&u, ntotal);
-    allocate_derivs(&v, ntotal);
-    allocate_derivs(&cf_v, ntotal);
+        F     = dvector(0, ntotal - 1);
+        allocate_derivs(&u, ntotal);
+        allocate_derivs(&v, ntotal);
+        allocate_derivs(&cf_v, ntotal);
 
-    fr_st = fread(F, sizeof(double), ntotal - 1, read_ptr);
-    fr_st = fread(u.d0, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d1, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d2, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d3, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d11, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d12, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d13, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d22, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d23, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(u.d33, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(F, sizeof(double), ntotal - 1, read_ptr);
+        fr_st = fread(u.d0, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d1, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d2, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d3, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d11, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d12, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d13, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d22, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d23, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(u.d33, sizeof(double), ntotal, read_ptr);
 
-    fr_st = fread(v.d0, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d1, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d2, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d3, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d11, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d12, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d13, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d22, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d23, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(v.d33, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d0, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d1, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d2, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d3, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d11, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d12, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d13, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d22, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d23, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(v.d33, sizeof(double), ntotal, read_ptr);
 
-    fr_st = fread(cf_v.d0, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d1, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d2, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d3, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d11, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d12, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d13, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d22, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d23, sizeof(double), ntotal, read_ptr);
-    fr_st = fread(cf_v.d33, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d0, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d1, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d2, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d3, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d11, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d12, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d13, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d22, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d23, sizeof(double), ntotal, read_ptr);
+        fr_st = fread(cf_v.d33, sizeof(double), ntotal, read_ptr);
+
+        if (!rank)
+            std::cout
+                << "TPID data read on proc 1 finished... now broadcasting! "
+                << std::endl;
+    }
+    // well, instead of just opening it, we can just broadcast temporarily
+
+    // broadcast ntotal
+    par::Mpi_Bcast<int>(&ntotal, 1, 0, TP_MPI_COMM);
+
+    // have the rest allocate u and v
+    if (rank) {
+        F = dvector(0, ntotal - 1);
+        allocate_derivs(&u, ntotal);
+        allocate_derivs(&v, ntotal);
+        allocate_derivs(&cf_v, ntotal);
+    }
+
+    // then broadcast everything else
+    par::Mpi_Bcast<double>(F, ntotal - 1, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d0, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d1, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d2, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d3, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d11, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d12, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d13, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d22, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d23, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(u.d33, ntotal, 0, TP_MPI_COMM);
+
+    par::Mpi_Bcast<double>(v.d0, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d1, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d2, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d3, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d11, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d12, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d13, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d22, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d23, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(v.d33, ntotal, 0, TP_MPI_COMM);
+
+    par::Mpi_Bcast<double>(cf_v.d0, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d1, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d2, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d3, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d11, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d12, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d13, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d22, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d23, ntotal, 0, TP_MPI_COMM);
+    par::Mpi_Bcast<double>(cf_v.d33, ntotal, 0, TP_MPI_COMM);
 
     MPI_Barrier(TP_MPI_COMM);
     if (!rank) std::cout << "TPID solver successfully restored: " << std::endl;

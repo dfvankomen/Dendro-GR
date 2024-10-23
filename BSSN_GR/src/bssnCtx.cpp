@@ -479,6 +479,10 @@ int BSSNCtx::initialize() {
               newGridPoints_g != oldGridPoints_g) &&
              (iterCount < max_iter));
 
+    // print information
+    m_uiMesh->print_information_about_sending_and_receiving();
+    if (bssn::BSSN_ONLY_PRINT_GRID_INFO) return 0;
+
     this->init_grid();
 
     // // realloc bssn deriv space

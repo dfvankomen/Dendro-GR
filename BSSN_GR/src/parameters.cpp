@@ -183,6 +183,8 @@ double* BSSN_DERIV_WORKSPACE                    = nullptr;
 unsigned int BSSN_TIME_STEP_PROFILE_FREQ        = 1;
 double BSSN_START_TIME                          = 0;
 
+bool BSSN_ONLY_PRINT_GRID_INFO                  = true;
+
 dendro_compress::CompressionType BSSN_COMPRESSION_MODE =
     dendro_compress::CompressionType::NONE;
 

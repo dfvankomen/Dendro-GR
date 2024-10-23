@@ -332,6 +332,7 @@ bssn:
             ets->set_ets_coefficients(ts::ETSType::RK5);
 
         ets->init();
+
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -387,6 +388,10 @@ bssn:
         hh[2][0] = r_minus * sqrt(4 * M_PI);
 
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
+            // then we can kill it based on our run, we just want the
+            // information
+            if (bssn::BSSN_ONLY_PRINT_GRID_INFO) break;
+
             bssnCtx->resetTimers();
 
             const DendroIntL step            = ets->curr_step();
@@ -433,6 +438,7 @@ bssn:
                     bssnCtx->calculate_full_grid_size();
 
                     ot::Mesh* pmesh = bssnCtx->get_mesh();
+                    pmesh->print_information_about_sending_and_receiving();
                     unsigned int lmin, lmax;
                     pmesh->computeMinMaxLevel(lmin, lmax);
                     if (!pmesh->getMPIRankGlobal())
@@ -479,6 +485,7 @@ bssn:
                                  "are taken care of..."
                               << NRM << std::endl;
                 }
+
                 // for our scaling operation, we want to make sure that the
                 // constraints are computed and handled
                 bssnCtx->compute_constraint_variables();

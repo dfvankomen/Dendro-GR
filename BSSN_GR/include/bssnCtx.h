@@ -257,7 +257,10 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     void resetTimers();
 
-    void resetCountersForEvolve() { this->prepareBytesVectors(); }
+    void resetCountersForEvolve() {
+        this->prepareBytesVectors();
+        this->m_uiMesh->set_dump_data_now(true);
+    }
 };
 
 }  // end of namespace bssn
