@@ -707,8 +707,6 @@ int BSSNCtx::write_vtu() {
     // make sure the constraint variables are computed
     this->compute_constraint_variables();
 
-#ifdef BSSN_ENABLE_VTU_OUTPUT
-
     if ((m_uiTinfo._m_uiStep % bssn::BSSN_IO_OUTPUT_FREQ) == 0) {
         std::vector<std::string> pDataNames;
         const unsigned int numConstVars = bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT;
@@ -741,8 +739,43 @@ int BSSNCtx::write_vtu() {
         char fPrefix[256];
         sprintf(fPrefix, "%s_%d", bssn::BSSN_VTU_FILE_PREFIX.c_str(),
                 m_uiTinfo._m_uiStep);
+        if (bssn::BSSN_VTU_X_SLICE && bssn::BSSN_VTU_Y_SLICE && bssn::BSSN_VTU_Z_SLICE) {
+        //Outputting each slice:
+        unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
+                                  1u << (m_uiMaxDepth - 1),
+                                  1u << (m_uiMaxDepth - 1)};
 
-        if (bssn::BSSN_VTU_X_SLICE || bssn::BSSN_VTU_Y_SLICE ||
+           unsigned int s_norm[3] = {0, 0, 0};
+
+            s_norm[0] = 1;
+                 io::vtk::mesh2vtu_slice_x(
+                m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+                (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+                (const double**)pData);
+               for (int i = 0; i < 3; i++) {
+                 s_norm[i] = 0;
+                 }
+
+            s_norm[1] = 1;
+                 io::vtk::mesh2vtu_slice_y(
+                m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+                (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+                (const double**)pData);
+
+             for (int i = 0; i < 3; i++) {
+                 s_norm[i] = 0;
+                 }
+
+            s_norm[2] = 1;
+                 io::vtk::mesh2vtu_slice_z(
+                m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+                (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+                (const double**)pData);
+        
+
+}
+
+        else if (bssn::BSSN_VTU_X_SLICE || bssn::BSSN_VTU_Y_SLICE ||
             bssn::BSSN_VTU_Z_SLICE) {
             unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
                                       1u << (m_uiMaxDepth - 1),
@@ -757,14 +790,13 @@ int BSSNCtx::write_vtu() {
                 m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
                 (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
                 (const double**)pData);
-        } else
+        }
+         else
             io::vtk::mesh2vtuFine(m_uiMesh, fPrefix, 2, fDataNames, fData,
                                   (numEvolVars + numConstVars),
                                   (const char**)&pDataNames_char[0],
                                   (const double**)pData);
     }
-
-#endif
 
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
     bssn::writeBHCoordinates((const ot::Mesh*)m_uiMesh, (const Point*)m_uiBHLoc,
