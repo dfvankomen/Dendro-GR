@@ -768,7 +768,7 @@ int BSSNCtx::write_vtu() {
     // least it'll early exit if they are this time step
     this->compute_constraint_variables();
 
-#ifdef BSSN_ENABLE_VTU_OUTPUT
+    #ifdef BSSN_ENABLE_VTU_OUTPUT
     if (!(m_uiMesh->getMPIRankGlobal())) {
         std::cout << GRN << "=== Now Writing VTU Output Files! ===" << NRM
                   << std::endl;
@@ -825,6 +825,40 @@ int BSSNCtx::write_vtu() {
                               (numEvolVars + numConstVars),
                               (const char**)&pDataNames_char[0],
                               (const double**)pData);
+
+    // TODO: add in option for this to be on or off
+    if (true) {
+        // Outputting each slice:
+        unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
+                                  1u << (m_uiMaxDepth - 1),
+                                  1u << (m_uiMaxDepth - 1)};
+        unsigned int s_norm[3] = {0, 0, 0};
+
+        s_norm[0]              = 1;
+        io::vtk::mesh2vtu_slice_x(
+            m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+            (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+            (const double**)pData);
+        for (int i = 0; i < 3; i++) {
+            s_norm[i] = 0;
+        }
+
+        s_norm[1] = 1;
+        io::vtk::mesh2vtu_slice_y(
+            m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+            (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+            (const double**)pData);
+
+        for (int i = 0; i < 3; i++) {
+            s_norm[i] = 0;
+        }
+
+        s_norm[2] = 1;
+        io::vtk::mesh2vtu_slice_z(
+            m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
+            (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
+            (const double**)pData);
+    }
 
     if (!(m_uiMesh->getMPIRankGlobal())) {
         std::cout << GRN << "=== Finished Writing the VTU Files! ===" << NRM

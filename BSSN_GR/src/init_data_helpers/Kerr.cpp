@@ -1,5 +1,5 @@
-double mass   = 5.0;
-double a_spin = 2.5;
+double mass   = bssn::BH1.getBHMass();
+double a_spin = bssn::BH1.getBHSpin();
 // double mass = emda::EMDA_SINGLE_BH_MASS ;
 // double a_spin = emda::EMDA_SINGLE_BH_SPIN ;
 double rbar;

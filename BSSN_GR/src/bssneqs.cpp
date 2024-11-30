@@ -1867,9 +1867,41 @@ B_rhs1[pp] =
                  beta2[pp] * agrad_2_B1[pp]) -
     lambda[3] * (DENDRO_973 + DENDRO_974 + DENDRO_975);
 //--
-B_rhs2[pp] =
-    -B2[pp] * eta - DENDRO_989 * lambda[3] + DENDRO_991 +
-    lambda[2] * (beta0[pp] * agrad_0_B2[pp] + beta1[pp] * agrad_1_B2[pp] +
-                 beta2[pp] * agrad_2_B2[pp]);
+B_rhs2[pp] = -B2[pp]*eta - DENDRO_989*lambda[3] + DENDRO_991 + lambda[2]*(beta0[pp]*agrad_0_B2[pp] + beta1[pp]*agrad_1_B2[pp] + beta2[pp]*agrad_2_B2[pp]);
+void checkNaN(const std::string &varName, double value) {
+    if (std::isnan(value)) {
+        std::cout << "NaN detected in variable: " << varName << std::endl;
+    }
+}
+
+// Function to check all variables
+void checkAllVariables() {
+    checkNaN("a_rhs[pp]", a_rhs[pp]);
+    checkNaN("b_rhs0[pp]", b_rhs0[pp]);
+    checkNaN("b_rhs1[pp]", b_rhs1[pp]);
+    checkNaN("b_rhs2[pp]", b_rhs2[pp]);
+    checkNaN("gt_rhs00[pp]", gt_rhs00[pp]);
+    checkNaN("gt_rhs01[pp]", gt_rhs01[pp]);
+    checkNaN("gt_rhs02[pp]", gt_rhs02[pp]);
+    checkNaN("gt_rhs11[pp]", gt_rhs11[pp]);
+    checkNaN("gt_rhs12[pp]", gt_rhs12[pp]);
+    checkNaN("gt_rhs22[pp]", gt_rhs22[pp]);
+    checkNaN("chi_rhs[pp]", chi_rhs[pp]);
+    checkNaN("At_rhs00[pp]", At_rhs00[pp]);
+    checkNaN("At_rhs01[pp]", At_rhs01[pp]);
+    checkNaN("At_rhs02[pp]", At_rhs02[pp]);
+    checkNaN("At_rhs11[pp]", At_rhs11[pp]);
+    checkNaN("At_rhs12[pp]", At_rhs12[pp]);
+    checkNaN("At_rhs22[pp]", At_rhs22[pp]);
+    checkNaN("K_rhs[pp]", K_rhs[pp]);
+    checkNaN("Gt_rhs0[pp]", Gt_rhs0[pp]);
+    checkNaN("Gt_rhs1[pp]", Gt_rhs1[pp]);
+    checkNaN("Gt_rhs2[pp]", Gt_rhs2[pp]);
+    checkNaN("B_rhs0[pp]", B_rhs0[pp]);
+    checkNaN("B_rhs1[pp]", B_rhs1[pp]);
+    checkNaN("B_rhs2[pp]", B_rhs2[pp]);
+}
+
+
 // Dendro: reduced ops:  4484
 // Dendro: }}}
