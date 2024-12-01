@@ -472,7 +472,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
     MPI_Comm_size(comm, &npes);
 
     if (rank == root) {
-        sout << "parameters read: " << std::endl;
+        sout << "Parameters to Use (either set by par file or defaults): "
+             << std::endl;
         sout << YLW << "\tnpes :" << npes << NRM << std::endl;
         sout << YLW << "\tBSSN_DIM :" << bssn::BSSN_DIM << NRM << std::endl;
         sout << YLW << "\tBSSN_ELE_ORDER :" << bssn::BSSN_ELE_ORDER << NRM
