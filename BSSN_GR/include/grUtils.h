@@ -167,6 +167,16 @@ void NLTeukData(const double xx1, const double yy1, const double zz1,
  * @param zz1 : z coord
  * @param var : initialized bssn variables for the grid points
  */
+ void Baumgarte(const double xx1, const double yy1, const double zz1,
+                double* var);
+
+/**
+ * @brief add artificial noise to the initial data.
+ * @param xx1 : x coord
+ * @param yy1 : y coord
+ * @param zz1 : z coord
+ * @param var : initialized bssn variables for the grid points
+ */
 
 void Bin_KerrData(const double xx1, const double yy1, const double zz1,
                   double* var);

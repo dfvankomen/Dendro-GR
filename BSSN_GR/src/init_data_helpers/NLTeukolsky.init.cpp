@@ -1376,14 +1376,14 @@ if (detg < 0) {
     std::cout << " z = " << zbar << std::endl;
 
     // Other debugging options
-    /*
-    std::cout <<" g_xx =" << g_xx << std::endl;
+    
+std::cout <<" g_xx =" << g_xx << std::endl;
 std::cout <<" g_xy =" << g_xy << std::endl;
 std::cout <<" g_xz =" << g_xz << std::endl;
 std::cout <<" g_yy =" << g_yy << std::endl;
 std::cout <<" g_yz =" << g_yz << std::endl;
 std::cout <<" g_zz =" << g_zz << std::endl;
-    */
+    
 
     /*
     std::cout <<" g_bare_rr = " << g_bare_rr << std::endl;
