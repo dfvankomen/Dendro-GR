@@ -54,115 +54,115 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     double B1    = uiVar[VAR::U_B1][node];
     double B2    = uiVar[VAR::U_B2][node];
 
-    // Debugging code for Teukolsky:
-    if (std::isnan(alpha)) {
-        std::cout << "alpha is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(chi)) {
-        std::cout << "chi is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(K)) {
-        std::cout << "K is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[0][0])) {
-        std::cout << "gt0 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[0][1])) {
-        std::cout << "gt1 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[0][2])) {
-        std::cout << "gt2 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[1][1])) {
-        std::cout << "gt3 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[1][2])) {
-        std::cout << "gt4 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(gtd[2][2])) {
-        std::cout << "gt5 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(beta0)) {
-        std::cout << "beta0 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(beta1)) {
-        std::cout << "beta1 is NaN " << std::endl;
-        exit(0);
-    }
+    // // Debugging code for Teukolsky:
+    // if (std::isnan(alpha)) {
+    //     std::cout << "alpha is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(chi)) {
+    //     std::cout << "chi is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(K)) {
+    //     std::cout << "K is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[0][0])) {
+    //     std::cout << "gt0 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[0][1])) {
+    //     std::cout << "gt1 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[0][2])) {
+    //     std::cout << "gt2 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[1][1])) {
+    //     std::cout << "gt3 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[1][2])) {
+    //     std::cout << "gt4 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(gtd[2][2])) {
+    //     std::cout << "gt5 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(beta0)) {
+    //     std::cout << "beta0 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(beta1)) {
+    //     std::cout << "beta1 is NaN " << std::endl;
+    //     exit(0);
+    // }
     if (std::isnan(beta2)) {
         std::cout << "beta2 is NaN " << std::endl;
         exit(0);
     }
-    if (std::isnan(Atd[0][0])) {
-        std::cout
-            << "At0 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[0][0] = 0.0;
-    }
-    if (std::isnan(Atd[0][1])) {
-        std::cout
-            << "At1 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[0][1] = 0.0;
-    }
-    if (std::isnan(Atd[0][2])) {
-        std::cout
-            << "At2 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[0][2] = 0.0;
-    }
-    if (std::isnan(Atd[1][1])) {
-        std::cout
-            << "At3 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[1][1] = 0.0;
-    }
-    if (std::isnan(Atd[1][2])) {
-        std::cout
-            << "At4 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[1][2] = 0.0;
-    }
-    if (std::isnan(Atd[2][2])) {
-        std::cout
-            << "At5 is NaN Reset to another value for testing purposes...."
-            << std::endl;
-        Atd[2][2] = 0.0;
-    }
-    if (std::isnan(Gt0)) {
-        std::cout << "Gt0 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(Gt1)) {
-        std::cout << "Gt1 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(Gt2)) {
-        std::cout << "Gt2 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(B0)) {
-        std::cout << "B0 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(B1)) {
-        std::cout << "B1 is NaN " << std::endl;
-        exit(0);
-    }
-    if (std::isnan(B2)) {
-        std::cout << "B2 is NaN " << std::endl;
-        exit(0);
-    }
+    // if (std::isnan(Atd[0][0])) {
+    //     std::cout
+    //         << "At0 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[0][0] = 0.0;
+    // }
+    // if (std::isnan(Atd[0][1])) {
+    //     std::cout
+    //         << "At1 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[0][1] = 0.0;
+    // }
+    // if (std::isnan(Atd[0][2])) {
+    //     std::cout
+    //         << "At2 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[0][2] = 0.0;
+    // }
+    // if (std::isnan(Atd[1][1])) {
+    //     std::cout
+    //         << "At3 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[1][1] = 0.0;
+    // }
+    // if (std::isnan(Atd[1][2])) {
+    //     std::cout
+    //         << "At4 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[1][2] = 0.0;
+    // }
+    // if (std::isnan(Atd[2][2])) {
+    //     std::cout
+    //         << "At5 is NaN Reset to another value for testing purposes...."
+    //         << std::endl;
+    //     Atd[2][2] = 0.0;
+    // }
+    // if (std::isnan(Gt0)) {
+    //     std::cout << "Gt0 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(Gt1)) {
+    //     std::cout << "Gt1 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(Gt2)) {
+    //     std::cout << "Gt2 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(B0)) {
+    //     std::cout << "B0 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(B1)) {
+    //     std::cout << "B1 is NaN " << std::endl;
+    //     exit(0);
+    // }
+    // if (std::isnan(B2)) {
+    //     std::cout << "B2 is NaN " << std::endl;
+    //     exit(0);
+    // }
 
     double det_gtd =
         gtd[0][0] * (gtd[1][1] * gtd[2][2] - gtd[1][2] * gtd[1][2]) -
@@ -172,21 +172,33 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
 
     if (det_gtd < 0.0) {
         std::cout << "metric determinent is negative " << det_gtd << std::endl;
-#if ENABLE_METRIC_CHECK_EXIT
-        exit(0);
-        /* FIXME What to do here? The metric is not
-         * physical. Do we reset the metric to be flat? */
-        gtd[0][0] = 1.0;
-        gtd[0][1] = 0.0;
-        gtd[0][2] = 0.0;
-        gtd[1][0] = 0.0;
-        gtd[1][1] = 1.0;
-        gtd[1][2] = 0.0;
-        gtd[2][0] = 0.0;
-        gtd[2][1] = 0.0;
-        gtd[2][2] = 1.0;
-        det_gtd   = 1.0;
-#endif
+        std::cout << "The value of alpha is  " << alpha << std::endl;
+        std::cout << "The value of beta x is  " << beta0 << std::endl;
+        std::cout << "The value of beta y is  " << beta1 << std::endl;
+        std::cout << "The value of beta z is  " << beta2 << std::endl;
+        std::cout << "the value of A tilde xx is " << Atd[0][0]<<std::endl;
+        std::cout << "the value of A tilde xy is " << Atd[0][1]<<std::endl;
+        std::cout << "the value of A tilde xz is " << Atd[0][2]<<std::endl;
+        std::cout << "the value of A tilde yy is " << Atd[1][1]<<std::endl;
+        std::cout << "the value of A tilde yz is " << Atd[1][2]<<std::endl;
+        std::cout << "the value of A tilde zz is " << Atd[2][2]<<std::endl;
+        std::cout << "the value of metric xx is " << gtd[0][0]<<std::endl;
+        std::cout << "the value of metric xy is " << gtd[0][1]<<std::endl;
+        std::cout << "the value of metric xz is " << gtd[0][2]<<std::endl;
+        std::cout << "the value of metric yy is " << gtd[1][1]<<std::endl;
+        std::cout << "the value of metric yz is " << gtd[1][2]<<std::endl;
+        std::cout << "the value of metric zz is " << gtd[2][2]<<std::endl;
+        // gtd[0][0] = 0.31;
+        // gtd[0][1] = 0.0;
+        // gtd[0][2] = 0.0;
+        // gtd[1][0] = 0.0;
+        // gtd[1][1] = 0.31;
+        // gtd[1][2] = 0.0;
+        // gtd[2][0] = 0.0;
+        // gtd[2][1] = 0.0;
+        // gtd[2][2] = 10.4058272633;
+        // det_gtd   = 1.0;
+        //  std::cout << "metric determinent reset ..." <<  std::endl;
     }
     double det_gtd_to_neg_third = 1.0 / pow(det_gtd, one_third);
 
@@ -197,6 +209,7 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     }
 
     det_gtd = gtd[0][0] * (gtd[1][1] * gtd[2][2] - gtd[1][2] * gtd[1][2]) -
+
               gtd[0][1] * gtd[0][1] * gtd[2][2] +
               2.0 * gtd[0][1] * gtd[0][2] * gtd[1][2] -
               gtd[0][2] * gtd[0][2] * gtd[1][1];
@@ -261,7 +274,7 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         std::cout << "      Atd(2,3)=" << Atd[1][2] << std::endl;
         std::cout << "      Atd(3,3)=" << Atd[2][2] << std::endl;
 
-        exit(0);
+        //exit(0);
     }
 
     uiVar[VAR::U_SYMAT0][node] = Atd[0][0];
@@ -302,11 +315,17 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         /* now place the floor on chi */
         uiVar[VAR::U_CHI][node] = CHI_FLOOR;
     }
-
+ if (uiVar[VAR::U_ALPHA][node] < ALPHA_FLOOR){
+uiVar[VAR::U_ALPHA][node] = ALPHA_FLOOR;
+ }
+//  if (uiVar[VAR::U_ALPHA][node] > TEUK_AMP){
+// uiVar[VAR::U_ALPHA][node] = TEUK_AMP;
+//  }
     /* apply a floor to alpha */
 #if MAKE_ALPHA_FLOOR_ONLY_POSITIVE
     uiVar[VAR::U_ALPHA][node] =
         std::max(uiVar[VAR::U_ALPHA][node], ALPHA_FLOOR);
+        std::min(uiVar[VAR::U_ALPHA][node], 2.0);
 #else
     if (uiVar[VAR::U_ALPHA][node] > 0) {
         uiVar[VAR::U_ALPHA][node] =

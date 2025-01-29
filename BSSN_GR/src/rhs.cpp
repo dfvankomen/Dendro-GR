@@ -4,6 +4,15 @@
 #include "hadrhs.h"
 #include "parameters.h"
 
+#include <iostream>
+#include <cmath> // For std::isnan
+
+// Function to report NaN values with location and context information
+void reportNaN(const char* varName, double x, double y, double z, double value) {
+    std::cerr << "NaN detected in variable " << varName 
+              << " at (" << x << ", " << y << ", " << z << "): " << value << std::endl;
+}
+
 // #define DEBUG_FOR_TEUK
 
 using namespace std;
@@ -206,6 +215,30 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 const double z = pmin[2] + k * hz;
                 ;
                 const unsigned int pp = i + nx * (j + ny * k);
+                if (std::isnan(alpha[pp])) reportNaN("alpha", x, y, z, alpha[pp]);
+                if (std::isnan(chi[pp])) reportNaN("chi", x, y, z, chi[pp]);
+                if (std::isnan(K[pp])) reportNaN("K", x, y, z, K[pp]);
+                if (std::isnan(gt0[pp])) reportNaN("gt0", x, y, z, gt0[pp]);
+                if (std::isnan(gt1[pp])) reportNaN("gt1", x, y, z, gt1[pp]);
+                if (std::isnan(gt2[pp])) reportNaN("gt2", x, y, z, gt2[pp]);
+                if (std::isnan(gt3[pp])) reportNaN("gt3", x, y, z, gt3[pp]);
+                if (std::isnan(gt4[pp])) reportNaN("gt4", x, y, z, gt4[pp]);
+                if (std::isnan(gt5[pp])) reportNaN("gt5", x, y, z, gt5[pp]);
+                if (std::isnan(At0[pp])) reportNaN("At0", x, y, z, At0[pp]);
+                if (std::isnan(At1[pp])) reportNaN("At1", x, y, z, At1[pp]);
+                if (std::isnan(At2[pp])) reportNaN("At2", x, y, z, At2[pp]);
+                if (std::isnan(At3[pp])) reportNaN("At3", x, y, z, At3[pp]);
+                if (std::isnan(At4[pp])) reportNaN("At4", x, y, z, At4[pp]);
+                if (std::isnan(At5[pp])) reportNaN("At5", x, y, z, At5[pp]);
+                if (std::isnan(beta0[pp])) reportNaN("beta0", x, y, z, beta0[pp]);
+                if (std::isnan(beta1[pp])) reportNaN("beta1", x, y, z, beta0[pp]);
+                if (std::isnan(beta2[pp])) reportNaN("beta2", x, y, z, beta0[pp]);
+                if (std::isnan(B0[pp])) reportNaN("B0", x, y, z, B0[pp]);
+                if (std::isnan(B1[pp])) reportNaN("B1", x, y, z, B0[pp]);
+                if (std::isnan(B2[pp])) reportNaN("B2", x, y, z, B0[pp]);
+                if (std::isnan(Gt0[pp])) reportNaN("G0", x, y, z, Gt0[pp]);
+                if (std::isnan(Gt1[pp])) reportNaN("G1", x, y, z, Gt0[pp]);
+                if (std::isnan(Gt2[pp])) reportNaN("G2", x, y, z, Gt0[pp]);
                 const double r_coord  = sqrt(x * x + y * y + z * z);
 
                 const double w        = r_coord / bssn::RIT_ETA_WIDTH;
@@ -214,16 +247,16 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                     (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
                     bssn::RIT_ETA_OUTER;
 
-#ifdef DEBUG_FOR_TEUK
-                if ((x > -0.0001 && x < 0.0001) &&
-                    (y > -0.0001 && y < 0.0001) &&
-                    (z > -0.0001 && z < 0.0001)) {
-                    std::cout << "  [originUpdate] - Alpha at (" << x << ", "
-                              << y << ", " << z << ") : " << alpha[pp]
-                              << "  - step: " << bssn::BSSN_CURRENT_RK_STEP
-                              << " (t = " << bssn::BSSN_CURRENT_RK_COORD_TIME
-                              << ")" << std::endl;
-                }
+
+                // if ((x > -0.0001 && x < 0.0001) &&
+                //     (y > -0.0001 && y < 0.0001) &&
+                //     (z > -0.0001 && z < 0.0001)) {
+                //     std::cout << "  [originUpdate] - Alpha at (" << x << ", "
+                //               << y << ", " << z << ") : " << alpha[pp]
+                //               << "  - step: " << bssn::BSSN_CURRENT_RK_STEP
+                //               << " (t = " << bssn::BSSN_CURRENT_RK_COORD_TIME
+                //               << ")" << std::endl;
+                // }
                 double det_gtd =
                     gt0[pp] * (gt3[pp] * gt5[pp] - gt4[pp] * gt4[pp]) -
                     gt1[pp] * gt1[pp] * gt5[pp] +
@@ -328,7 +361,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                                   << ", " << z << ")" << std::endl;
                     // exit(0);
                 }
-#endif
 
                 // clang-format off
 // formatting is off for this chunk to make it more readable, but still identifiable as compiler defs
