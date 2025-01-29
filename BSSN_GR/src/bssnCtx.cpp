@@ -768,7 +768,7 @@ int BSSNCtx::write_vtu() {
     // least it'll early exit if they are this time step
     this->compute_constraint_variables();
 
-    #ifdef BSSN_ENABLE_VTU_OUTPUT
+#ifdef BSSN_ENABLE_VTU_OUTPUT
     if (!(m_uiMesh->getMPIRankGlobal())) {
         std::cout << GRN << "=== Now Writing VTU Output Files! ===" << NRM
                   << std::endl;
@@ -827,7 +827,7 @@ int BSSNCtx::write_vtu() {
                               (const double**)pData);
 
     // TODO: add in option for this to be on or off
-    if (true) {
+    if (false) {
         // Outputting each slice:
         unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
                                   1u << (m_uiMaxDepth - 1),
