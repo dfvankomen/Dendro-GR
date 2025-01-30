@@ -105,12 +105,28 @@ double rho_axis;
 //These are given in a mathematica script and converted into C code:
 
 
-// double A2 = 0.01;
-// double B2 = 0.01;
-// double C2 = 0.01;
+double A2;
+double B2;
+double C2;
+//we will here make use of a taylor expanded expression of these functions as to avoid singularities arising from imperfect cancelationsat the origin  We do this out to 
 if (rr < 1.0e-2 ) {
-rr = 0.01;
+A2 = (-64*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
+   (64*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
+   (32*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
+    (35.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12));
+B2 = (-32*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
+   (32*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
+   (16*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
+    (15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12));
+C2 = (-32*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
+   (352*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
+   (368*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
+    (105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + (208*A*pow(rr,6)*
+      (-32*pow(r0,10) + 720*pow(r0,8)*pow(lambda,2) - 5040*pow(r0,6)*pow(lambda,4) + 12600*pow(r0,4)*pow(lambda,6) - 9450*pow(r0,2)*pow(lambda,8) + 945*pow(lambda,10)))/
+    (945.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,16));
 }
+//else we continue with the numerical formulation:
+else{
 double F =A*(pow(E,-pow(rr - r0,2)/pow(lambda,2)) + pow(E,-pow(rr + r0,2)/pow(lambda,2)))*rr*pow(lambda,4);
 double F1 = A*(pow(E,-pow(rr - r0,2)/pow(lambda,2)) + pow(E,-pow(rr + r0,2)/pow(lambda,2)))*pow(lambda,4) + 
    A*rr*((-2*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,2)) - (2*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,2)))*pow(lambda,4);
@@ -130,12 +146,12 @@ double F4 = A*rr*((16*pow(rr - r0,4))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(l
    4*A*((-8*pow(rr - r0,3))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,6)) - (8*pow(rr + r0,3))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,6)) + 
       (12*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + (12*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)))*pow(lambda,4);
 
-double A2 = 24*( -F2/(pow(rr,3))+3*F2/(pow(rr,4))-3*F/(pow(rr,5)));
+A2 = 24*( -F2/(pow(rr,3))+3*F2/(pow(rr,4))-3*F/(pow(rr,5)));
 
-double B2 = 4*(-F3/(pow(rr,2))+3*F2/(pow(rr,3))- 6 * F1 /(pow(rr,4))+6*F/(pow(rr,5)));
+B2 = 4*(-F3/(pow(rr,2))+3*F2/(pow(rr,3))- 6 * F1 /(pow(rr,4))+6*F/(pow(rr,5)));
 
-double C2 = 2*(-F4/(rr)+2*F3/(pow(rr,2))- 3* F2 /(pow(rr,3))+ 3* F1/(pow(rr,4))- 3*F/(pow(rr,5)));
-
+C2 = 2*(-F4/(rr)+2*F3/(pow(rr,2))- 3* F2 /(pow(rr,3))+ 3* F1/(pow(rr,4))- 3*F/(pow(rr,5)));
+}
 // double A2= (48 * A * exp(-(pow((rr-r0),2)/(pow(lambda,2))))* (-2 rr* pow((rr-r0),2) - r0 * pow(lambda,2) + exp(4((rr-r0)/(pow(lambda,2)))));
 
 // double piece1 = 48*A*(-2*rr*pow(rr + r0,2));
