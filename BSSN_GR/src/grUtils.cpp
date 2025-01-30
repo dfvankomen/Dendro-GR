@@ -779,7 +779,7 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         }
 
         if (bssn::BSSN_ID_TYPE == 7 ||
-            bssn::BSSN_ID_TYPE == 9) {  // If Teukolsky print TEUK
+            bssn::BSSN_ID_TYPE == 9 ||  bssn::BSSN_ID_TYPE == 12 ) {  // If Teukolsky print TEUK
             // parameters
             sout << "//////////////TEUKOLSKY "
                     "PARAMETERS/////////////////////\n"
