@@ -247,7 +247,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             const double f2      = m1 / (m1 + m2);
             const double f       = std::max(f1, f2);
             const double R_orbit = f * dBH + 8;  // M; resolve scale
-            const int l_orbit    = 9;  // desired refinement level within
+            const int l_orbit    = 8;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
@@ -322,6 +322,16 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             }
             
 #ifdef BSSN_EXTRACT_GRAVITATIONAL_WAVES
+            ////////////////////////////////////////////////////////////
+            // ORBIT refinement
+            // @wkb 6 Feb 2025: TODO: add BH location history here 
+            // 1) read in t,q1,q2, with q={x,y,z}
+            // 2) calculate relative angle
+            //    theta = arctan2(y1-y2, x1-x2)
+            // 3) calculate angular orbital velocity
+            //    phi = derivative(theta, t)
+            // 4) calculate refinement based on retarded time
+            
             ////////////////////////////////////////////////////////////
             // @wkb 4 Sept 2024:
             // add refinement based on expected gravitational wavelength
