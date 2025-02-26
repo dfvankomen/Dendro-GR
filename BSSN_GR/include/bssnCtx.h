@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <tuple>
 
 #include "TwoPunctures.h"
 #include "aeh.h"
@@ -87,6 +88,33 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         // make sure some things are ready for the next iteration
         m_bConstraintsComputed = false;
         m_bBHEvolved           = false;
+    }
+
+    const std::vector<std::pair<Point, Point>>& get_bh_loc_history() const {
+        return m_uiBHLocHistory;
+    }
+
+    const std::vector<double>& get_bh_loc_time_history() const {
+        return m_uiBHTimeHistory;
+    }
+
+    const std::vector<double> get_bh_angle_history() {
+        std::vector<double> angle_history;
+
+        for (auto& bh_points : m_uiBHLocHistory) {
+            double x1 = bh_points.first.x();
+            double y1 = bh_points.first.y();
+            double z1 = bh_points.first.z();
+
+            double x2 = bh_points.second.x();
+            double y2 = bh_points.second.y();
+            double z2 = bh_points.second.z();
+
+            // compute the relative angle for x and y
+            angle_history.push_back(atan2(y1 - y2, x1 - x2));
+        }
+
+        return angle_history;
     }
 
     /** @brief get bh locations*/
