@@ -2055,8 +2055,9 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
 
         // (max) orbital radius; use strictest refinement here
         const double R_orbit     = 8;
-        // outer radius of simulation
-        const double R_max       = 400;
+        // outermost GW extraction radius
+        const double R_min       = GW::BSSN_GW_RADAII[0];
+        const double R_max       = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
         // expected lapse wave tail length (M) + backreflections
         const double L           = 120;
@@ -2064,8 +2065,8 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // with the grid center is both time-like & clean of lapse noise
         const double t_lim       = std::max(r, (r + L) / std::sqrt(2));
 
-        // wavelet tolerance in acausal (or dirty) regions.
-        const double eps_disable = .001;
+        // wavelet tolerance in acausal (or dirty or unneeded) regions.
+        const double eps_disable = bssn::BSSN_WAVELET_TOL_MAX;
         // time to fade from eps_disable to eps_goal
         const double t_fade      = 100;
 
@@ -2073,18 +2074,20 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up goal resolution to hit in causal clean regions
         // linearly interpolate log tolerances vs log radii
 
-        double eps_goal;
+        double eps_goal = eps_disable; // default value in outer regions
         if (r <= R_orbit) {
             eps_goal = bssn::BSSN_WAVELET_TOL;
-        } else {  // log falloff
+        } else if (r <= R_min) {  // log falloff
             // power we're raising the next expression to, scaling out radius
             const double pwr =
-                std::log(r / R_orbit) / std::log(R_max / R_orbit);
+                std::log(r / R_orbit) / std::log(R_min / R_orbit);
             // goal wavelet tolerance at end times
             eps_goal =
                 bssn::BSSN_WAVELET_TOL *
-                std::pow(bssn::BSSN_WAVELET_TOL_MAX / bssn::BSSN_WAVELET_TOL,
+                std::pow(bssn::BSSN_GW_REFINE_WTOL / bssn::BSSN_WAVELET_TOL,
                          pwr);
+        } else if (r <= R_max) { // plateau
+            eps_goal = bssn::BSSN_GW_REFINE_WTOL;
         }
 
         ////////////////////////////////////////////////////////////////

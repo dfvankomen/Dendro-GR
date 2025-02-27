@@ -143,36 +143,52 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
 }
 
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
-    const double r_near[2]       = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
-    // const double r_far[2]  =  {2.5 * r_near[0], 2.5 * r_near[1] };
-    const double r_far[2]        = {bssn::BSSN_AMR_R_RATIO * r_near[0],
-                                    bssn::BSSN_AMR_R_RATIO * r_near[1]};
-    // set up level offsets near black holes
-    // (we don't actually refine to BSSN_BH?_MAX_LEV)
-    // level offset immediately about the BHs
-    const unsigned int LVL_OFF = MAXDEAPTH_LEVEL_DIFF + 1;
-
-    // consider BHs merged if punctures are less than this value
-    const double BH_MERGED_SEP_TOL      = 0.1;
-
+    ////////////////////////////////////////////////////////////////////
+    // Read in mesh 
     const unsigned int eleLocalBegin    = pMesh->getElementLocalBegin();
     const unsigned int eleLocalEnd      = pMesh->getElementLocalEnd();
     bool isOctChange                    = false;
     bool isOctChange_g                  = false;
     Point d1, d2, temp;
+    
+    // initialize refinement flags 
+    std::vector<unsigned int> refine_flags;
+    // NOTE: these are the previous refine flags,
+    // they're usually "no change" on remesh
+    std::vector<unsigned int> prev_refine_flags =
+        pMesh->getAllRefinementFlags();
+    
+    ////////////////////////////////////////////////////////////////////
+    // Set up onion parameters
+    // read in AMR radii
+    const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
+    // level offset immediately about the BHs
+    // (we don't actually refine to BSSN_BH?_MAX_LEV; two less)
+    const unsigned int LVL_OFF = MAXDEAPTH_LEVEL_DIFF + 1;
+
+    // consider BHs merged if punctures are less than this value
+    const double BH_MERGED_SEP_TOL      = 0.1;
     // distance btw the black holes
     const double dBH = (bhLoc[0] - bhLoc[1]).abs();
     // lower of two max depths
     const unsigned int refLevMin =
         std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
 
-    std::vector<unsigned int> refine_flags;
-
-    // NOTE: these are the previous refine flags,
-    // they're usually "no change" on remesh
-    std::vector<unsigned int> prev_refine_flags =
-        pMesh->getAllRefinementFlags();
-
+    ////////////////////////////////////////////////////////////////////
+    // Set up a few ORBIT parameters 
+    // grid width
+    const double Delta_x = bssn::BSSN_GRID_MAX_X - bssn::BSSN_GRID_MIN_X;
+    // smallest GW extraction radius
+    const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
+    // largest GW extraction radius
+    const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
+    // element order
+    const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
+    // hardcode ending to 50M past merger
+    constexpr double t_ring = 50; // ringdown time
+    // ORBIT disable time
+    // constexpr double t_disable = bssnCtx->get_bh_merge_time() + R_GW_max + t_ring; 
+    
     if (pMesh->isActive()) {
         // if(!pMesh->getMPIRank())
         //     std::cout<<"bh distance: "<<dBH<<std::endl;
@@ -288,18 +304,18 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                 }
             };
 
+            ////////////////////////////////////////////////////////////
             // Onion refinement immediately about the black holes
             if (dBH > BH_MERGED_SEP_TOL) {
                 // if not merged yet, handle BHs separately to set up onion 
-                double ratio;
+                double ratio; // ratio of radii btw concentric layers
                 int shift; 
                 if (bssn::BSSN_CURRENT_RK_COORD_TIME < -10) {
                     // boost initial refinement, bolstering onion
                     ratio = 2.0;
                     shift = 1;
                 } else { // relax onion later
-                    // ratio = 1.618033988749; // golden ratio
-                    ratio = bssn::BSSN_AMR_R_RATIO; // softcode
+                    ratio = bssn::BSSN_AMR_R_RATIO; 
                     shift = 0;
                 }
                 const int l_goal_0 = onionLevel(r1_min,r_near[0],bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift,ratio);
@@ -314,7 +330,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                 // ensure it captures both BHs and is >= than before
                 const double rBH_lim = std::max(std::max(r_near[0],r_near[1]),1.0 * (m1 + m2)); 
                 // calculate level floor due to onion structure
-                const int l_post = 14; // hardcoding innermost level 
+                // const int l_post = 14; // hardcoding innermost level 
+                const int N_horizon = 50; // goal number of points across the horizon
+                const int l_post = std::ceil(2 + std::log2(Delta_x * std::floor((N_horizon+1)/2.) / rBH_lim / n_order));
                 const int l_goal = onionLevel(rBH_min,rBH_lim,l_post - LVL_OFF);
                 // const int l_goal = onionLevel(rBH_min,rBH_lim,refLevMin - LVL_OFF);
                 // set level floor
@@ -361,11 +379,13 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             // constexpr double t_end = 660.0;
             constexpr double t_end = 670.4; // ~122 past merger
             #endif
+            
+            ////////////////////////////////////////////////////////////
             // decide whether to use QNM or orbital freq for ending
             const double lam_min = mn; // use orbital freq @ ds = .1
             // clang-format on
 
-            auto get_ell = [A, tau0, lam_min](double t_ret,
+            auto get_ell = [A, tau0, lam_min, Delta_x, n_order](double t_ret,
                                               unsigned int m = 8) -> int {
                 // Get refinement level necessary from wavelength
                 double lambda = (t_ret < tau0)
@@ -373,20 +393,19 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                                     : lam_min;
                 lambda        = std::max(lambda, lam_min);
                 return static_cast<int>(
-                    std::ceil(std::log2(800.0 * m / (3.0 * lambda))));
+                    std::ceil(std::log2(Delta_x * m / (n_order * lambda / 2.))));
             };
 
             // calculate retarded time
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
-            // const double R_GW  = 50.0; // inner GW radius; TODO: should use outer probably
-            const double R_GW  = 100.0; // outer GW radius
+            
+            // min refinement level required from GWs
             int ell_star;
 
             /*
-            // min refinement level required from GWs
-            // use this code here to have different criteria beyond
-            // the GW extraction radii to cut down costs
-            if (r_min <= R_GW) {
+            // enable this code here to use a different Nyquist criteria 
+            // beyond the GW extraction radii (to cut down costs) 
+            if (r_min <= R_GW_max) {
               // if w/i region of capturing GWs, resolve highly
               ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
             } else {
@@ -396,10 +415,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             */
 
             // goal spherical harmonic order m to refine to
-            // DFVK NOTE: put the variable is now in the global parameter
             const bool using_nyquist = bssn::BSSN_NYQUIST_M > 0;
             const double speed = std::sqrt(2);
-            const bool past_of_end = std::abs(r_min - R_GW) < speed * (t_end - bssn::BSSN_CURRENT_RK_COORD_TIME);
+            const bool past_of_end = std::abs(r_min - R_GW_max) < speed * (t_end - bssn::BSSN_CURRENT_RK_COORD_TIME);
             if (using_nyquist && past_of_end) {
                 // same ell_star everywhere
                 ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
