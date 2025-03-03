@@ -271,7 +271,7 @@ std::vector<double> calculate_clean_wavelength(
     const std::vector<Point>& angular_velocity_history) {
   std::vector<double> wavelength;
   wavelength.reserve(angular_velocity_history.size());
-
+  
   const double two_pi_c = 2.0 * M_PI * 1.0; // 2π * c, where c = 1.0
 
   // Calculate wavelength
@@ -294,7 +294,7 @@ double get_clean_wavelength(double t_ret,
                             const std::vector<double>& time_history,
                             const std::vector<double>& clean_wavelength_history) {
   // Handle t_ret before the start of the history
-  if (t_ret <= time_history.front()) {
+  if (t_ret <= bssn::BSSN_RK_TIME_BEGIN) {
     return clean_wavelength_history.front();
   }
 
@@ -554,10 +554,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             
             // calculate retarded time
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
-            if (bssn::BSSN_CURRENT_RK_COORD_TIME > 1) {
-              // calculate retarded orbital wavelength
-              const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
-            }
+            // calculate retarded orbital wavelength
+            const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
+            assert(lam_clean > 0);
 
             ////////////////////////////////////////////////////////////
             // @wkb 4 Sept 2024:
