@@ -1097,16 +1097,20 @@ int BSSNCtx::restore_checkpt() {
 
     // first check to see if the file even exists
     if (!std::filesystem::exists(fName)) {
+      if (!rank) {
         std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
                   << fName << " does not exist!" << std::endl;
-        restoreStatus = 2;
+      }
+      restoreStatus = 2;
     }
 
     if (restoreStatus == 0) {
         std::ifstream infile(fName);
         if (!infile) {
+          if (!rank) {
             std::cout << fName << " file open failed " << std::endl;
-            restoreStatus = 1;
+          }
+          restoreStatus = 1;
         }
 
         if (restoreStatus == 0) {
