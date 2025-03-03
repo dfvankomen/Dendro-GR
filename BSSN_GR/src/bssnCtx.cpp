@@ -1395,10 +1395,14 @@ bool BSSNCtx::is_remesh() {
 
         isRefine = (isR1 || isR2);
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
-        isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc);
+        isRefine =
+            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
+                             this->get_bh_loc_time_history());
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_WAMR) {
         // BHLB refinement for baseline
-        const bool isR1 = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc);
+        const bool isR1 =
+            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
+                             this->get_bh_loc_time_history());
         // WAMR for additional refinement
         const bool isR2 =
             bssn::addRemeshWAMR(m_uiMesh, (const double**)unzipVar,

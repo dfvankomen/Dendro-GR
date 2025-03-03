@@ -4,6 +4,9 @@
 
 #include "dataUtils.h"
 
+#include <utility>
+
+#include "bssnCtx.h"
 #include "parameters.h"
 
 namespace bssn {
@@ -142,7 +145,183 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
     }
 }
 
-bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
+std::vector<double> calculate_bh_angle(
+    const std::vector<std::pair<Point, Point>>& bh_loc_history) {
+    std::vector<double> angle_history;
+
+    for (auto& bh_points : bh_loc_history) {
+        double x1 = bh_points.first.x();
+        double y1 = bh_points.first.y();
+        double z1 = bh_points.first.z();
+
+        double x2 = bh_points.second.x();
+        double y2 = bh_points.second.y();
+        double z2 = bh_points.second.z();
+
+        // compute the relative angle for x and y
+        angle_history.push_back(atan2(y1 - y2, x1 - x2));
+    }
+
+    return angle_history;
+}
+
+std::vector<Point> calculate_relative_position_history(
+    const std::vector<std::pair<Point, Point>>& bh_loc_history) {
+    std::vector<Point> rp_history;
+
+    for (auto& bh_points : bh_loc_history) {
+        double x1 = bh_points.first.x();
+        double y1 = bh_points.first.y();
+        double z1 = bh_points.first.z();
+
+        double x2 = bh_points.second.x();
+        double y2 = bh_points.second.y();
+        double z2 = bh_points.second.z();
+
+        // compute the relative angle for x and y
+        rp_history.push_back(Point(x1 - x2, y1 - y2, x1 - x2));
+    }
+
+    return rp_history;
+}
+
+std::vector<Point> calculate_relative_velocity_history(
+    const std::vector<Point>& bh_rp_history,
+    const std::vector<double>& bh_loc_history_t) {
+    std::vector<Point> vel_history;
+
+    if (bh_rp_history.size() < 2) {
+        return std::vector<Point>{Point(0, 0, 0)};
+    }
+
+    vel_history.reserve(bh_rp_history.size() - 1);
+
+    for (size_t i = 0; i < bh_rp_history.size() - 1; i++) {
+        double xvel = bh_rp_history[i + 1].x() - bh_rp_history[i].x();
+        double yvel = bh_rp_history[i + 1].y() - bh_rp_history[i].y();
+        double zvel = bh_rp_history[i + 1].z() - bh_rp_history[i].z();
+
+        double dt   = bh_loc_history_t[i + 1] - bh_loc_history_t[i];
+
+        // compute the relative angle for x and y
+        vel_history.push_back(Point(xvel / dt, yvel / dt, zvel / dt));
+    }
+
+    // reminder it will be one minus the original size
+    return vel_history;
+}
+
+std::vector<Point> calculate_relative_velocity_history(
+    const std::vector<std::pair<Point, Point>>& bh_loc_history,
+    const std::vector<double>& bh_loc_history_t) {
+    std::vector<Point> vel_history;
+
+    if (bh_loc_history.size() < 2) {
+        return std::vector<Point>{Point(0, 0, 0)};
+    }
+
+    auto rp_history = calculate_relative_position_history(bh_loc_history);
+
+    vel_history.reserve(bh_loc_history.size() - 1);
+
+    for (size_t i = 0; i < rp_history.size() - 1; i++) {
+        double xvel = rp_history[i + 1].x() - rp_history[i].x();
+        double yvel = rp_history[i + 1].y() - rp_history[i].y();
+        double zvel = rp_history[i + 1].z() - rp_history[i].z();
+
+        double dt   = bh_loc_history_t[i + 1] - bh_loc_history_t[i];
+
+        // compute the relative angle for x and y
+        vel_history.push_back(Point(xvel / dt, yvel / dt, zvel / dt));
+    }
+
+    // reminder it will be one minus the original size
+    return vel_history;
+}
+
+std::vector<Point> calculate_angular_velocity_history(
+    const std::vector<Point>& bh_rp_history,
+    const std::vector<Point>& bh_rv_history) {
+    // assume backwards difference, the rv history will be the "basis""
+
+    if (bh_rp_history.size() < 2) {
+        return std::vector<Point>{Point(0, 0, 0)};
+    }
+    std::vector<Point> angular_velocity_history;
+    angular_velocity_history.reserve(bh_rv_history.size());
+
+    for (size_t i = 0; i < bh_rv_history.size(); i++) {
+        // angular velocity is r cross v / |r|^2
+
+        Point r   = bh_rp_history[i + 1];
+        Point v   = bh_rv_history[i];
+
+        double r2 = (r.x() * r.x() + r.y() * r.y() + r.z() * r.z());
+
+        angular_velocity_history.push_back(
+            Point((r.y() * v.z() - r.z() * v.y()) / r2,
+                  (r.z() * v.x() - r.x() * v.z()) / r2,
+                  (r.x() * v.y() - r.y() * v.x()) / r2));
+    }
+
+    return angular_velocity_history;
+}
+
+std::vector<double> calculate_clean_wavelength(
+    const std::vector<Point>& angular_velocity_history) {
+  std::vector<double> wavelength;
+  wavelength.reserve(angular_velocity_history.size());
+
+  const double two_pi_c = 2.0 * M_PI * 1.0; // 2π * c, where c = 1.0
+
+  // Calculate wavelength
+  for (const auto& omega : angular_velocity_history) {
+    double omega_mag = std::hypot(omega.x(), omega.y(), omega.z());
+    
+    wavelength.push_back(omega_mag < std::numeric_limits<double>::epsilon() ?
+                         std::numeric_limits<double>::max() :
+                         two_pi_c / omega_mag);
+  }
+
+  // Clean up wavelength (force monotonicity)
+  std::partial_sum(wavelength.rbegin(), wavelength.rend(), wavelength.rbegin(),
+                   [](double a, double b) { return std::min(a, b); });
+
+  return wavelength;
+}
+
+double get_clean_wavelength(double t_ret,
+                            const std::vector<double>& time_history,
+                            const std::vector<double>& clean_wavelength_history) {
+  // Handle t_ret before the start of the history
+  if (t_ret <= time_history.front()) {
+    return clean_wavelength_history.front();
+  }
+
+  // Find the appropriate interval in the history
+  auto it = std::lower_bound(time_history.begin(), time_history.end(), t_ret);
+  size_t index = std::distance(time_history.begin(), it);
+  
+  // Handle t_ret after the end of the history
+  if (index == time_history.size()) {
+    return clean_wavelength_history.back();
+  }
+
+  // Interpolate wavelength
+  double t0 = time_history[index - 1];
+  double t1 = time_history[index];
+  double alpha = (t_ret - t0) / (t1 - t0);
+  
+  return (1 - alpha) * clean_wavelength_history[index - 1] + 
+         alpha * clean_wavelength_history[index];
+}
+
+
+
+
+bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
+                const std::vector<std::pair<Point, Point>>& bh_loc_history,
+                const std::vector<double>& bh_loc_history_t) {
     ////////////////////////////////////////////////////////////////////
     // Read in mesh 
     const unsigned int eleLocalBegin    = pMesh->getElementLocalBegin();
@@ -196,6 +375,22 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
         const ot::TreeNode* pNodes = pMesh->getAllElements().data();
         refine_flags.resize(pMesh->getNumLocalMeshElements(), OCT_NO_CHANGE);
 
+        // calculate the bh_angle_history
+        std::vector<double> bh_angle_history =
+            calculate_bh_angle(bh_loc_history);
+        std::vector<Point> bh_relative_position_history =
+            calculate_relative_position_history(bh_loc_history);
+        // Velocity and Angular Velocity are **1** point smaller
+        std::vector<Point> bh_relative_velocity_history =
+            calculate_relative_velocity_history(bh_relative_position_history,
+                                                bh_loc_history_t);
+        std::vector<Point> bh_angular_velocity_history =
+            calculate_angular_velocity_history(bh_relative_position_history,
+                                               bh_relative_velocity_history);
+        //
+        std::vector<double> clean_wavelength =
+            calculate_clean_wavelength(bh_angular_velocity_history);
+
         // refine pass: iterate over all elements
         for (unsigned int ele = eleLocalBegin; ele < eleLocalEnd; ele++) {
             // calculate which region of the grid we're in
@@ -207,7 +402,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             // we find minimum distances to BHs and to grid center
             double r1_min = 1000000;
             double r2_min = 1000000;
-            double r_min  = 1000000; // distance to grid center
+            double r_min  = 1000000;  // distance to grid center
 
             // measure minimum distances between both BHs
             for (unsigned int kk = 0; kk < 2; kk++)
@@ -270,8 +465,10 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             }
 
             ////////////////////////////////////////////////////////////
-            // wkb 2 Dec 2024: Onion refinement about the BHs 
-            auto onionLevel = [R_orbit, l_orbit](double radius, double r_AMR, int maxLevel, double ratio = 2.0) -> int {
+            // wkb 2 Dec 2024: Onion refinement about the BHs
+            auto onionLevel = [R_orbit, l_orbit](double radius, double r_AMR,
+                                                 int maxLevel,
+                                                 double ratio = 2.0) -> int {
                 /*
                 // TEMPORARY: disable all but innermost level
                 if (radius < r_AMR) {
@@ -286,7 +483,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                 } else {
                     // Start with the AMR radius and maximum level
                     double currentRadius = r_AMR;
-                    int currentLevel = maxLevel;
+                    int currentLevel     = maxLevel;
                     // Loop until we reach or go below the orbit level
                     while (currentLevel > l_orbit) {
                         // If input radius w/i current radius,
@@ -318,17 +515,22 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                     ratio = bssn::BSSN_AMR_R_RATIO; 
                     shift = 0;
                 }
-                const int l_goal_0 = onionLevel(r1_min,r_near[0],bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift,ratio);
-                const int l_goal_1 = onionLevel(r2_min,r_near[1],bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift,ratio);
+                const int l_goal_0 =
+                    onionLevel(r1_min, r_near[0],
+                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift, ratio);
+                const int l_goal_1 =
+                    onionLevel(r2_min, r_near[1],
+                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift, ratio);
                 setLevelFloor(l_goal_0);
                 setLevelFloor(l_goal_1);
             } else {
                 // if merged, handle BHs together
                 // calculate minimum distance to either BH
-                const double rBH_min = std::min(r1_min,r2_min);
+                const double rBH_min = std::min(r1_min, r2_min);
                 // calculate outer radius to which we should refine
                 // ensure it captures both BHs and is >= than before
-                const double rBH_lim = std::max(std::max(r_near[0],r_near[1]),1.0 * (m1 + m2)); 
+                const double rBH_lim =
+                    std::max(std::max(r_near[0], r_near[1]), 1.0 * (m1 + m2));
                 // calculate level floor due to onion structure
                 // const int l_post = 14; // hardcoding innermost level 
                 const int N_horizon = 50; // goal number of points across the horizon
@@ -338,11 +540,11 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                 // set level floor
                 setLevelFloor(l_goal);
             }
-            
+
 #ifdef BSSN_EXTRACT_GRAVITATIONAL_WAVES
             ////////////////////////////////////////////////////////////
             // ORBIT refinement
-            // @wkb 6 Feb 2025: TODO: add BH location history here 
+            // @wkb 6 Feb 2025: TODO: add BH location history here
             // 1) read in t,q1,q2, with q={x,y,z}
             // 2) calculate relative angle
             //    theta = arctan2(y1-y2, x1-x2)
@@ -350,11 +552,18 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             //    phi = derivative(theta, t)
             // 4) calculate refinement based on retarded time
             
+            // calculate retarded time
+            const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
+            if (bssn::BSSN_CURRENT_RK_COORD_TIME > 1) {
+              // calculate retarded orbital wavelength
+              const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
+            }
+
             ////////////////////////////////////////////////////////////
             // @wkb 4 Sept 2024:
             // add refinement based on expected gravitational wavelength
             const double eta     = f1 * f2;  // symmetric mass ratio
-            // estimate ending GW frequency from quasi-normal modes 
+            // estimate ending GW frequency from quasi-normal modes
             const double lam_qnm = 4 * M_PI / (.37009 + .6475 * eta);
             // clang-format off
             #if 1
@@ -366,8 +575,8 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
             // constexpr double mn = 10.5; // old
             constexpr double mn = 14.49;
             // constexpr double t_end = 642.0; // time (2,2) hits R=50
-            // constexpr double t_end = 608.14; // ~150 past merger
-            constexpr double t_end = 580.14; // ~122 past merger
+            constexpr double t_end = 608.14; // ~150 past merger
+            // constexpr double t_end = 580.14; // ~122 past merger
             #else
             // q=4 parameters
             constexpr double A    = 17;
@@ -389,15 +598,12 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
                                               unsigned int m = 8) -> int {
                 // Get refinement level necessary from wavelength
                 double lambda = (t_ret < tau0)
-                                    ? A * std::pow(tau0 - t_ret, 3.0 / 8.0)
-                                    : lam_min;
+                                            ? A * std::pow(tau0 - t_ret, 3.0 / 8.0)
+                                            : lam_min;
                 lambda        = std::max(lambda, lam_min);
                 return static_cast<int>(
                     std::ceil(std::log2(Delta_x * m / (n_order * lambda / 2.))));
             };
-
-            // calculate retarded time
-            const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
             
             // min refinement level required from GWs
             int ell_star;
@@ -416,8 +622,10 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc) {
 
             // goal spherical harmonic order m to refine to
             const bool using_nyquist = bssn::BSSN_NYQUIST_M > 0;
-            const double speed = std::sqrt(2);
-            const bool past_of_end = std::abs(r_min - R_GW_max) < speed * (t_end - bssn::BSSN_CURRENT_RK_COORD_TIME);
+            const double speed       = std::sqrt(2);
+            const bool past_of_end =
+                std::abs(r_min - R_GW_max) <
+                speed * (t_end - bssn::BSSN_CURRENT_RK_COORD_TIME);
             if (using_nyquist && past_of_end) {
                 // same ell_star everywhere
                 ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
@@ -1278,23 +1486,25 @@ bool addRemeshWAMR(
                 Point domain_pt1, domain_pt2, dx_domain;
                 pMesh->octCoordToDomainCoord(oct_pt1, domain_pt1);
                 pMesh->octCoordToDomainCoord(oct_pt2, domain_pt2);
-                dx_domain    = domain_pt2 - domain_pt1;
-                double hx[3] = {dx_domain.x(), dx_domain.y(), dx_domain.z()};
-                double tol_ele = wavelet_tol(
-                    domain_pt1.x(), domain_pt1.y(), domain_pt1.z(), hx);
-                
+                dx_domain      = domain_pt2 - domain_pt1;
+                double hx[3]   = {dx_domain.x(), dx_domain.y(), dx_domain.z()};
+                double tol_ele = wavelet_tol(domain_pt1.x(), domain_pt1.y(),
+                                             domain_pt1.z(), hx);
+
                 ////////////////////////////////////////////////////////
                 // wkb 17 Oct: amplify wavelet tolerance if w/i BH radii
                 // calculate distances to each black hole
-                const double r_BH1 = (domain_pt1 - BSSN_BH_LOC[0]).abs() / bssn::BSSN_BH1_AMR_R;
-                const double r_BH2 = (domain_pt1 - BSSN_BH_LOC[1]).abs() / bssn::BSSN_BH2_AMR_R;
+                const double r_BH1 =
+                    (domain_pt1 - BSSN_BH_LOC[0]).abs() / bssn::BSSN_BH1_AMR_R;
+                const double r_BH2 =
+                    (domain_pt1 - BSSN_BH_LOC[1]).abs() / bssn::BSSN_BH2_AMR_R;
                 // overwrite if we're w/i the AMR radius of either BH
-                if (std::min(r_BH1,r_BH2) <= 1) {
-                    // large amplification of tolerance should 
+                if (std::min(r_BH1, r_BH2) <= 1) {
+                    // large amplification of tolerance should
                     // effectively disable WAMR w/i the BHs.
-                    tol_ele *= 1e12; 
+                    tol_ele *= 1e12;
                 }
-                
+
                 // initialize all the wavelet errors to zero initially.
                 for (unsigned int v = 0; v < BSSN_NUM_VARS; v++)
                     wtol_vals[v] = 0;
