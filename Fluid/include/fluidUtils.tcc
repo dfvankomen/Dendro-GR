@@ -34,10 +34,18 @@ namespace fluid{
       const unsigned int sz_per_dof = nx*ny*nz;
       const unsigned int isz[] = {nx, ny, nz};
       wCout.resize(sz_per_dof);
+      double dx = wRefEl->getDx();  // Ensure this function exists
 
       const double tol_ele = wavelet_tol;
       for(unsigned int v = 0; v < dof; v++){
-        ((WaveletEl*)wRefEl)->compute_wavelets_3D((double*)(eleUnzip+ v*sz_per_dof),isz,wCout,isBdyEle);
+        ((WaveletEl*)wRefEl)->compute_wavelets_3D(
+          (double*)(eleUnzip + v * sz_per_dof),  // input data
+          isz,                                   // size array
+          wCout,                                 // output wavelet coefficients
+          isBdyEle,                              // isBoundary flag
+          dx                                     // missing parameter: dx
+      );
+      
         const double l_max = (normL2(wCout.data(),wCout.size()))/sqrt(wCout.size())/maxima[v];
 
         if(wMax < l_max){
@@ -62,10 +70,14 @@ namespace fluid{
     bool isMeshLocalChanged  = false;
 
     if(pMesh->isActive()){
-      RefElement* refEl = (RefElement*)pMesh->getReferenceElement();
-      WaveletEl*  wrefEl = new WaveletEl(refEl);
-
       const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
+unsigned int numBlocks = blkList.size();  // Ensure `numBlocks` is declared
+
+Point pt_min = pMesh->getDomainMinPt();  // Ensure these functions exist
+Point pt_max = pMesh->getDomainMaxPt();
+
+WaveletEl* wrefEl = new WaveletEl(&refEl, blkList.data(), numBlocks, pt_min, pt_max);  // ✅ Fixed
+
       const unsigned int eOrder = pMesh->getElementOrder();
 
       const unsigned int numLocalElements = pMesh->getNumLocalMeshElements();

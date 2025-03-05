@@ -520,19 +520,34 @@ bool isReMeshWAMR(
 
     if (pMesh->isActive()) {
         if (!pMesh->getMPIRank())
-            printf("BH coord sep: %.8E \n",
-                   dBH);  // std::cout<<"BH coord sep: "<<dBH<<std::endl;
-
-        const RefElement* refEl    = pMesh->getReferenceElement();
-        wavelet::WaveletEl* wrefEl = new wavelet::WaveletEl((RefElement*)refEl);
-
+            printf("BH coord sep: %.8E \n", dBH);  // Debug output
+    
+        // Retrieve local block list
+        const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
+        unsigned int numBlocks = blkList.size();  // Store block count
+    
+        // Get domain boundaries
+        Point pt_min = pMesh->getDomainMinPt();
+        Point pt_max = pMesh->getDomainMaxPt();
+    
+        // Convert `const RefElement**` to `RefElement*` safely
+        RefElement* refEl = const_cast<RefElement*>(pMesh->getReferenceElement());
+    
+        // Correctly instantiate the WaveletEl object
+        wavelet::WaveletEl* wrefEl = new wavelet::WaveletEl(refEl, blkList.data(), numBlocks, pt_min, pt_max);  // Use correct syntax to create the object
+    
+        // You can now use wrefEl as needed, for example:
+        // double dx = wrefEl->getDx();
+        // Don't forget to delete the object when done, if dynamically allocated:
+        // delete wrefEl;  // This line should be added when you're done using the object, if it was allocated with new
+    
+       
         refine_flags.resize(pMesh->getNumLocalMeshElements(), OCT_NO_CHANGE);
         const ot::TreeNode* pNodes = pMesh->getAllElements().data();
 
         std::vector<double> wtol_vals;
         wtol_vals.resize(BSSN_NUM_VARS, 0);
 
-        const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
         const unsigned int eOrder             = pMesh->getElementOrder();
 
         const unsigned int nx                 = (2 * eOrder + 1);
@@ -580,10 +595,10 @@ bool isReMeshWAMR(
                     const unsigned int vid = varIds[v];
                     pMesh->getUnzipElementalNodalValues(
                         unzippedVec[vid], blk, ele, eVecTmp.data(), true);
-
+                        
+                        double dx = wrefEl->getDx();  // Ensure this function exists
                     // computes the wavelets.
-                    wrefEl->compute_wavelets_3D((double*)(eVecTmp.data()), isz,
-                                                wCout, isBdyOct);
+                    wrefEl->compute_wavelets_3D((double*)(eVecTmp.data()), isz, wCout, isBdyOct, dx);
                     wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
                                      sqrt(wCout.size());
 

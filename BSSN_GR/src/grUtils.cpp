@@ -2436,16 +2436,20 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
         double R_0 = TEUK_REFINEMENT_R0;
-	  double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
+	    double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
 
         if (r < R_0)
             return bssn::BSSN_WAVELET_TOL;
-        else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coordtime),bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+        else if (R_0 < r < 4.0){
+             return std::min(bssn::BSSN_WAVELET_TOL_MAX*0.01,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0-1.0));
         }
-    } else {
+        else {
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+        }}
+     else {
         return bssn::BSSN_WAVELET_TOL;
     }
+
 }
 
 void writeBLockToBinary(const double** unzipVarsRHS, unsigned int offset,
