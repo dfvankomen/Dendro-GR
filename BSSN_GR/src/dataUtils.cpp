@@ -243,40 +243,65 @@ std::vector<Point> calculate_relative_velocity_history(
     return vel_history;
 }
 
+
+
+/**
+ * Calculates the angular velocity given relative position and velocity.
+ * 
+ * @param r Relative position vector
+ * @param v Relative velocity vector
+ * @return Angular velocity vector
+ */
+Point calculate_angular_velocity(const Point& r, const Point& v) {
+    // Calculate the square of the magnitude of r
+    double r2 = r.x() * r.x() + r.y() * r.y() + r.z() * r.z();
+
+    // Handle potential division by zero
+    if (r2 < std::numeric_limits<double>::epsilon()) {
+        // If r is too close to zero, return zero angular velocity
+        return Point(0, 0, 0);
+    }
+
+    // Calculate and return the angular velocity vector
+    // Angular velocity = (r × v) / |r|^2
+    return Point(
+        (r.y() * v.z() - r.z() * v.y()) / r2,
+        (r.z() * v.x() - r.x() * v.z()) / r2,
+        (r.x() * v.y() - r.y() * v.x()) / r2
+    );
+}
+
+/**
+ * Calculates the history of angular velocities for a binary black hole system.
+ * 
+ * @param bh_rp_history Vector of relative position history
+ * @param bh_rv_history Vector of relative velocity history
+ * @return Vector of angular velocity history
+ */
 std::vector<Point> calculate_angular_velocity_history(
     const std::vector<Point>& bh_rp_history,
     const std::vector<Point>& bh_rv_history) {
-    // assume backwards difference, the rv history will be the "basis""
-
-    if (bh_rp_history.size() < 2) {
-        // Calculate initial angular velocity history off of par file,
-        // since histories are too shallow to calculate from.
-        // TODO!
-        // Point bh1_v = bssh::BH1.getV();
-        // Point bh2_v = bssh::BH2.getV();
-        // Point &Dv = bh2_v - bh1_v
-        // Point &bh1_q =  bssn::BH1.getBHCoord();
-        // Point &bh2_q =  bssn::BH2.getBHCoord();
-        // Point &Dq = bh2_q - bh1_q
-        // double r2 = Dq.x() * Dq.x() + Dq.y() * Dq.y() + Dq.z() * Dq.z()
-        // Point(ry vz - rz vy, rz vx - rx vz, rx vy - ry vx) / r^2
-        return std::vector<Point>{Point(0, 0, 0)};
-    }
+    
     std::vector<Point> angular_velocity_history;
-    angular_velocity_history.reserve(bh_rv_history.size());
 
-    for (size_t i = 0; i < bh_rv_history.size(); i++) {
-        // angular velocity is r cross v / |r|^2
+    // Calculate initial angular velocity from parameter file
+    Point Dq = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
+    Point Dv = bssn::BH2.getV() - bssn::BH1.getV();
+    
+    // Add the initial angular velocity to the history
+    angular_velocity_history.push_back(calculate_angular_velocity(Dq, Dv));
 
-        Point r   = bh_rp_history[i + 1];
-        Point v   = bh_rv_history[i];
+    // If we have enough history, calculate the rest of the angular velocities
+    if (bh_rp_history.size() >= 2 && !bh_rv_history.empty()) {
+        // Reserve space to avoid reallocation
+        angular_velocity_history.reserve(bh_rv_history.size());
 
-        double r2 = (r.x() * r.x() + r.y() * r.y() + r.z() * r.z());
-
-        angular_velocity_history.push_back(
-            Point((r.y() * v.z() - r.z() * v.y()) / r2,
-                  (r.z() * v.x() - r.x() * v.z()) / r2,
-                  (r.x() * v.y() - r.y() * v.x()) / r2));
+        // Calculate angular velocities for each point in the history
+        for (size_t i = 0; i < bh_rv_history.size(); i++) {
+            Point r = bh_rp_history[i + 1];  // Use i+1 for relative position
+            Point v = bh_rv_history[i];
+            angular_velocity_history.push_back(calculate_angular_velocity(r, v));
+        }
     }
 
     return angular_velocity_history;
