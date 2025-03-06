@@ -9,6 +9,8 @@
 
 #include "parameters.h"
 
+#include <limits>
+
 namespace bssn {
 
 mem::memory_pool<double> BSSN_MEM_POOL  = mem::memory_pool<double>(0, 16);
@@ -18,8 +20,8 @@ unsigned int BSSN_PADDING_WIDTH         = BSSN_ELE_ORDER >> 1u;
 unsigned int BSSN_IO_OUTPUT_FREQ        = 10;
 unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 10;
 
-double BSSN_BH_MERGE_TIME               = 0.0;
-unsigned int BSSN_BH_MERGE_STEP         = 0;
+double BSSN_BH_MERGE_TIME               = std::numeric_limits<double>::max();
+unsigned int BSSN_BH_MERGE_STEP    = std::numeric_limits<unsigned int>::max();
 
 unsigned int BSSN_GW_EXTRACT_FREQ  = std::max(1u, BSSN_IO_OUTPUT_FREQ >> 1u);
 
