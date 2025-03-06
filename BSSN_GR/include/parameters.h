@@ -388,6 +388,10 @@ extern unsigned int BSSN_IO_OUTPUT_FREQ_TRUE;
 extern double BSSN_SSL_SIGMA;
 extern double BSSN_SSL_H;
 
+// merger time storage to access outside ctx obj
+extern double BSSN_BH_MERGE_TIME;
+extern unsigned int BSSN_BH_MERGE_STEP;
+
 // note ko derivs are not included
 #ifdef BSSN_USE_ADVECTIVE_DERIVS
 const unsigned int BSSN_NUM_DERIVS = 138 + 74;

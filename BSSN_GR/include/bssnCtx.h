@@ -127,8 +127,12 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     /** @brief update the BH merge time */
     void set_bh_merge_time(double_t merge_time, uint32_t merge_step) {
-        m_dMergeTime  = merge_time;
-        m_uiMergeStep = merge_step;
+        m_dMergeTime       = merge_time;
+        m_uiMergeStep      = merge_step;
+
+        // and then set the global variable
+        BSSN_BH_MERGE_TIME = m_dMergeTime;
+        BSSN_BH_MERGE_STEP = m_uiMergeStep;
     }
 
     /**
