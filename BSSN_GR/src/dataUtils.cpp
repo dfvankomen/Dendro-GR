@@ -191,6 +191,8 @@ std::vector<Point> calculate_relative_velocity_history(
     std::vector<Point> vel_history;
 
     if (bh_rp_history.size() < 2) {
+        // TODO: instead just return initial value from par file
+        // (make sure to convert from momentum to velocity!)
         return std::vector<Point>{Point(0, 0, 0)};
     }
 
@@ -217,6 +219,8 @@ std::vector<Point> calculate_relative_velocity_history(
     std::vector<Point> vel_history;
 
     if (bh_loc_history.size() < 2) {
+        // TODO: instead just return initial value from par file
+        // (make sure to convert from momentum to velocity!)
         return std::vector<Point>{Point(0, 0, 0)};
     }
 
@@ -245,6 +249,17 @@ std::vector<Point> calculate_angular_velocity_history(
     // assume backwards difference, the rv history will be the "basis""
 
     if (bh_rp_history.size() < 2) {
+        // Calculate initial angular velocity history off of par file,
+        // since histories are too shallow to calculate from.
+        // TODO!
+        // Point bh1_v = bssh::BH1.getV();
+        // Point bh2_v = bssh::BH2.getV();
+        // Point &Dv = bh2_v - bh1_v
+        // Point &bh1_q =  bssn::BH1.getBHCoord();
+        // Point &bh2_q =  bssn::BH2.getBHCoord();
+        // Point &Dq = bh2_q - bh1_q
+        // double r2 = Dq.x() * Dq.x() + Dq.y() * Dq.y() + Dq.z() * Dq.z()
+        // Point(ry vz - rz vy, rz vx - rx vz, rx vy - ry vx) / r^2
         return std::vector<Point>{Point(0, 0, 0)};
     }
     std::vector<Point> angular_velocity_history;
@@ -267,25 +282,44 @@ std::vector<Point> calculate_angular_velocity_history(
     return angular_velocity_history;
 }
 
+/**
+ * @brief Calculates and cleans wavelengths from angular velocity history.
+ *
+ * This function takes a history of angular velocities, calculates the 
+ * corresponding wavelengths, and then applies a cleaning step to ensure 
+ * the wavelengths are monotonically decreasing as we move forward through 
+ * the vector.
+ *
+ * The wavelength is calculated using the formula: λ = 2πc / |ω|, where
+ * c is assumed to be 1.0. If the magnitude of angular velocity is very 
+ * close to zero, the wavelength is set to the maximum possible double value.
+ *
+ * @param angular_velocity_history A vector of Point objects representing
+ *                                 the history of angular velocities.
+ * @return A vector of doubles representing the cleaned wavelengths.
+ *         The returned vector has the same size as the input vector.
+ *
+ * Thanks to Perplexity AI for assistance converting from python. :)
+ */
 std::vector<double> calculate_clean_wavelength(
     const std::vector<Point>& angular_velocity_history) {
   std::vector<double> wavelength;
   wavelength.reserve(angular_velocity_history.size());
-  
   const double two_pi_c = 2.0 * M_PI * 1.0; // 2π * c, where c = 1.0
 
   // Calculate wavelength
   for (const auto& omega : angular_velocity_history) {
     double omega_mag = std::hypot(omega.x(), omega.y(), omega.z());
-    
     wavelength.push_back(omega_mag < std::numeric_limits<double>::epsilon() ?
                          std::numeric_limits<double>::max() :
                          two_pi_c / omega_mag);
   }
 
   // Clean up wavelength (force monotonicity)
-  std::partial_sum(wavelength.rbegin(), wavelength.rend(), wavelength.rbegin(),
-                   [](double a, double b) { return std::min(a, b); });
+  for (size_t i = 1; i < wavelength.size(); ++i) {
+    // ensure the next one is <= the last one
+    wavelength[i] = std::min(wavelength[i], wavelength[i-1]);
+  }
 
   return wavelength;
 }
@@ -556,7 +590,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
             // calculate retarded orbital wavelength
             const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
-            assert(lam_clean > 0);
+            // TODO: 
+            // 1. change to have omega use initial values from par file
+            // 2. change to use final pre-merger value
 
             ////////////////////////////////////////////////////////////
             // @wkb 4 Sept 2024:
@@ -593,15 +629,16 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double lam_min = mn; // use orbital freq @ ds = .1
             // clang-format on
 
-            auto get_ell = [A, tau0, lam_min, Delta_x, n_order](double t_ret,
+            auto get_ell = [A, tau0, lam_min, lam_clean, Delta_x, n_order](double t_ret,
                                               unsigned int m = 8) -> int {
                 // Get refinement level necessary from wavelength
                 double lambda = (t_ret < tau0)
                                             ? A * std::pow(tau0 - t_ret, 3.0 / 8.0)
                                             : lam_min;
                 lambda        = std::max(lambda, lam_min);
+                // overwrite for now, using clean lam now!
                 return static_cast<int>(
-                    std::ceil(std::log2(Delta_x * m / (n_order * lambda / 2.))));
+                    std::ceil(std::log2(Delta_x * m / (n_order * lam_clean / 2.))));
             };
             
             // min refinement level required from GWs
