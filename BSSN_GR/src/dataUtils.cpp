@@ -247,6 +247,7 @@ std::vector<Point> calculate_relative_velocity_history(
 
 /**
  * Calculates the angular velocity given relative position and velocity.
+ * Returns null vector if separation distance < epsilon. 
  * 
  * @param r Relative position vector
  * @param v Relative velocity vector
@@ -271,8 +272,12 @@ Point calculate_angular_velocity(const Point& r, const Point& v) {
     );
 }
 
+
+
+
 /**
  * Calculates the history of angular velocities for a binary black hole system.
+ * The angular velocity is flattened after the black holes merge.
  * 
  * @param bh_rp_history Vector of relative position history
  * @param bh_rv_history Vector of relative velocity history
@@ -281,13 +286,15 @@ Point calculate_angular_velocity(const Point& r, const Point& v) {
 std::vector<Point> calculate_angular_velocity_history(
     const std::vector<Point>& bh_rp_history,
     const std::vector<Point>& bh_rv_history) {
-    
+
     std::vector<Point> angular_velocity_history;
+    const double BH_MERGED_SEP_TOL = 0.1;
+    size_t index_pre_merge = 0;
 
     // Calculate initial angular velocity from parameter file
     Point Dq = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
     Point Dv = bssn::BH2.getV() - bssn::BH1.getV();
-    
+
     // Add the initial angular velocity to the history
     angular_velocity_history.push_back(calculate_angular_velocity(Dq, Dv));
 
@@ -299,8 +306,16 @@ std::vector<Point> calculate_angular_velocity_history(
         // Calculate angular velocities for each point in the history
         for (size_t i = 0; i < bh_rv_history.size(); i++) {
             Point r = bh_rp_history[i + 1];  // Use i+1 for relative position
-            Point v = bh_rv_history[i];
-            angular_velocity_history.push_back(calculate_angular_velocity(r, v));
+            double separation = std::sqrt(r.x() * r.x() + r.y() * r.y() + r.z() * r.z());
+
+            if (separation > BH_MERGED_SEP_TOL) {
+                Point v = bh_rv_history[i];
+                angular_velocity_history.push_back(calculate_angular_velocity(r, v));
+                index_pre_merge = i;
+            } else {
+                // Use the last pre-merge angular velocity
+                angular_velocity_history.push_back(angular_velocity_history[index_pre_merge]);
+            }
         }
     }
 
@@ -648,6 +663,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // constexpr double t_end = 660.0;
             constexpr double t_end = 670.4; // ~122 past merger
             #endif
+            // constexpr double t_end = t
             
             ////////////////////////////////////////////////////////////
             // decide whether to use QNM or orbital freq for ending
