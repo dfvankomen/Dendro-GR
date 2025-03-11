@@ -434,13 +434,16 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
     // smallest GW extraction radius
     const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
     // largest GW extraction radius
-    const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
+    // const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
+    const double R_GW_max = R_GW_min; // TEMP: just doing this for easier testing
     // element order
     const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
-    // hardcode ending to 50M past merger
-    constexpr double t_ring = 50; // ringdown time
+    // hardcode ending ORBIT some time past merger
+    constexpr double t_ring = 0; // ringdown time
     // ORBIT disable time
-    // constexpr double t_disable = bssnCtx->get_bh_merge_time() + R_GW_max + t_ring; 
+    const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
+    // const double bh_merge_time = 184 to 196 ...
+    const double t_disable = bh_merge_time + R_GW_max + t_ring; 
     
     if (pMesh->isActive()) {
         // if(!pMesh->getMPIRank())
@@ -589,11 +592,10 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                     ratio = bssn::BSSN_AMR_R_RATIO; 
                     shift = 0;
                 }
-                const int l_goal_0 =
-                    onionLevel(r1_min, r_near[0],
+                // refinement levels near each BH
+                const int l_goal_0 = onionLevel(r1_min, r_near[0],
                                bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift, ratio);
-                const int l_goal_1 =
-                    onionLevel(r2_min, r_near[1],
+                const int l_goal_1 = onionLevel(r2_min, r_near[1],
                                bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift, ratio);
                 setLevelFloor(l_goal_0);
                 setLevelFloor(l_goal_1);
@@ -604,11 +606,12 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 // calculate outer radius to which we should refine
                 // ensure it captures both BHs and is >= than before
                 const double rBH_lim =
-                    std::max(std::max(r_near[0], r_near[1]), 1.0 * (m1 + m2));
+                    std::max(std::max(r_near[0], r_near[1]), 1.55 * (m1 + m2));
                 // calculate level floor due to onion structure
-                // const int l_post = 14; // hardcoding innermost level 
                 const int N_horizon = 50; // goal number of points across the horizon
                 const int l_post = std::ceil(2 + std::log2(Delta_x * std::floor((N_horizon+1)/2.) / rBH_lim / n_order));
+                // could here do l_post = std::min(l_post,bssn::BSSN_MAXDEPTH)
+                // for low-res runs to keep l_post <= max depth
                 const int l_goal = onionLevel(rBH_min,rBH_lim,l_post - LVL_OFF);
                 // const int l_goal = onionLevel(rBH_min,rBH_lim,refLevMin - LVL_OFF);
                 // set level floor
@@ -702,7 +705,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double speed       = std::sqrt(2);
             const bool past_of_end =
                 std::abs(r_min - R_GW_max) <
-                speed * (t_end - bssn::BSSN_CURRENT_RK_COORD_TIME);
+                speed * (t_disable - bssn::BSSN_CURRENT_RK_COORD_TIME);
             if (using_nyquist && past_of_end) {
                 // same ell_star everywhere
                 ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
