@@ -244,7 +244,6 @@ std::vector<Point> calculate_relative_velocity_history(
 }
 
 
-
 /**
  * Calculates the angular velocity given relative position and velocity.
  * Returns null vector if separation distance < epsilon. 
@@ -274,7 +273,6 @@ Point calculate_angular_velocity(const Point& r, const Point& v) {
 
 
 
-
 /**
  * Calculates the history of angular velocities for a binary black hole system.
  * The angular velocity is flattened after the black holes merge.
@@ -288,16 +286,17 @@ std::vector<Point> calculate_angular_velocity_history(
     const std::vector<Point>& bh_rv_history) {
 
     std::vector<Point> angular_velocity_history;
-    const double BH_MERGED_SEP_TOL = 0.1;
+    const double BH_MERGED_SEP_TOL = 1.0; // best value in my tests
     size_t index_pre_merge = 0;
 
+    ////////////////////////////////////////////////////////////////////
     // Calculate initial angular velocity from parameter file
     Point Dq = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
     Point Dv = bssn::BH2.getV() - bssn::BH1.getV();
-
     // Add the initial angular velocity to the history
     angular_velocity_history.push_back(calculate_angular_velocity(Dq, Dv));
 
+    ////////////////////////////////////////////////////////////////////
     // If we have enough history, calculate the rest of the angular velocities
     if (bh_rp_history.size() >= 2 && !bh_rv_history.empty()) {
         // Reserve space to avoid reallocation
@@ -306,9 +305,9 @@ std::vector<Point> calculate_angular_velocity_history(
         // Calculate angular velocities for each point in the history
         for (size_t i = 0; i < bh_rv_history.size(); i++) {
             Point r = bh_rp_history[i + 1];  // Use i+1 for relative position
-            double separation = std::sqrt(r.x() * r.x() + r.y() * r.y() + r.z() * r.z());
 
-            if (separation > BH_MERGED_SEP_TOL) {
+            if (r.abs() > BH_MERGED_SEP_TOL) {
+                // Not merged yet 
                 Point v = bh_rv_history[i];
                 angular_velocity_history.push_back(calculate_angular_velocity(r, v));
                 index_pre_merge = i;
@@ -338,8 +337,6 @@ std::vector<Point> calculate_angular_velocity_history(
  *                                 the history of angular velocities.
  * @return A vector of doubles representing the cleaned wavelengths.
  *         The returned vector has the same size as the input vector.
- *
- * Thanks to Perplexity AI for assistance converting from python. :)
  */
 std::vector<double> calculate_clean_wavelength(
     const std::vector<Point>& angular_velocity_history) {
@@ -364,11 +361,23 @@ std::vector<double> calculate_clean_wavelength(
   return wavelength;
 }
 
+/**
+ * @brief Calculates cleaned wavelength at a given retarded time. 
+ *
+ * This function reads in a retarded time, along with histories, 
+ * and returns the interpolated cleaned wavelength at that time. 
+ *
+ * @param t_ret retarded time at which we should sample 
+ * @param time_history history of time values
+ * @param clean_wavelength_history cleaned wavelength history
+ * @return lam_clean cleaned, interpolated, retarded time wavelength. 
+ */
 double get_clean_wavelength(double t_ret,
                             const std::vector<double>& time_history,
                             const std::vector<double>& clean_wavelength_history) {
   // Handle t_ret before the start of the history
   if (t_ret <= bssn::BSSN_RK_TIME_BEGIN) {
+    // return the first value 
     return clean_wavelength_history.front();
   }
 
@@ -393,59 +402,63 @@ double get_clean_wavelength(double t_ret,
 
 
 
+
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const std::vector<std::pair<Point, Point>>& bh_loc_history,
                 const std::vector<double>& bh_loc_history_t) {
     ////////////////////////////////////////////////////////////////////
-    // Read in mesh 
-    const unsigned int eleLocalBegin    = pMesh->getElementLocalBegin();
-    const unsigned int eleLocalEnd      = pMesh->getElementLocalEnd();
+    // set up booleans to check whether the grid has changed 
     bool isOctChange                    = false;
     bool isOctChange_g                  = false;
-    Point d1, d2, temp;
-    
-    // initialize refinement flags 
-    std::vector<unsigned int> refine_flags;
-    // NOTE: these are the previous refine flags,
-    // they're usually "no change" on remesh
-    std::vector<unsigned int> prev_refine_flags =
-        pMesh->getAllRefinementFlags();
-    
-    ////////////////////////////////////////////////////////////////////
-    // Set up onion parameters
-    // read in AMR radii
-    const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
-    // level offset immediately about the BHs
-    // (we don't actually refine to BSSN_BH?_MAX_LEV; two less)
-    const unsigned int LVL_OFF = MAXDEAPTH_LEVEL_DIFF + 1;
-
-    // consider BHs merged if punctures are less than this value
-    const double BH_MERGED_SEP_TOL      = 0.1;
-    // distance btw the black holes
-    const double dBH = (bhLoc[0] - bhLoc[1]).abs();
-    // lower of two max depths
-    const unsigned int refLevMin =
-        std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
-
-    ////////////////////////////////////////////////////////////////////
-    // Set up a few ORBIT parameters 
-    // grid width
-    const double Delta_x = bssn::BSSN_GRID_MAX_X - bssn::BSSN_GRID_MIN_X;
-    // smallest GW extraction radius
-    const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
-    // largest GW extraction radius
-    // const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
-    const double R_GW_max = R_GW_min; // TEMP: just doing this for easier testing
-    // element order
-    const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
-    // hardcode ending ORBIT some time past merger
-    constexpr double t_ring = 0; // ringdown time
-    // ORBIT disable time
-    const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
-    // const double bh_merge_time = 184 to 196 ...
-    const double t_disable = bh_merge_time + R_GW_max + t_ring; 
     
     if (pMesh->isActive()) {
+        ////////////////////////////////////////////////////////////////
+        // Read in data from mesh 
+        const unsigned int eleLocalBegin    = pMesh->getElementLocalBegin();
+        const unsigned int eleLocalEnd      = pMesh->getElementLocalEnd();
+        Point d1, d2, temp;
+        
+        // initialize refinement flags 
+        std::vector<unsigned int> refine_flags;
+        // NOTE: these are the previous refine flags,
+        // they're usually "no change" on remesh
+        std::vector<unsigned int> prev_refine_flags =
+            pMesh->getAllRefinementFlags();
+        
+        ////////////////////////////////////////////////////////////////
+        // Set up onion parameters
+        // read in AMR radii
+        const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
+        // level offset immediately about the BHs
+        // (we don't actually refine to BSSN_BH?_MAX_LEV; two less)
+        const unsigned int LVL_OFF = MAXDEAPTH_LEVEL_DIFF + 1;
+
+        // consider BHs merged if punctures are less than this value
+        const double BH_MERGED_SEP_TOL      = 0.1;
+        // distance btw the black holes
+        const double dBH = (bhLoc[0] - bhLoc[1]).abs();
+        // lower of two max depths
+        const unsigned int refLevMin =
+            std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
+
+        ////////////////////////////////////////////////////////////////
+        // Set up a few ORBIT parameters 
+        // grid width
+        const double Delta_x = bssn::BSSN_GRID_MAX_X - bssn::BSSN_GRID_MIN_X;
+        // smallest GW extraction radius
+        const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
+        // largest GW extraction radius
+        // const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
+        const double R_GW_max = R_GW_min; // TEMP: just doing this for easier testing
+        // element order
+        const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
+        // hardcode ending ORBIT some time past merger
+        constexpr double t_ring = 0; // ringdown time
+        // ORBIT disable time
+        const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
+        const double t_disable = bh_merge_time + R_GW_max + t_ring; 
+    
+        ////////////////////////////////////////////////////////////////
         // if(!pMesh->getMPIRank())
         //     std::cout<<"bh distance: "<<dBH<<std::endl;
 
@@ -477,9 +490,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // Set obnoxiously large values for minimum radii
             // (to be overwritten) so as we go through box edges
             // we find minimum distances to BHs and to grid center
-            double r1_min = 1000000;
-            double r2_min = 1000000;
-            double r_min  = 1000000;  // distance to grid center
+            double r1_min = 100000 * Delta_x; // distance to BH1
+            double r2_min = 100000 * Delta_x; // distance to BH2
+            double r_min  = 100000 * Delta_x; // distance to grid center
 
             // measure minimum distances between both BHs
             for (unsigned int kk = 0; kk < 2; kk++)
@@ -508,7 +521,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             refine_flags[ele - eleLocalBegin] = OCT_COARSE;
 
             // function which ensures we're at least at a given level
-            auto setLevelFloor                = [&](int l_min) {
+            auto setLevelFloor = [&](int l_min) {
                 int currentLevel = pNodes[ele].getLevel();
 
                 if (currentLevel < l_min) {
@@ -535,7 +548,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double f2      = m1 / (m1 + m2);
             const double f       = std::max(f1, f2);
             const double R_orbit = f * dBH + 8;  // M; resolve scale
-            const int l_orbit    = 8;  // desired refinement level within
+            const int l_orbit    = 7;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
@@ -546,14 +559,6 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             auto onionLevel = [R_orbit, l_orbit](double radius, double r_AMR,
                                                  int maxLevel,
                                                  double ratio = 2.0) -> int {
-                /*
-                // TEMPORARY: disable all but innermost level
-                if (radius < r_AMR) {
-                    return maxLevel;
-                } else {
-                    return 0;
-                }
-                */
                 if (radius > R_orbit) {
                     // don't enforce onion outside orbital radius
                     return 0;
@@ -584,6 +589,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 // if not merged yet, handle BHs separately to set up onion 
                 double ratio; // ratio of radii btw concentric layers
                 int shift; 
+                // DISABLED: option to boost initial refinement
                 if (bssn::BSSN_CURRENT_RK_COORD_TIME < -10) {
                     // boost initial refinement, bolstering onion
                     ratio = 2.0;
@@ -621,66 +627,17 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
 #ifdef BSSN_EXTRACT_GRAVITATIONAL_WAVES
             ////////////////////////////////////////////////////////////
             // ORBIT refinement
-            // @wkb 6 Feb 2025: TODO: add BH location history here
-            // 1) read in t,q1,q2, with q={x,y,z}
-            // 2) calculate relative angle
-            //    theta = arctan2(y1-y2, x1-x2)
-            // 3) calculate angular orbital velocity
-            //    phi = derivative(theta, t)
-            // 4) calculate refinement based on retarded time
+            // @wkb 6 Feb 2025
             
             // calculate retarded time
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
             // calculate retarded orbital wavelength
             const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
-            // TODO: 
-            // 1. change to have omega use initial values from par file
-            // 2. change to use final pre-merger value
 
-            ////////////////////////////////////////////////////////////
-            // @wkb 4 Sept 2024:
-            // add refinement based on expected gravitational wavelength
-            const double eta     = f1 * f2;  // symmetric mass ratio
-            // estimate ending GW frequency from quasi-normal modes
-            const double lam_qnm = 4 * M_PI / (.37009 + .6475 * eta);
-            // clang-format off
-            #if 1
-            // q=1 parameters
-            constexpr double A    = 18.8;
-            // More nuanced fit: A tau^(3/8) * (1 + B tau^(-2/8))
-            // constexpr double B    = 0.0; 
-            constexpr double tau0 = 445.0;
-            // constexpr double mn = 10.5; // old
-            constexpr double mn = 14.49;
-            // constexpr double t_end = 642.0; // time (2,2) hits R=50
-            constexpr double t_end = 608.14; // ~150 past merger
-            // constexpr double t_end = 580.14; // ~122 past merger
-            #else
-            // q=4 parameters
-            constexpr double A    = 17;
-            // More nuanced fit: A tau^(3/8) * (1 + B tau^(-2/8))
-            // constexpr double B    = .75;
-            constexpr double tau0 = 490.0;
-            // constexpr double mn = 22.90; // old
-            constexpr double mn = 18.10;
-            // constexpr double t_end = 660.0;
-            constexpr double t_end = 670.4; // ~122 past merger
-            #endif
-            // constexpr double t_end = t
-            
-            ////////////////////////////////////////////////////////////
-            // decide whether to use QNM or orbital freq for ending
-            const double lam_min = mn; // use orbital freq @ ds = .1
-            // clang-format on
-
-            auto get_ell = [A, tau0, lam_min, lam_clean, Delta_x, n_order](double t_ret,
-                                              unsigned int m = 8) -> int {
+            // calculate wavelength goal based on goal sph. har. order m
+            auto get_ell = [lam_clean, Delta_x, n_order](double t_ret, 
+                            unsigned int m = 8) -> int {
                 // Get refinement level necessary from wavelength
-                double lambda = (t_ret < tau0)
-                                            ? A * std::pow(tau0 - t_ret, 3.0 / 8.0)
-                                            : lam_min;
-                lambda        = std::max(lambda, lam_min);
-                // overwrite for now, using clean lam now!
                 return static_cast<int>(
                     std::ceil(std::log2(Delta_x * m / (n_order * lam_clean / 2.))));
             };
@@ -721,6 +678,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         isOctChange = pMesh->setMeshRefinementFlags(refine_flags);
     }
 
+    // communicate changes to the grid
     bool isOctChanged_g;
     MPI_Allreduce(&isOctChange, &isOctChanged_g, 1, MPI_CXX_BOOL, MPI_LOR,
                   pMesh->getMPIGlobalCommunicator());
