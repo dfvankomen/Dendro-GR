@@ -453,7 +453,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         // element order
         const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
         // hardcode ending ORBIT some time past merger
-        constexpr double t_ring = 0; // ringdown time
+        constexpr double t_ring = 50; // ringdown time
         // ORBIT disable time
         const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
         const double t_disable = bh_merge_time + R_GW_max + t_ring; 
