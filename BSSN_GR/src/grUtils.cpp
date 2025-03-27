@@ -146,10 +146,6 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::RIT_ETA_WIDTH = parFile["RIT_ETA_WIDTH"];
     }
 
-    if (parFile.find("BSSN_AMR_R_RATIO") != parFile.end()) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"];
-    }
-
     bssn::BSSN_LAMBDA[0] =
         (unsigned int)parFile["BSSN_LAMBDA"]["BSSN_LAMBDA_1"];
     bssn::BSSN_LAMBDA[1] =

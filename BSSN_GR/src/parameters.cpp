@@ -286,10 +286,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::RIT_ETA_WIDTH = parFile["RIT_ETA_WIDTH"].as_floating();
     }
 
-    if (parFile.contains("BSSN_AMR_R_RATIO")) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"].as_floating();
-    }
-
     if (parFile.contains("BSSN_KO_SIGMA_SCALE_BY_CONFORMAL")) {
         bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL =
             parFile["BSSN_KO_SIGMA_SCALE_BY_CONFORMAL"].as_boolean();

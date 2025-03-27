@@ -1355,6 +1355,16 @@ int BSSNCtx::post_timestep(DVec& sIn) {
 
 bool BSSNCtx::is_remesh() {
     bool isRefine = false;
+    // wkb 27 March 2025 
+    // TODO: if pre-merger, use bssn::BSSN_DENDRO_AMR_FAC,
+    // otherwise, use bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER
+    // or maybe just hardocde for now. 
+    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC; 
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN) {
+      // overwrite post-merger value for now
+      double amr_coarse_fac = 1/32.;
+    }
+    
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;
 
     MPI_Comm comm    = m_uiMesh->getMPIGlobalCommunicator();
@@ -1381,7 +1391,7 @@ bool BSSNCtx::is_remesh() {
         isRefine =
             bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
                                bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+                               amr_coarse_fac);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(
@@ -1392,7 +1402,7 @@ bool BSSNCtx::is_remesh() {
         const bool isR1 =
             bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
                                bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+                               amr_coarse_fac);
         const bool isR2 = bssn::isRemeshEH(
             m_uiMesh, (const double**)unzipVar, bssn::VAR::U_ALPHA,
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, false);
@@ -1411,7 +1421,7 @@ bool BSSNCtx::is_remesh() {
         const bool isR2 =
             bssn::addRemeshWAMR(m_uiMesh, (const double**)unzipVar,
                                 refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
-                                waveletTolFunc, bssn::BSSN_DENDRO_AMR_FAC);
+                                waveletTolFunc, amr_coarse_fac);
 
         isRefine = (isR1 || isR2);
     }
