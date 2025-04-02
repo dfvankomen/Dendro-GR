@@ -160,6 +160,8 @@ extern unsigned int BSSN_DENDRO_GRAIN_SZ;
 /**@brief AMR coarsening factor (we coarsen if
  * tol<BSSN_DENDRO_AMR_FAC*BSSN_WAVELET_TOL)*/
 extern double BSSN_DENDRO_AMR_FAC;
+/**@brief post-merger coarsening factor */
+extern double BSSN_DENDRO_AMR_FAC_POST_MERGER;
 
 /**@brief: AMR radius for the BH location based refinement. (BH1)*/
 extern double BSSN_BH1_AMR_R;

@@ -1356,13 +1356,12 @@ int BSSNCtx::post_timestep(DVec& sIn) {
 bool BSSNCtx::is_remesh() {
     bool isRefine = false;
     // wkb 27 March 2025 
-    // TODO: if pre-merger, use bssn::BSSN_DENDRO_AMR_FAC,
-    // otherwise, use bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER
-    // or maybe just hardocde for now. 
+    // if pre-merger, use AMR_FAC normally
     double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC; 
-    if (bssn::BSSN_MERGED_CHKPT_WRITTEN) {
-      // overwrite post-merger value for now
-      double amr_coarse_fac = 1/32.;
+    // otherwise, use POST_MERGER value if non-zero
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN && (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+      // overwrite post-merger value 
+      amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
     }
     
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;

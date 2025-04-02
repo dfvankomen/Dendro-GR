@@ -97,6 +97,7 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_DENDRO_GRAIN_SZ     = parFile["BSSN_DENDRO_GRAIN_SZ"];
     bssn::BSSN_ASYNC_COMM_K        = parFile["BSSN_ASYNC_COMM_K"];
     bssn::BSSN_DENDRO_AMR_FAC      = parFile["BSSN_DENDRO_AMR_FAC"];
+    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER = parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
     bssn::BSSN_LOAD_IMB_TOL        = parFile["BSSN_LOAD_IMB_TOL"];
     bssn::BSSN_RK_TIME_BEGIN       = parFile["BSSN_RK_TIME_BEGIN"];
     bssn::BSSN_RK_TIME_END         = parFile["BSSN_RK_TIME_END"];
@@ -512,6 +513,10 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tBSSN_DENDRO_AMR_FAC :" << bssn::BSSN_DENDRO_AMR_FAC
              << NRM << std::endl;
+        
+        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: " << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM
+             << std::endl;
+
         sout << YLW << "\tBSSN_USE_WAVELET_TOL_FUNCTION :"
              << bssn::BSSN_USE_WAVELET_TOL_FUNCTION << NRM << std::endl;
         sout << YLW << "\tBSSN_WAVELET_TOL :" << bssn::BSSN_WAVELET_TOL << NRM
