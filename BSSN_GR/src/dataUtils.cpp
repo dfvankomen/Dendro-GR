@@ -448,8 +448,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         // smallest GW extraction radius
         const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
         // largest GW extraction radius
-        // const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
-        const double R_GW_max = R_GW_min; // TEMP: just doing this for easier testing
+        const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
         // element order
         const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
         // hardcode ending ORBIT some time past merger
