@@ -535,6 +535,8 @@ bssn:
                 bssnaeh::perform_aeh_step(bssnCtx, rank);
             }
 
+            bssnCtx->prepare_for_evolution();
+
             ets->evolve();
 
             if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {

@@ -18,6 +18,10 @@
 #include "grDef.h"
 #include "memory_pool.h"
 
+#ifdef BSSN_USE_COMPRESSION
+#include "compression.h"
+#endif
+
 namespace bssn {
 
 extern mem::memory_pool<double> BSSN_MEM_POOL;
@@ -393,6 +397,16 @@ extern double BSSN_SSL_H;
 const unsigned int BSSN_NUM_DERIVS = 138 + 74;
 #else
 const unsigned int BSSN_NUM_DERIVS = 138;
+#endif
+
+#ifdef BSSN_USE_COMPRESSION
+extern dendro_compress::CompressionType BSSN_COMPRESSION_MODE;
+
+extern dendro_compress::CompressionOptions BSSN_COMPRESSION_OPTIONS;
+
+extern dendro_compress::FilterType BSSN_COMPRESSION_FILTER_MODE;
+
+extern ot::CTXSendType BSSN_COMPRESSION_SEND_TYPE;
 #endif
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);

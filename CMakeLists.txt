@@ -15,9 +15,9 @@ project(Dendro-5.0 C CXX Fortran)
 # in the future
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g")
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
-set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
+# set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
+# set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
 
 # OpenMP, MPI, and GSL are required packages for all aspects of the project
 find_package(OpenMP REQUIRED)
@@ -79,6 +79,13 @@ option(BUILD_WITH_PETSC " build dendro with PETSC " OFF)
 option(USE_FD_INTERP_FOR_UNZIP "use FD style interpolation for unzip" OFF)
 option(MPIX_CUDA_AWARE_SUPPORT "use FD style interpolation for unzip" OFF)
 
+# compression options:
+option(DENDRO_ENABLE_GHOST_COMPRESSION
+       "Enable compression on Ghost Communication" ON)
+
+option(BSSN_USE_COMPRESSION "Enable Compression" OFF)
+
+
 # option(KWAY "K parameter for alltoallv_kway" 128)
 set(KWAY
     128
@@ -96,6 +103,17 @@ if(NOT CMAKE_BUILD_TYPE)
       "Release"
       CACHE STRING "Choose build type: 'Debug' or 'Release' " FORCE)
 endif()
+
+
+# ghost compression needs to be defined outside dendrolib as well
+if(DENDRO_ENABLE_GHOST_COMPRESSION)
+  add_definitions(-DDENDRO_ENABLE_GHOST_COMPRESSION)
+endif()
+
+if(BSSN_USE_COMPRESSION)
+  add_definitions(-DBSSN_USE_COMPRESSION)
+endif()
+
 
 if(WITH_CUDA)
   set(OCT2BLK_COARSEST_LEV
@@ -230,6 +248,7 @@ checkgitsetup()
 # === BEGIN SUBDIRECTORY INCLUSION FOR BUILDING ===
 
 # now include the dendro repository for compiling the library
+message(STATUS "Dendrolib location: ${DENDRO_dendrolib_DIR}")
 add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
 
 # additional subdirectories that are their own "solvers"

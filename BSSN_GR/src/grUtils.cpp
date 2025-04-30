@@ -15,6 +15,10 @@
 #include "git_version_and_date.h"
 #include "parameters.h"
 
+#ifdef BSSN_USE_COMPRESSION
+#include "compression.h"
+#endif
+
 namespace bssn {
 
 void printGitInformation(int rank, std::vector<std::string> arg_s) {
@@ -773,6 +777,15 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tBSSN_SSL_H: " << bssn::BSSN_SSL_H << NRM << std::endl;
         sout << YLW << "\tBSSN_SSL_SIGMA: " << bssn::BSSN_SSL_SIGMA << NRM
              << std::endl;
+
+#ifdef BSSN_USE_COMPRESSION
+        sout << YLW
+             << "\tBSSN_COMPRESSION_MODE: " << bssn::BSSN_COMPRESSION_MODE
+             << NRM << std::endl;
+        sout << YLW
+             << "\tBSSN_COMPRESSION_OPTIONS: " << bssn::BSSN_COMPRESSION_OPTIONS
+             << NRM << std::endl;
+#endif
     }
 }
 
@@ -3034,6 +3047,8 @@ void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
     DendroIntL totalRecvNode;
 
     DendroIntL numCalls;
+
+    // TODO: modify this to work with compression profile information
 
 #ifdef BSSN_PROFILE_HUMAN_READABLE
     if (!activeRank) {

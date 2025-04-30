@@ -9,6 +9,13 @@
 
 #include "parameters.h"
 
+#include "mesh.h"
+
+#ifdef BSSN_USE_COMPRESSION
+#pragma message("Compression enabled in BSSN parameters!")
+#include "compression.h"
+#endif
+
 namespace bssn {
 
 mem::memory_pool<double> BSSN_MEM_POOL  = mem::memory_pool<double>(0, 16);
@@ -190,6 +197,19 @@ double BSSN_SSL_H                               = 0.6;
 
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
+
+#ifdef BSSN_USE_COMPRESSION
+dendro_compress::CompressionType BSSN_COMPRESSION_MODE =
+    dendro_compress::CompressionType::NONE;
+
+dendro_compress::CompressionOptions BSSN_COMPRESSION_OPTIONS;
+
+dendro_compress::FilterType BSSN_COMPRESSION_FILTER_MODE =
+    dendro_compress::FilterType::F_NONE;
+
+// default sending doubles
+ot::CTXSendType BSSN_COMPRESSION_SEND_TYPE = ot::CTXSendType::CTX_DOUBLE;
+#endif
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
@@ -610,6 +630,93 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.contains("AEH_BETA"))
         AEH::AEH_BETA = parFile["AEH_BETA"].as_floating();
+
+    // parameters for compression
+    if (parFile.contains("BSSN_COMPRESSION_OPTIONS")) {
+#ifdef BSSN_USE_COMPRESSION
+
+        std::string temp_compression_type =
+            parFile["BSSN_COMPRESSION_MODE"].as_string();
+        if (temp_compression_type == "none") {
+            bssn::BSSN_COMPRESSION_MODE =
+                dendro_compress::CompressionType::NONE;
+        } else if (temp_compression_type == "zfp") {
+            bssn::BSSN_COMPRESSION_MODE = dendro_compress::CompressionType::ZFP;
+        } else if (temp_compression_type == "blosc") {
+            bssn::BSSN_COMPRESSION_MODE =
+                dendro_compress::CompressionType::BLOSC;
+        } else if (temp_compression_type == "torchscript") {
+            bssn::BSSN_COMPRESSION_MODE =
+                dendro_compress::CompressionType::TORCH_SCRIPT;
+        } else if (temp_compression_type == "onnx") {
+            bssn::BSSN_COMPRESSION_MODE =
+                dendro_compress::CompressionType::ONNX_MODEL;
+        } else {
+            std::cerr
+                << "UNKNOWN COMPRESSION TYPE FOR bssn::BSSN_COMPRESSION_MODE! "
+                << temp_compression_type << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        bssn::BSSN_COMPRESSION_OPTIONS = dendro_compress::CompressionOptions{
+            bssn::BSSN_ELE_ORDER,
+            bssn::BSSN_NUM_VARS,
+            parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_COMPRESSOR"].as_string(),
+            static_cast<int>(parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_CLEVEL"]
+                                 .as_integer()),
+            static_cast<int>(
+                parFile["BSSN_COMPRESSION_OPTIONS"]["BLOSC_DO_SHUFFLE"]
+                    .as_integer()),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_MODE"].as_string(),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_RATE"].as_floating(),
+            parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_ACCURACY"].as_floating(),
+            static_cast<unsigned int>(
+                parFile["BSSN_COMPRESSION_OPTIONS"]["ZFP_PRECISION"]
+                    .as_integer()),
+            static_cast<size_t>(
+                parFile["BSSN_COMPRESSION_OPTIONS"]["CHEBY_N_REDUCED"]
+                    .as_integer()),
+            parFile["BSSN_3D_COMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_3D_DECOMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_2D_COMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_2D_DECOMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_1D_COMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_1D_DECOMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_0D_COMPRESSOR_PATH"].as_string(),
+            parFile["BSSN_0D_DECOMPRESSOR_PATH"].as_string()};
+
+        if (parFile.contains("BSSN_COMPRESSION_FILTER_MODE")) {
+            std::string temp_compression_filter_type =
+                parFile["BSSN_COMPRESSION_FILTER_MODE"].as_string();
+            if (temp_compression_filter_type == "none") {
+                bssn::BSSN_COMPRESSION_FILTER_MODE =
+                    dendro_compress::FilterType::F_NONE;
+            } else if (temp_compression_filter_type == "gaussian") {
+                bssn::BSSN_COMPRESSION_FILTER_MODE =
+                    dendro_compress::FilterType::F_GAUSSIAN;
+            } else if (temp_compression_filter_type == "chebyshev") {
+                bssn::BSSN_COMPRESSION_FILTER_MODE =
+                    dendro_compress::FilterType::F_CHEBYSHEV;
+            }
+        }
+
+        if (parFile.contains("BSSN_COMPRESSION_SEND_TYPE")) {
+            std::string temp_compression_send_type =
+                parFile["BSSN_COMPRESSION_SEND_TYPE"].as_string();
+            if (temp_compression_send_type == "double") {
+                bssn::BSSN_COMPRESSION_SEND_TYPE = ot::CTXSendType::CTX_DOUBLE;
+            } else if (temp_compression_send_type == "float") {
+                bssn::BSSN_COMPRESSION_SEND_TYPE = ot::CTXSendType::CTX_FLOAT;
+            } else {
+                throw std::runtime_error(
+                    "Invalid compression send type, set to 'double' or "
+                    "'float'");
+            }
+        }
+
+        ot::DENDRO_compression_file_prefix = BSSN_VTU_FILE_PREFIX;
+#endif
+    }
 
     MPI_Barrier(comm);
 }

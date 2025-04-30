@@ -21,6 +21,10 @@
 #include "parUtils.h"
 #include "parameters.h"
 
+#ifdef BSSN_USE_COMPRESSION
+#include "compression.h"
+#endif
+
 namespace bssn {
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     m_uiMesh = pMesh;
@@ -59,8 +63,18 @@ BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
 
     ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                       BSSN_ASYNC_COMM_K);
+
+#ifdef BSSN_USE_COMPRESSION
+    ot::alloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
+                                    BSSN_ASYNC_COMM_K, m_sendTypeCTX);
+#else
     ot::alloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
+#endif
+
+#ifdef BSSN_USE_COMPRESSION
+    this->prepareBytesVectors();
+#endif
 
     return;
 }
@@ -79,7 +93,11 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     // DendroScalar * sVar[BSSN_NUM_VARS];
     // in->to_2d(sVar);
 
+#ifdef BSSN_USE_COMPRESSION
+    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K, true);
+#else
     this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K);
+#endif
 
     // AT THIS POINT THE CONSTRAINT VARIABLES SHOULD BE CALCULATED.
     // Just need to set up the proper variable representation.
@@ -402,7 +420,13 @@ int BSSNCtx::initialize() {
         oldElements_g   = m_uiGlobalMeshElements;
         oldGridPoints_g = m_uiGlobalGridPoints;
 
+#ifdef BSSN_USE_COMPRESSION
+        // DON"T USE COMPRESSION during initialization"
+        this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K, false);
+#else
         this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
+#endif
+
         m_evar_unz.to_2d(unzipVar);
         // isRefine=this->is_remesh();
         // NOTE: use a parameter to determine if initial grid covergence should
@@ -476,6 +500,10 @@ int BSSNCtx::initialize() {
     deallocate_bssn_deriv_workspace();
     allocate_bssn_deriv_workspace(m_uiMesh, 1);
 
+#ifdef BSSN_USE_COMPRESSION
+    this->prepareBytesVectors();
+#endif
+
     unsigned int lmin, lmax;
     m_uiMesh->computeMinMaxLevel(lmin, lmax);
 
@@ -522,6 +550,13 @@ int BSSNCtx::initialize() {
                      "======================================================"
                   << std::endl;
     }
+
+#ifdef BSSN_USE_COMPRESSION
+    // set up the compression options
+    std::cout << "NOW SETTING COMPRESSION OPTIONS!" << std::endl;
+    dendro_compress::set_compression_options(bssn::BSSN_COMPRESSION_MODE,
+                                             bssn::BSSN_COMPRESSION_OPTIONS);
+#endif
 
     return 0;
 }
@@ -1266,8 +1301,14 @@ int BSSNCtx::restore_checkpt() {
 
     ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                       BSSN_ASYNC_COMM_K);
+
+#ifdef BSSN_USE_COMPRESSION
+    ot::alloc_mpi_ctx<DendroScalar>(newMesh, m_mpi_ctx, BSSN_NUM_VARS,
+                                    BSSN_ASYNC_COMM_K, m_sendTypeCTX);
+#else
     ot::alloc_mpi_ctx<DendroScalar>(newMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
+#endif
 
     // only reads the evolution variables.
     if (isActive) {
@@ -1522,10 +1563,21 @@ int BSSNCtx::grid_transfer(const ot::Mesh* m_new) {
         m_new, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
         BSSN_NUM_VARS, true);
 
+#ifdef BSSN_USE_COMPRESSION
+    // set the CTX send type for overriding purposes
+    m_sendTypeCTX = bssn::BSSN_COMPRESSION_SEND_TYPE;
+#endif
+
     ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                       BSSN_ASYNC_COMM_K);
+
+#ifdef BSSN_USE_COMPRESSION
+    ot::alloc_mpi_ctx<DendroScalar>(m_new, m_mpi_ctx, BSSN_NUM_VARS,
+                                    BSSN_ASYNC_COMM_K, m_sendTypeCTX);
+#else
     ot::alloc_mpi_ctx<DendroScalar>(m_new, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
+#endif
 
     m_uiIsETSSynced = false;
 

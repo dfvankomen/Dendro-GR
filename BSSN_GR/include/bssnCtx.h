@@ -33,6 +33,10 @@
 #include "physcon.h"
 #include "rhs.h"
 
+#ifdef BSSN_USE_COMPRESSION
+#include "compression.h"
+#endif
+
 namespace bssn {
 
 /** @brief smoothing modes avail for LTS recomended for LTS time stepping. */
@@ -87,6 +91,16 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         // make sure some things are ready for the next iteration
         m_bConstraintsComputed = false;
         m_bBHEvolved           = false;
+
+#ifdef BSSN_USE_COMPRESSION
+        this->prepareBytesVectors();
+#endif
+    }
+
+    void prepare_for_evolution() {
+#ifdef BSSN_USE_COMPRESSION
+        this->prepareBytesVectors();
+#endif
     }
 
     /** @brief get bh locations*/
