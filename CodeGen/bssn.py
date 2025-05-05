@@ -67,33 +67,41 @@ dendro.set_metric(gt)
 igt = dendro.get_inverse_metric()
 
 if True:
-  # default eta function
-  eta_func = (
-    R0
-    * sqrt(sum([igt[i, j] * d(i, chi) * d(j, chi) for i, j in dendro.e_ij]))
-    / ((1 - chi**ep1) ** ep2)
-  )
+    # default eta function
+    eta_func = (
+        R0
+        * sqrt(sum([igt[i, j] * d(i, chi) * d(j, chi) for i, j in dendro.e_ij]))
+        / ((1 - chi**ep1) ** ep2)
+    )
 else:
-  # implement extreme mass ratio shift damper eta_G from 
-  # [Lousto & Healy '23](https://arxiv.org/abs/2203.08831)
-  # add raw symbols used for eta_G
-  bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x_grid y_grid z_grid")
-  # define useful constants
-  r1 = sqrt(bh1x**2 + bh1y**2 + bh1z**2) # distance from BH1 to grid center
-  r2 = sqrt(bh2x**2 + bh2y**2 + bh2z**2) # distance from BH2 to grid center
-  dr = sqrt((bh2x - bh1x)**2 + (bh2y - bh1y)**2 + (bh2z - bh1z)**2) # distance between BHs 
-  dr1 = sqrt((x_grid - bh1x)**2 + (y_grid - bh1y)**2 + (z_grid - bh1z)**2) # distance to BH1
-  dr2 = sqrt((x_grid - bh2x)**2 + (y_grid - bh2y)**2 + (z_grid - bh2z)**2) # distance to BH2
-  # define relevant constants
-  s1 = 2 * bhMass1
-  s2 = 2 * bhMass2
-  # write the eta function proper
-  # hardcoding A=B=C=1, n=2
-  eta_func = (
-    1/(bhMass1 + bhMass2) \
-  + (1/bhMass1) * (r1**2/(r1**2+s2**2))**2 * exp(-dr1**2/s1**2) \
-  + (1/bhMass2) * (r2**2/(r2**2+s1**2))**2 * exp(-dr2**2/s2**2)
-  )
+    # implement extreme mass ratio shift damper eta_G from
+    # [Lousto & Healy '23](https://arxiv.org/abs/2203.08831)
+    # add raw symbols used for eta_G
+    bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = (
+        symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x_grid y_grid z_grid")
+    )
+    # define useful constants
+    r1 = sqrt(bh1x**2 + bh1y**2 + bh1z**2)  # distance from BH1 to grid center
+    r2 = sqrt(bh2x**2 + bh2y**2 + bh2z**2)  # distance from BH2 to grid center
+    dr = sqrt(
+        (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
+    )  # distance between BHs
+    dr1 = sqrt(
+        (x_grid - bh1x) ** 2 + (y_grid - bh1y) ** 2 + (z_grid - bh1z) ** 2
+    )  # distance to BH1
+    dr2 = sqrt(
+        (x_grid - bh2x) ** 2 + (y_grid - bh2y) ** 2 + (z_grid - bh2z) ** 2
+    )  # distance to BH2
+    # define relevant constants
+    s1 = 2 * bhMass1
+    s2 = 2 * bhMass2
+    # write the eta function proper
+    # hardcoding A=B=C=1, n=2
+    eta_func = (
+        1 / (bhMass1 + bhMass2)
+        + (1 / bhMass1) * (r1**2 / (r1**2 + s2**2)) ** 2 * exp(-(dr1**2) / s1**2)
+        + (1 / bhMass2) * (r2**2 / (r2**2 + s1**2)) ** 2 * exp(-(dr2**2) / s2**2)
+    )
 
 
 def bssn_puncture_gauge(

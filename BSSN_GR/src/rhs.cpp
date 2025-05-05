@@ -164,6 +164,15 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // and then the new parameter
     const double BSSN_CAHD_C             = bssn::BSSN_CAHD_C;
 
+    // data needed for the black hole location
+    const double bhMass1                 = bssn::BH1.getBHMass();
+    const double bhMass2                 = bssn::BH2.getBHMass();
+    const double bh1x                    = bssn::BH1.getBHCoordX();
+    const double bh1y                    = bssn::BH1.getBHCoordY();
+    const double bh1z                    = bssn::BH1.getBHCoordZ();
+    const double bh2x                    = bssn::BH2.getBHCoordX();
+    const double bh2y                    = bssn::BH2.getBHCoordY();
+
     int idx[3];
     const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
     const unsigned int n  = sz[0] * sz[1] * sz[2];
