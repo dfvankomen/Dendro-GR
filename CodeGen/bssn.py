@@ -78,7 +78,7 @@ else:
     # [Lousto & Healy '23](https://arxiv.org/abs/2203.08831)
     # add raw symbols used for eta_G
     bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = (
-        symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x_grid y_grid z_grid")
+        symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
     )
     # define useful constants
     r1 = sqrt(bh1x**2 + bh1y**2 + bh1z**2)  # distance from BH1 to grid center
