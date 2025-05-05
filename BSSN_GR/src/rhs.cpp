@@ -172,10 +172,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double bh1z                    = bssn::BH1.getBHCoordZ();
     const double bh2x                    = bssn::BH2.getBHCoordX();
     const double bh2y                    = bssn::BH2.getBHCoordY();
+    const double bh2z                    = bssn::BH2.getBHCoordZ();
 
-    int idx[3];
-    const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
-    const unsigned int n  = sz[0] * sz[1] * sz[2];
+    const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
+    const unsigned int n                 = sz[0] * sz[1] * sz[2];
 
     bssn::timer::t_deriv.start();
 
