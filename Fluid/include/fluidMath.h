@@ -217,7 +217,7 @@ void c2p_work_vars(double *fpar, double *u, double *v, double gd[3][3],
                    double gu[3][3], double gamma, double *pos);
 
 //@todo: @jacob: Can you please add doxygen documentation tags for the following
-//functions.
+// functions.
 int mhd_solver_4(double *u, double *v, double gd[3][3], double gu[3][3],
                  double *fpar);
 

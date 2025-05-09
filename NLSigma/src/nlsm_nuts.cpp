@@ -332,10 +332,10 @@ int main(int argc, char** argv) {
 
             if ((step % nlsm::NLSM_CHECKPT_FREQ) == 0) appCtx->write_checkpt();
 
-                // appCtx_ets->dump_pt(std::cout);
-                // appCtx_enuts->dump_pt(std::cout);
-                // ets->dump_pt(std::cout);
-                // enuts->dump_pt(std::cout);
+            // appCtx_ets->dump_pt(std::cout);
+            // appCtx_enuts->dump_pt(std::cout);
+            // ets->dump_pt(std::cout);
+            // enuts->dump_pt(std::cout);
 
 #ifdef __PROFILE_ETS__
             char fName[200];

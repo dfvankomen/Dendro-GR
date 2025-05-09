@@ -92,7 +92,7 @@ static const char* BSSN_CONSTRAINT_VAR_NAMES[] = {
  * BH_LOC : BH location based refinement, if turned on track the bh locations.
  * BH_WAMR : mixing WAMR + BH_LOC
  */
-enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC, BH_WAMR};
+enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC, BH_WAMR };
 
 }  // end of namespace bssn
 
