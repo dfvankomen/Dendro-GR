@@ -492,7 +492,7 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.find("AEH_SOLVER_FREQ") != parFile.end())
         AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"];
-    
+
     if (parFile.find("AEH_TIME_START") != parFile.end())
         AEH::AEH_TIME_START = parFile["AEH_TIME_START"];
 
@@ -798,7 +798,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tAEH_MAXITER: " << AEH::AEH_MAXITER << std::endl;
         sout << YLW << "\tAEH_ATOL: " << AEH::AEH_ATOL << std::endl;
         sout << YLW << "\tAEH_RTOL: " << AEH::AEH_RTOL << NRM << std::endl;
-        sout << YLW << "\tAEH_TIME_START " << AEH::AEH_TIME_START << NRM << std::endl;
+        sout << YLW << "\tAEH_TIME_START " << AEH::AEH_TIME_START << NRM
+             << std::endl;
 
         sout << YLW << "\tAEH_ALPHA: " << AEH::AEH_ALPHA << std::endl;
         sout << YLW << "\tAEH_BETA: " << AEH::AEH_BETA << NRM << std::endl;
@@ -819,8 +820,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tBSSN_SSL_SIGMA: " << bssn::BSSN_SSL_SIGMA << NRM
              << std::endl;
 
-        if (bssn::BSSN_ID_TYPE == 7 ||
-            bssn::BSSN_ID_TYPE == 9 ||  bssn::BSSN_ID_TYPE == 12 ) {  // If Teukolsky print TEUK
+        if (bssn::BSSN_ID_TYPE == 7 || bssn::BSSN_ID_TYPE == 9 ||
+            bssn::BSSN_ID_TYPE == 12) {  // If Teukolsky print TEUK
             // parameters
             sout << "//////////////TEUKOLSKY "
                     "PARAMETERS/////////////////////\n"
@@ -988,7 +989,7 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
             // minkowski initial data is flat space!
             minkowskiInitialData(xx_grid, yy_grid, zz_grid, var);
             break;
-         case 12:
+        case 12:
             bssn::Baumgarte(xx_grid, yy_grid, zz_grid, var);
             break;
         default:
@@ -1332,38 +1333,6 @@ void punctureData(const double xx1, const double yy1, const double zz1,
 
     punctureDataPhysicalCoord(xx, yy, zz, var);
 }
-void kerrData(const double xx1, const double yy1, const double zz1,
-              double* var) {
-    const double xx = GRIDX_TO_X(xx1);
-    const double yy = GRIDY_TO_Y(yy1);
-    const double zz = GRIDZ_TO_Z(zz1);
-
-    // parameters for the BH (mass, location, spin parameter)
-    double M        = BH1.getBHMass();
-    double bh1x     = BH1.getBHCoordX();
-    double bh1y     = BH1.getBHCoordY();
-    double bh1z     = BH1.getBHCoordZ();
-    double spin1    = BH1.getBHSpin();
-
-    // coordinates relative to the center of the BH
-    double x        = xx - bh1x;
-    double y        = yy - bh1y;
-    double z        = zz - bh1z;
-
-    // locating as a radial form
-    double r        = sqrt(x * x + y * y + z * z);
-
-    // HL : Angular momentum parameter will be added as param file after
-    // testing
-    double a        = spin1;
-
-    double gtd[3][3], Atd[3][3];
-    double alpha, Gamt[3];
-    double Chi, TrK, Betau[3];
-
-#include "Kerr.cpp"
-#include "kerr_vars.cpp"
-}
 
 void KerrSchildData(const double xx1, const double yy1, const double zz1,
                     double* var) {
@@ -1677,7 +1646,7 @@ void NLTeukData(const double xx1, const double yy1, const double zz1,
 #include "init_data_helpers/NLTeukolsky.init.cpp"
 }
 void Baumgarte(const double xx1, const double yy1, const double zz1,
-                double* var) {
+               double* var) {
     const double xx = GRIDX_TO_X(xx1);
     const double yy = GRIDY_TO_Y(yy1);
     const double zz = GRIDZ_TO_Z(zz1);
@@ -1705,8 +1674,8 @@ void Baumgarte(const double xx1, const double yy1, const double zz1,
     double alpha, Gamt[3];
     double Chi, TrK, Betau[3];
 
-#include "init_data_helpers/NLTeuk_vars.cpp"
 #include "init_data_helpers/Baumgarte.cpp"
+#include "init_data_helpers/NLTeuk_vars.cpp"
 }
 
 void Bin_KerrData(const double xx1, const double yy1, const double zz1,
@@ -2521,7 +2490,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             const double lg_eps =
                 std::log10(eps_disable) + slope * (T_CURRENT - t_lim);
             return std::pow(10.0, lg_eps);
-
+        }
     } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 7) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
@@ -2529,25 +2498,24 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         if (r < R_0)
             return bssn::BSSN_WAVELET_TOL;
         else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX,
+                            bssn::BSSN_WAVELET_TOL * pow(10, r - R_0));
         }
     } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 8) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
         double R_0 = TEUK_REFINEMENT_R0;
         double R_1 = BSSN_WAVELET_TOL_FUNCTION_R0;
-        if (r < R_0){
+        if (r < R_0) {
             return bssn::BSSN_WAVELET_TOL;
-        }
-        else if(R_0 < r && r < R_1){
+        } else if (R_0 < r && r < R_1) {
             const double W_RR = bssn::BSSN_WAVELET_TOL_MAX;
             double WTOL_EXP_FAC =
                 (r - R_1) / std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
-            return std::min(bssn::BSSN_WAVELET_TOL*10,
+            return std::min(bssn::BSSN_WAVELET_TOL * 10,
                             ((std::pow(10, (r - R_0) / WTOL_EXP_FAC)) *
                              bssn::BSSN_WAVELET_TOL));
-        }
-        else {
+        } else {
             const double W_RR = bssn::BSSN_WAVELET_TOL_MAX;
             double WTOL_EXP_FAC =
                 (r - R_1) / std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
@@ -2555,7 +2523,6 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
                             ((std::pow(10, (r - R_1) / WTOL_EXP_FAC)) *
                              bssn::BSSN_WAVELET_TOL));
         }
-
     } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 9) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
@@ -2587,13 +2554,14 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
     } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 9) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
-        double R_0 = TEUK_REFINEMENT_R0;
-	  double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
+        double R_0       = TEUK_REFINEMENT_R0;
+        double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
 
         if (r < R_0)
             return bssn::BSSN_WAVELET_TOL;
         else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coordtime),bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX * exp(coordtime),
+                            bssn::BSSN_WAVELET_TOL * pow(10, r - R_0));
         }
     } else {
         // return global wavelet tolerance, irrespective of position
@@ -2737,7 +2705,8 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
         beta3vec[validIndex_beta1[ind] * 3 + 1] = beta1[validIndex_beta1[ind]];
         beta3vec[validIndex_beta2[ind] * 3 + 2] = beta2[validIndex_beta2[ind]];
 
-        // std::cout<<"rank: "<<gRank<<"beta["<<(validIndex_beta0[ind]*3)<<"]: (
+        // std::cout<<"rank:
+        // "<<gRank<<"beta["<<(validIndex_beta0[ind]*3)<<"]: (
         // "<<beta3vec[validIndex_beta0[ind]*3 + 0]<<",
         // "<<beta3vec[validIndex_beta0[ind]*3 + 1]<<",
         // "<<beta3vec[validIndex_beta0[ind]*3 + 2]<<")"<<std::endl;
@@ -2753,7 +2722,8 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
 
     // if(!pMesh->getMPIRankGlobal())
     //     std::cout<<"beta bh0: ( "<<beta3vec[0]<<", "<<beta3vec[1]<<",
-    //     "<<beta3vec[2]<<") :  beta 1 ( "<<beta3vec[3]<<", "<<beta3vec[4]<<",
+    //     "<<beta3vec[2]<<") :  beta 1 ( "<<beta3vec[3]<<",
+    //     "<<beta3vec[4]<<",
     //     "<<beta3vec[5]<<") "<<std::endl;
 
     double x[2], y[2], z[2];
@@ -2819,15 +2789,15 @@ ot::Mesh* weakScalingReMesh(ot::Mesh* pMesh, unsigned int target_npes) {
             const unsigned int active_npes = current_mesh->getMPICommSize();
             const MPI_Comm active_comm     = current_mesh->getMPICommunicator();
             // const DendroIntL lsplit_b =
-            // (active_rank)*req_l_splits/active_npes; const DendroIntL lsplit_e
-            // = (active_rank+1)*req_l_splits/active_npes; const DendroIntL
-            // num_split_rank = lsplit_e-lsplit_b;
+            // (active_rank)*req_l_splits/active_npes; const DendroIntL
+            // lsplit_e = (active_rank+1)*req_l_splits/active_npes; const
+            // DendroIntL num_split_rank = lsplit_e-lsplit_b;
 
             const ot::TreeNode* pNodes = current_mesh->getAllElements().data();
 
             // DendroIntL lcount =0;
-            // for (unsigned int ele = current_mesh->getElementLocalBegin(); ele
-            // < current_mesh->getElementLocalEnd(); ele++)
+            // for (unsigned int ele = current_mesh->getElementLocalBegin();
+            // ele < current_mesh->getElementLocalEnd(); ele++)
             // {
             //     if(pNodes[ele].getLevel() == LMAX-1)
             //         lcount++;
@@ -2847,18 +2817,18 @@ ot::Mesh* weakScalingReMesh(ot::Mesh* pMesh, unsigned int target_npes) {
             // unsigned int valid_npes=active_npes;
 
             // if(it_upper != num_lev_offsets.end())
-            //     valid_npes = std::distance(num_lev_offsets.begin(),it_upper)
-            //     +1;
+            //     valid_npes =
+            //     std::distance(num_lev_offsets.begin(),it_upper) +1;
 
             // if (active_rank < valid_npes)
             // {
             //     unsigned int ele_offset =
             //     current_mesh->getElementLocalBegin(); lcount =0; for
-            //     (unsigned int ele = current_mesh->getElementLocalBegin(); ele
-            //     < current_mesh->getElementLocalEnd(); ele++)
+            //     (unsigned int ele = current_mesh->getElementLocalBegin();
+            //     ele < current_mesh->getElementLocalEnd(); ele++)
             //     {
-            //         if( lcount < req_l_splits  && pNodes[ele].getLevel() ==
-            //         LMAX-1)
+            //         if( lcount < req_l_splits  && pNodes[ele].getLevel()
+            //         == LMAX-1)
             //         {
             //             ref_flags[ele-ele_offset] = OCT_SPLIT;
             //             lcount++;
@@ -2991,7 +2961,8 @@ decode_bh_locs(const std::string& bh1_str, const std::string& bh2_str,
 
     const size_t num_entries = time_bytes.size() / double_size;
 
-    // with the bytes back in place, we need to do a reinterpret cast for time
+    // with the bytes back in place, we need to do a reinterpret cast for
+    // time
     std::vector<double> time_vector;
     std::vector<std::pair<Point, Point>> bh_locs;
     for (size_t i = 0; i < num_entries; ++i) {

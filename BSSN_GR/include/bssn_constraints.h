@@ -21,25 +21,25 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     const double one_third = 1.0 / 3.0;
     double gtd[3][3], Atd[3][3];
 
-    gtd[0][0] = uiVar[VAR::U_SYMGT0][node];
-    gtd[0][1] = uiVar[VAR::U_SYMGT1][node];
-    gtd[0][2] = uiVar[VAR::U_SYMGT2][node];
-    gtd[1][0] = gtd[0][1];
-    gtd[1][1] = uiVar[VAR::U_SYMGT3][node];
-    gtd[1][2] = uiVar[VAR::U_SYMGT4][node];
-    gtd[2][0] = gtd[0][2];
-    gtd[2][1] = gtd[1][2];
-    gtd[2][2] = uiVar[VAR::U_SYMGT5][node];
+    gtd[0][0]    = uiVar[VAR::U_SYMGT0][node];
+    gtd[0][1]    = uiVar[VAR::U_SYMGT1][node];
+    gtd[0][2]    = uiVar[VAR::U_SYMGT2][node];
+    gtd[1][0]    = gtd[0][1];
+    gtd[1][1]    = uiVar[VAR::U_SYMGT3][node];
+    gtd[1][2]    = uiVar[VAR::U_SYMGT4][node];
+    gtd[2][0]    = gtd[0][2];
+    gtd[2][1]    = gtd[1][2];
+    gtd[2][2]    = uiVar[VAR::U_SYMGT5][node];
 
-    Atd[0][0] = uiVar[VAR::U_SYMAT0][node];
-    Atd[0][1] = uiVar[VAR::U_SYMAT1][node];
-    Atd[0][2] = uiVar[VAR::U_SYMAT2][node];
-    Atd[1][0] = Atd[0][1];
-    Atd[1][1] = uiVar[VAR::U_SYMAT3][node];
-    Atd[1][2] = uiVar[VAR::U_SYMAT4][node];
-    Atd[2][0] = Atd[0][2];
-    Atd[2][1] = Atd[1][2];
-    Atd[2][2] = uiVar[VAR::U_SYMAT5][node];
+    Atd[0][0]    = uiVar[VAR::U_SYMAT0][node];
+    Atd[0][1]    = uiVar[VAR::U_SYMAT1][node];
+    Atd[0][2]    = uiVar[VAR::U_SYMAT2][node];
+    Atd[1][0]    = Atd[0][1];
+    Atd[1][1]    = uiVar[VAR::U_SYMAT3][node];
+    Atd[1][2]    = uiVar[VAR::U_SYMAT4][node];
+    Atd[2][0]    = Atd[0][2];
+    Atd[2][1]    = Atd[1][2];
+    Atd[2][2]    = uiVar[VAR::U_SYMAT5][node];
 
     double alpha = uiVar[VAR::U_ALPHA][node];
     double chi   = uiVar[VAR::U_CHI][node];
@@ -292,7 +292,7 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         std::cout << "      Atd(2,3)=" << Atd[1][2] << std::endl;
         std::cout << "      Atd(3,3)=" << Atd[2][2] << std::endl;
 
-        //exit(0);
+        // exit(0);
     }
 
     uiVar[VAR::U_SYMAT0][node] = Atd[0][0];
@@ -333,17 +333,19 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
         /* now place the floor on chi */
         uiVar[VAR::U_CHI][node] = CHI_FLOOR;
     }
- if (uiVar[VAR::U_ALPHA][node] < ALPHA_FLOOR){
-uiVar[VAR::U_ALPHA][node] = ALPHA_FLOOR;
- }
-//  if (uiVar[VAR::U_ALPHA][node] > TEUK_AMP){
-// uiVar[VAR::U_ALPHA][node] = TEUK_AMP;
-//  }
+    if (uiVar[VAR::U_ALPHA][node] < ALPHA_FLOOR) {
+        uiVar[VAR::U_ALPHA][node] = ALPHA_FLOOR;
+    }
+    //  if (uiVar[VAR::U_ALPHA][node] > TEUK_AMP){
+    // uiVar[VAR::U_ALPHA][node] = TEUK_AMP;
+    //  }
     /* apply a floor to alpha */
 #if MAKE_ALPHA_FLOOR_ONLY_POSITIVE
     uiVar[VAR::U_ALPHA][node] =
         std::max(uiVar[VAR::U_ALPHA][node], ALPHA_FLOOR);
-        std::min(uiVar[VAR::U_ALPHA][node], 2.0);
+
+    // NOTE: why is this here?
+    // std::min(uiVar[VAR::U_ALPHA][node], 2.0);
 #else
     if (uiVar[VAR::U_ALPHA][node] > 0) {
         uiVar[VAR::U_ALPHA][node] =

@@ -826,7 +826,8 @@ int BSSNCtx::write_vtu() {
                               (const char**)&pDataNames_char[0],
                               (const double**)pData);
 
-    // TODO: add in option for this to be on or off
+// TODO: add in option for this to be on or off
+#if 0
     if (false) {
         // Outputting each slice:
         unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
@@ -859,6 +860,7 @@ int BSSNCtx::write_vtu() {
             (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
             (const double**)pData);
     }
+#endif
 
     if (!(m_uiMesh->getMPIRankGlobal())) {
         std::cout << GRN << "=== Finished Writing the VTU Files! ===" << NRM
