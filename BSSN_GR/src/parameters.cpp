@@ -207,6 +207,17 @@ double TEUK_R_0;
 unsigned int TEUK_KK;
 double TEUK_REFINEMENT_R0;
 
+#ifdef DENDRO_USE_NEW_DERIVS
+std::string BSSN_DERIVTYPE_FIRST                             = "E6";
+std::string BSSN_DERIVTYPE_SECOND                            = "E6";
+std::vector<double> BSSN_DERIV_FIRST_COEFFS                  = {};
+std::vector<double> BSSN_DERIV_SECOND_COEFFS                 = {};
+
+// default initialization
+// this *MUST* be initialized
+std::unique_ptr<dendroderivs::DendroDerivatives> BSSN_DERIVS = nullptr;
+#endif
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
@@ -604,6 +615,29 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
             parFile["TEUK"]["REFINEMENT_R0"].as_floating();
     }
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    if (parFile.contains("BSSN_DERIVTYPE_FIRST")) {
+        BSSN_DERIVTYPE_FIRST = parFile["BSSN_DERIVTYPE_FIRST"].as_string();
+    }
+
+    if (parFile.contains("BSSN_DERIVTYPE_SECOND")) {
+        BSSN_DERIVTYPE_SECOND = parFile["BSSN_DERIVTYPE_SECOND"].as_string();
+    }
+
+    if (parFile.contains("BSSN_DERIV_FIRST_COEFFS")) {
+        BSSN_DERIV_FIRST_COEFFS =
+            toml::find<std::vector<double>>(parFile, "BSSN_DERIV_FIRST_COEFFS");
+    }
+
+    if (parFile.contains("BSSN_DERIV_SECOND_COEFFS")) {
+        BSSN_DERIV_SECOND_COEFFS = toml::find<std::vector<double>>(
+            parFile, "BSSN_DERIV_SECOND_COEFFS");
+    }
+
+    std::cout << BSSN_DERIVTYPE_FIRST << " " << BSSN_DERIVTYPE_SECOND
+              << std::endl;
+#endif
+
     BSSN_OCTREE_MAX[0] = (double)(1u << bssn::BSSN_MAXDEPTH);
     BSSN_OCTREE_MAX[1] = (double)(1u << bssn::BSSN_MAXDEPTH);
     BSSN_OCTREE_MAX[2] = (double)(1u << bssn::BSSN_MAXDEPTH);
@@ -665,7 +699,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.contains("AEH_SOLVER_FREQ"))
         AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"].as_integer();
-    
+
     if (parFile.contains("AEH_TIME_START"))
         AEH::AEH_TIME_START = parFile["AEH_TIME_START"].as_floating();
 
@@ -674,6 +708,13 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.contains("AEH_BETA"))
         AEH::AEH_BETA = parFile["AEH_BETA"].as_floating();
+
+#ifdef DENDRO_USE_NEW_DERIVS
+    // establish the dendro derivatives class, this should always be built
+    BSSN_DERIVS = std::make_unique<dendroderivs::DendroDerivatives>(
+        BSSN_DERIVTYPE_FIRST, BSSN_DERIVTYPE_SECOND, BSSN_ELE_ORDER,
+        BSSN_DERIV_FIRST_COEFFS, BSSN_DERIV_SECOND_COEFFS);
+#endif
 
     MPI_Barrier(comm);
 }

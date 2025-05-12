@@ -18,6 +18,10 @@
 #include "grDef.h"
 #include "memory_pool.h"
 
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "derivatives.h"
+#endif
+
 namespace bssn {
 
 extern mem::memory_pool<double> BSSN_MEM_POOL;
@@ -443,6 +447,15 @@ extern double TEUK_R_0;
 extern unsigned int TEUK_KK;
 
 extern double TEUK_REFINEMENT_R0;
+
+#ifdef DENDRO_USE_NEW_DERIVS
+extern std::unique_ptr<dendroderivs::DendroDerivatives> BSSN_DERIVS;
+
+extern std::string BSSN_DERIVTYPE_FIRST;
+extern std::string BSSN_DERIVTYPE_SECOND;
+extern std::vector<double> BSSN_DERIV_FIRST_COEFFS;
+extern std::vector<double> BSSN_DERIV_SECOND_COEFFS;
+#endif
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
 

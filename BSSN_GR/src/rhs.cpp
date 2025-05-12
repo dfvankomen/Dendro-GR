@@ -1,16 +1,17 @@
 #include "rhs.h"
 
+#include <cmath>  // For std::isnan
+#include <iostream>
+
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
 
-#include <iostream>
-#include <cmath> // For std::isnan
-
 // Function to report NaN values with location and context information
-void reportNaN(const char* varName, double x, double y, double z, double value) {
-    std::cerr << "NaN detected in variable " << varName 
-              << " at (" << x << ", " << y << ", " << z << "): " << value << std::endl;
+void reportNaN(const char *varName, double x, double y, double z,
+               double value) {
+    std::cerr << "NaN detected in variable " << varName << " at (" << x << ", "
+              << y << ", " << z << "): " << value << std::endl;
 }
 
 // #define DEBUG_FOR_TEUK
@@ -151,9 +152,12 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         &uZipConstVars[VAR_CONSTRAINT::C_PSI4_REAL][offset];
     const double *const psi4_img =
         &uZipConstVars[VAR_CONSTRAINT::C_PSI4_IMG][offset];
-    const double *const riem_sqrd  = &uZipConstVars[VAR_CONSTRAINT::C_RIEM_SQRD][offset];
-    const double *const pontryagin  = &uZipConstVars[VAR_CONSTRAINT::C_PONTRYAGIN][offset];
-    const double *const expansion  = &uZipConstVars[VAR_CONSTRAINT::C_EXPANSION][offset];
+    const double *const riem_sqrd =
+        &uZipConstVars[VAR_CONSTRAINT::C_RIEM_SQRD][offset];
+    const double *const pontryagin =
+        &uZipConstVars[VAR_CONSTRAINT::C_PONTRYAGIN][offset];
+    const double *const expansion =
+        &uZipConstVars[VAR_CONSTRAINT::C_EXPANSION][offset];
 
     mem::memory_pool<double> *__mem_pool = &BSSN_MEM_POOL;
 
@@ -223,13 +227,15 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif
 #endif
             for (unsigned int i = PW; i < nx - PW; i++) {
-                const double x = pmin[0] + i * hx;
-                ;
-                const double y = pmin[1] + j * hy;
-                const double z = pmin[2] + k * hz;
-                ;
+                const double x        = pmin[0] + i * hx;
+                const double y        = pmin[1] + j * hy;
+                const double z        = pmin[2] + k * hz;
+
                 const unsigned int pp = i + nx * (j + ny * k);
-                if (std::isnan(alpha[pp])) reportNaN("alpha", x, y, z, alpha[pp]);
+
+#ifdef __REPORT_NANS__
+                if (std::isnan(alpha[pp]))
+                    reportNaN("alpha", x, y, z, alpha[pp]);
                 if (std::isnan(chi[pp])) reportNaN("chi", x, y, z, chi[pp]);
                 if (std::isnan(K[pp])) reportNaN("K", x, y, z, K[pp]);
                 if (std::isnan(gt0[pp])) reportNaN("gt0", x, y, z, gt0[pp]);
@@ -244,23 +250,27 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 if (std::isnan(At3[pp])) reportNaN("At3", x, y, z, At3[pp]);
                 if (std::isnan(At4[pp])) reportNaN("At4", x, y, z, At4[pp]);
                 if (std::isnan(At5[pp])) reportNaN("At5", x, y, z, At5[pp]);
-                if (std::isnan(beta0[pp])) reportNaN("beta0", x, y, z, beta0[pp]);
-                if (std::isnan(beta1[pp])) reportNaN("beta1", x, y, z, beta0[pp]);
-                if (std::isnan(beta2[pp])) reportNaN("beta2", x, y, z, beta0[pp]);
+                if (std::isnan(beta0[pp]))
+                    reportNaN("beta0", x, y, z, beta0[pp]);
+                if (std::isnan(beta1[pp]))
+                    reportNaN("beta1", x, y, z, beta0[pp]);
+                if (std::isnan(beta2[pp]))
+                    reportNaN("beta2", x, y, z, beta0[pp]);
                 if (std::isnan(B0[pp])) reportNaN("B0", x, y, z, B0[pp]);
                 if (std::isnan(B1[pp])) reportNaN("B1", x, y, z, B0[pp]);
                 if (std::isnan(B2[pp])) reportNaN("B2", x, y, z, B0[pp]);
                 if (std::isnan(Gt0[pp])) reportNaN("G0", x, y, z, Gt0[pp]);
                 if (std::isnan(Gt1[pp])) reportNaN("G1", x, y, z, Gt0[pp]);
                 if (std::isnan(Gt2[pp])) reportNaN("G2", x, y, z, Gt0[pp]);
-                const double r_coord  = sqrt(x * x + y * y + z * z);
+#endif
 
-                const double w        = r_coord / bssn::RIT_ETA_WIDTH;
-                const double arg      = -w * w * w * w;
+                const double r_coord = sqrt(x * x + y * y + z * z);
+
+                const double w       = r_coord / bssn::RIT_ETA_WIDTH;
+                const double arg     = -w * w * w * w;
                 const double eta =
                     (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
                     bssn::RIT_ETA_OUTER;
-
 
                 // if ((x > -0.0001 && x < 0.0001) &&
                 //     (y > -0.0001 && y < 0.0001) &&
@@ -271,6 +281,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 //               << " (t = " << bssn::BSSN_CURRENT_RK_COORD_TIME
                 //               << ")" << std::endl;
                 // }
+
+#ifdef __CHECK_DET_GTD__
                 double det_gtd =
                     gt0[pp] * (gt3[pp] * gt5[pp] - gt4[pp] * gt4[pp]) -
                     gt1[pp] * gt1[pp] * gt5[pp] +
@@ -375,6 +387,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                                   << ", " << z << ")" << std::endl;
                     // exit(0);
                 }
+#endif
 
                 // clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
@@ -409,6 +422,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
   #endif
 // END IF for USE_SSL GAUGE
 #endif
+                // clang-format on
             }
         }
     }
@@ -474,6 +488,22 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         bssn::timer::t_bdyc.stop();
     }
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    bssn::timer::t_deriv.start();
+
+    double sigma = KO_DISS_SIGMA;
+    // NOTE: for "even" KO dissipation, sigma_gauge and sigma other should only
+    // be sigma, other "modes" can try, such as with CAKO. CAKO (and to avoid
+    // rewriting code) divides up the parameters into the following:
+    // - sigma_gauge needs to go to a_rhs, b_rhs(0,1,2), B_rhs(0,1,2)
+    // - sigma_other needs to go to the others
+
+    // TODO: need to figure out how to handle CAKO here (possibly just not do
+    // this type of filtering, or write a new filter?)
+
+#include "bssnrhs_ko_derivs_newfilt.h"
+    bssn::timer::t_deriv.stop();
+#else
     bssn::timer::t_deriv.start();
 #include "bssnrhs_ko_derivs.h"
     bssn::timer::t_deriv.stop();
@@ -635,6 +665,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             }
         }
     }
+#endif
 
     bssn::timer::t_rhs.stop();
 

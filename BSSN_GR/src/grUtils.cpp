@@ -894,6 +894,11 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
             sout << "//////////////BLACK HOLE 2 PARAMETERS "
                     "PARAMETERS/////////////////////\n";
         }
+
+#ifdef DENDRO_USE_NEW_DERIVS
+        sout << YLW << "\t DERIVS: " << BSSN_DERIVS->toString() << NRM
+             << std::endl;
+#endif
     }
 }
 

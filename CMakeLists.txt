@@ -79,6 +79,8 @@ option(BUILD_WITH_PETSC " build dendro with PETSC " OFF)
 option(USE_FD_INTERP_FOR_UNZIP "use FD style interpolation for unzip" OFF)
 option(MPIX_CUDA_AWARE_SUPPORT "use FD style interpolation for unzip" OFF)
 
+option(DENDRO_USE_NEW_DERIVS "Use the new Dendro derivatives" ON)
+
 # option(KWAY "K parameter for alltoallv_kway" 128)
 set(KWAY
     128
@@ -89,6 +91,11 @@ set(OCT2BLK_COARSEST_LEV
 set(NUM_NPES_THRESHOLD
     2
     CACHE STRING 2)
+
+if (DENDRO_USE_NEW_DERIVS)
+  add_definitions(-DDENDRO_USE_NEW_DERIVS)
+  set(DVEC_ZERO_ALLOC ON)
+endif()
 
 # set the build type to release by default.
 if(NOT CMAKE_BUILD_TYPE)
@@ -230,6 +237,7 @@ checkgitsetup()
 # === BEGIN SUBDIRECTORY INCLUSION FOR BUILDING ===
 
 # now include the dendro repository for compiling the library
+message(STATUS "Dendrolib location: ${DENDRO_dendrolib_DIR}")
 add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
 
 # additional subdirectories that are their own "solvers"
