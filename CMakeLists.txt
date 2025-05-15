@@ -232,6 +232,9 @@ checkgitsetup()
 # now include the dendro repository for compiling the library
 add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
 
+
+add_subdirectory(lib/BHaHAHA)
+
 # additional subdirectories that are their own "solvers"
 add_subdirectory(BSSN_GR)
 # add_subdirectory(CCZ4_GR)

@@ -220,6 +220,7 @@ set(BSSN_INC include/parameters.h
         include/dataUtils.h
         include/aeh.h
         include/trumpet.h
+        include/bhahaha_interface.h
         )
 
 set(BSSN_SRC src/parameters.cpp
@@ -412,7 +413,7 @@ if(WITH_CUDA)
   target_link_libraries(bssnSolver bssn_cuda)
   target_link_libraries(bssnSolver ${CUDA_LIBRARIES})
 endif()
-target_link_libraries(bssnSolver dendro5 ${LAPACK_LIBRARIES} ${MPI_LIBRARIES} ${GSL_LIBRARIES} m dendro_git_version_and_date)
+target_link_libraries(bssnSolver dendro5 ${LAPACK_LIBRARIES} ${MPI_LIBRARIES} ${GSL_LIBRARIES} m dendro_git_version_and_date BHaHAHA)
 
 add_executable(bssnSolverCtx src/bssngr_main.cpp src/bssnCtx.cpp include/bssnAEH.h src/bssnAEH.cpp)
 target_include_directories(bssnSolverCtx PRIVATE ${CMAKE_SOURCE_DIR}/dendrolib/include)
