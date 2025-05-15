@@ -12,6 +12,7 @@
 #include "aeh.h"
 #include "bssnAEH.h"
 #include "bssnCtx.h"
+#include "derivatives.h"
 #include "gr.h"
 #include "grUtils.h"
 #include "mesh.h"
@@ -23,6 +24,11 @@
 #include "sdc.h"
 
 int main(int argc, char** argv) {
+#ifdef DENDRO_USE_NEW_DERIVS
+    // initialize derivatives
+    dendroderivs::initialize_derivatives();
+#endif
+
     // 0- NUTS 1-UTS
     unsigned int ts_mode = 1;
 
@@ -575,5 +581,11 @@ bssn:
     }
 
     MPI_Finalize();
+
+#ifdef DENDRO_USE_NEW_DERIVS
+    // finalize cleanup of the derivatives
+    dendroderivs::finalize_derivatives();
+#endif
+
     return 0;
 }
