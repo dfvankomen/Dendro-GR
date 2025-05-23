@@ -10,6 +10,7 @@
 
 #include "TreeNode.h"
 #include "aeh.h"
+#include "bhahaha_interface.h"
 #include "bssnAEH.h"
 #include "bssnCtx.h"
 #include "gr.h"
@@ -532,7 +533,9 @@ bssn:
 
             if ((AEH::AEH_SOLVER_FREQ > 0) &&
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
-                bssnaeh::perform_aeh_step(bssnCtx, rank);
+                // bssnaeh::perform_aeh_step(bssnCtx, rank);
+
+                bssnCtx->findAEH();
             }
 
             ets->evolve();

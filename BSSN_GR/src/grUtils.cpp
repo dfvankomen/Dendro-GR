@@ -17,6 +17,16 @@
 
 namespace bssn {
 
+template <typename T>
+inline void quickPrintVector(const std::vector<T>& vec, std::ostream& sout,
+                             const std::string& prefix) {
+    sout << prefix << " : ";
+    for (const auto& val : vec) {
+        sout << val << " ";
+    }
+    sout << NRM << std::endl;
+}
+
 void printGitInformation(int rank, std::vector<std::string> arg_s) {
     if (!rank) {
         std::cout << YLW << "  COMPILED ON  -  " << compile_info::compileDate
@@ -87,17 +97,18 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
 
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
         parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"];
-    bssn::BSSN_BLK_MIN_X           = parFile["BSSN_BLK_MIN_X"];
-    bssn::BSSN_BLK_MIN_Y           = parFile["BSSN_BLK_MIN_Y"];
-    bssn::BSSN_BLK_MIN_Z           = parFile["BSSN_BLK_MIN_Z"];
-    bssn::BSSN_BLK_MAX_X           = parFile["BSSN_BLK_MAX_X"];
-    bssn::BSSN_BLK_MAX_Y           = parFile["BSSN_BLK_MAX_Y"];
-    bssn::BSSN_BLK_MAX_Z           = parFile["BSSN_BLK_MAX_Z"];
+    bssn::BSSN_BLK_MIN_X       = parFile["BSSN_BLK_MIN_X"];
+    bssn::BSSN_BLK_MIN_Y       = parFile["BSSN_BLK_MIN_Y"];
+    bssn::BSSN_BLK_MIN_Z       = parFile["BSSN_BLK_MIN_Z"];
+    bssn::BSSN_BLK_MAX_X       = parFile["BSSN_BLK_MAX_X"];
+    bssn::BSSN_BLK_MAX_Y       = parFile["BSSN_BLK_MAX_Y"];
+    bssn::BSSN_BLK_MAX_Z       = parFile["BSSN_BLK_MAX_Z"];
 
-    bssn::BSSN_DENDRO_GRAIN_SZ     = parFile["BSSN_DENDRO_GRAIN_SZ"];
-    bssn::BSSN_ASYNC_COMM_K        = parFile["BSSN_ASYNC_COMM_K"];
-    bssn::BSSN_DENDRO_AMR_FAC      = parFile["BSSN_DENDRO_AMR_FAC"];
-    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER = parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
+    bssn::BSSN_DENDRO_GRAIN_SZ = parFile["BSSN_DENDRO_GRAIN_SZ"];
+    bssn::BSSN_ASYNC_COMM_K    = parFile["BSSN_ASYNC_COMM_K"];
+    bssn::BSSN_DENDRO_AMR_FAC  = parFile["BSSN_DENDRO_AMR_FAC"];
+    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
+        parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
     bssn::BSSN_LOAD_IMB_TOL        = parFile["BSSN_LOAD_IMB_TOL"];
     bssn::BSSN_RK_TIME_BEGIN       = parFile["BSSN_RK_TIME_BEGIN"];
     bssn::BSSN_RK_TIME_END         = parFile["BSSN_RK_TIME_END"];
@@ -513,9 +524,9 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tBSSN_DENDRO_AMR_FAC :" << bssn::BSSN_DENDRO_AMR_FAC
              << NRM << std::endl;
-        
-        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: " << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM
-             << std::endl;
+
+        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: "
+             << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM << std::endl;
 
         sout << YLW << "\tBSSN_USE_WAVELET_TOL_FUNCTION :"
              << bssn::BSSN_USE_WAVELET_TOL_FUNCTION << NRM << std::endl;
@@ -747,18 +758,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
             sout << " ," << GW::BSSN_GW_L_MODES[i];
         sout << "}" << NRM << std::endl;
 
-        sout << YLW << "\tAEH_SOLVER_FREQ: " << AEH::AEH_SOLVER_FREQ
-             << std::endl;
-        sout << YLW << "\tAEH_LMAX: " << AEH::AEH_LMAX << std::endl;
-        sout << YLW << "\tAEH_Q_THETA: " << AEH::AEH_Q_THETA << std::endl;
-        sout << YLW << "\tAEH_Q_PHI: " << AEH::AEH_Q_PHI << std::endl;
-        sout << YLW << "\tAEH_MAXITER: " << AEH::AEH_MAXITER << std::endl;
-        sout << YLW << "\tAEH_ATOL: " << AEH::AEH_ATOL << std::endl;
-        sout << YLW << "\tAEH_RTOL: " << AEH::AEH_RTOL << NRM << std::endl;
-
-        sout << YLW << "\tAEH_ALPHA: " << AEH::AEH_ALPHA << std::endl;
-        sout << YLW << "\tAEH_BETA: " << AEH::AEH_BETA << NRM << std::endl;
-
         sout << YLW << "\tBSSN_KO_SIGMA_SCALE_BY_CONFORMAL: "
              << (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL ? "true" : "false")
              << NRM << std::endl;
@@ -773,6 +772,52 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
 
         sout << YLW << "\tBSSN_SSL_H: " << bssn::BSSN_SSL_H << NRM << std::endl;
         sout << YLW << "\tBSSN_SSL_SIGMA: " << bssn::BSSN_SSL_SIGMA << NRM
+             << std::endl;
+
+        sout << GRN << "\t----- AEH PARAMETERS -----" << NRM << std::endl;
+        sout << YLW << "\t\tAEH_SOLVER_FREQ: " << AEH::AEH_SOLVER_FREQ << NRM
+             << std::endl;
+        sout << YLW << "\t\tN_HORIZONS: " << AEH::N_HORIZONS << NRM
+             << std::endl;
+        sout << YLW
+             << "\t\tN_RESOLUTIONS_MULTIGRID: " << AEH::N_RESOLUTIONS_MULTIGRID
+             << NRM << std::endl;
+        quickPrintVector(AEH::INITIAL_X_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_X_CENTER");
+        quickPrintVector(AEH::INITIAL_Y_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_Y_CENTER");
+        quickPrintVector(AEH::INITIAL_Z_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_Z_CENTER");
+        quickPrintVector(AEH::M_SCALE, sout, std::string(YLW) + "\t\tM_SCALE");
+        quickPrintVector(AEH::CFL_FACTOR, sout,
+                         std::string(YLW) + "\t\tCFL_FACTOR");
+        quickPrintVector(AEH::THETA_L2_M_TOL, sout,
+                         std::string(YLW) + "\t\tTHETA_L2_M_TOL");
+        quickPrintVector(AEH::THETA_LINF_M_TOL, sout,
+                         std::string(YLW) + "\t\tTHETA_LINF_M_TOL");
+        quickPrintVector(AEH::ETA_DAMP_M, sout,
+                         std::string(YLW) + "\t\tETA_DAMP_M");
+        quickPrintVector(AEH::KO_STRENGTH, sout,
+                         std::string(YLW) + "\t\tKO_STRENGTH");
+        quickPrintVector(AEH::MAX_SEARCH_RADIUS, sout,
+                         std::string(YLW) + "\t\tMAX_SEARCH_RADIUS");
+        quickPrintVector(AEH::NR_INTERP_MAX, sout,
+                         std::string(YLW) + "\t\tNR_INTERP_MAX");
+        sout << YLW << "\t\tNTHETA_MAX: " << AEH::NTHETA_MAX << NRM
+             << std::endl;
+        quickPrintVector(AEH::NTHETA_ARRAY, sout,
+                         std::string(YLW) + "\t\tNTHETA_ARRAY");
+        sout << YLW << "\t\tNPHI_MAX: " << AEH::NTHETA_MAX << NRM << std::endl;
+        quickPrintVector(AEH::NPHI_ARRAY, sout,
+                         std::string(YLW) + "\t\tNPHI_ARRAY");
+        sout << YLW << "\t\tAEH_SAVE_DIR: " << AEH::AEH_SAVE_DIR << NRM
+             << std::endl;
+        sout << YLW << "\t\tNUM_RESOLUTIONS_AFTER_FIND: "
+             << AEH::NUM_RESOLUTIONS_AFTER_FIND << NRM << std::endl;
+        sout << YLW
+             << "\t\tENABLE_ETA_VARYING_ALG: " << AEH::ENABLE_ETA_VARYING_ALG
+             << NRM << std::endl;
+        sout << YLW << "\t\tVERBOSITY_LEVEL: " << AEH::VERBOSITY_LEVEL << NRM
              << std::endl;
     }
 }
@@ -2055,16 +2100,16 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up constants used in this function
 
         // (max) orbital radius; use strictest refinement here
-        const double R_orbit     = 8;
+        const double R_orbit = 8;
         // outermost GW extraction radius
-        const double R_min       = GW::BSSN_GW_RADAII[0];
-        const double R_max       = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        const double R_min   = GW::BSSN_GW_RADAII[0];
+        const double R_max   = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
         // expected lapse wave tail length (M) + backreflections
-        const double L           = 120;
+        const double L       = 120;
         // calculate the time after which a given radius's relationship
         // with the grid center is both time-like & clean of lapse noise
-        const double t_lim       = std::max(r, (r + L) / std::sqrt(2));
+        const double t_lim   = std::max(r, (r + L) / std::sqrt(2));
 
         // wavelet tolerance in acausal (or dirty or unneeded) regions.
         const double eps_disable = bssn::BSSN_WAVELET_TOL_MAX;
@@ -2075,7 +2120,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up goal resolution to hit in causal clean regions
         // linearly interpolate log tolerances vs log radii
 
-        double eps_goal = eps_disable; // default value in outer regions
+        double eps_goal = eps_disable;  // default value in outer regions
         if (r <= R_orbit) {
             eps_goal = bssn::BSSN_WAVELET_TOL;
         } else if (r <= R_min) {  // log falloff
@@ -2087,7 +2132,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
                 bssn::BSSN_WAVELET_TOL *
                 std::pow(bssn::BSSN_GW_REFINE_WTOL / bssn::BSSN_WAVELET_TOL,
                          pwr);
-        } else if (r <= R_max) { // plateau
+        } else if (r <= R_max) {  // plateau
             eps_goal = bssn::BSSN_GW_REFINE_WTOL;
         }
 

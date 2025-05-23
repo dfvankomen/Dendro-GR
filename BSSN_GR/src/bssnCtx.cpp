@@ -939,7 +939,19 @@ int BSSNCtx::write_checkpt() {
 
         std::cout << "   ...Finished writing the plain-text checkpoint!"
                   << std::endl;
-        std::cout << "[BSSNCtx] \t finished writing checkpoint! " << std::endl;
+
+        std::cout << "Now checkpointing the AEH solver..." << std::endl;
+    }
+
+    std::string aeh_chkpt_file =
+        bssn::BSSN_CHKPT_FILE_PREFIX + "_aeh_solver_checkpt.json";
+
+    AEH::aeh->create_checkpoint(m_uiMesh, aeh_chkpt_file);
+
+    if (!rank) {
+        std::cout << "Finished AEH solver checkpoint!" << std::endl;
+        std::cout << "[BSSNCtx] \t finished writing full checkpoint! "
+                  << std::endl;
     }
 
     return 0;
@@ -1097,20 +1109,20 @@ int BSSNCtx::restore_checkpt() {
 
     // first check to see if the file even exists
     if (!std::filesystem::exists(fName)) {
-      if (!rank) {
-        std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
-                  << fName << " does not exist!" << std::endl;
-      }
-      restoreStatus = 2;
+        if (!rank) {
+            std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
+                      << fName << " does not exist!" << std::endl;
+        }
+        restoreStatus = 2;
     }
 
     if (restoreStatus == 0) {
         std::ifstream infile(fName);
         if (!infile) {
-          if (!rank) {
-            std::cout << fName << " file open failed " << std::endl;
-          }
-          restoreStatus = 1;
+            if (!rank) {
+                std::cout << fName << " file open failed " << std::endl;
+            }
+            restoreStatus = 1;
         }
 
         if (restoreStatus == 0) {
@@ -1323,6 +1335,19 @@ int BSSNCtx::restore_checkpt() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
 
+    // finally restore the aeh_chkpt_file
+    if (!rank) {
+        std::cout << "Now restoring AEH solver from checkpoint..." << std::endl;
+    }
+    std::string aeh_chkpt_file =
+        bssn::BSSN_CHKPT_FILE_PREFIX + "_aeh_solver_checkpt.json";
+
+    AEH::aeh->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
+
+    if (!rank) {
+        std::cout << "Finished restoring AEH solver!" << std::endl;
+    }
+
     if (!rank) {
         std::cout << GRN << "---------------------------------------"
                   << std::endl;
@@ -1354,16 +1379,17 @@ int BSSNCtx::post_timestep(DVec& sIn) {
 }
 
 bool BSSNCtx::is_remesh() {
-    bool isRefine = false;
-    // wkb 27 March 2025 
+    bool isRefine         = false;
+    // wkb 27 March 2025
     // if pre-merger, use AMR_FAC normally
-    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC; 
+    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC;
     // otherwise, use POST_MERGER value if non-zero
-    if (bssn::BSSN_MERGED_CHKPT_WRITTEN && (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
-      // overwrite post-merger value 
-      amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN &&
+        (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+        // overwrite post-merger value
+        amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
     }
-    
+
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;
 
     MPI_Comm comm    = m_uiMesh->getMPIGlobalCommunicator();
@@ -1387,10 +1413,9 @@ bool BSSNCtx::is_remesh() {
         };
 
     if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::WAMR) {
-        isRefine =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               amr_coarse_fac);
+        isRefine = bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar,
+                                      refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
+                                      waveletTolFunc, amr_coarse_fac);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(
@@ -1398,10 +1423,9 @@ bool BSSNCtx::is_remesh() {
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, true);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH_WAMR) {
-        const bool isR1 =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               amr_coarse_fac);
+        const bool isR1 = bssn::isReMeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
         const bool isR2 = bssn::isRemeshEH(
             m_uiMesh, (const double**)unzipVar, bssn::VAR::U_ALPHA,
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, false);
@@ -1417,10 +1441,9 @@ bool BSSNCtx::is_remesh() {
             bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
                              this->get_bh_loc_time_history());
         // WAMR for additional refinement
-        const bool isR2 =
-            bssn::addRemeshWAMR(m_uiMesh, (const double**)unzipVar,
-                                refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
-                                waveletTolFunc, amr_coarse_fac);
+        const bool isR2 = bssn::addRemeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
 
         isRefine = (isR1 || isR2);
     }
@@ -2137,6 +2160,8 @@ void BSSNCtx::lts_smooth(DVec sIn, LTS_SMOOTH_MODE mode) {
         delete[] uZipVars;
         delete[] unzipVarsRHS;
     }
+
+
 }
 #endif
 

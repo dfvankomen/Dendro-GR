@@ -20,6 +20,7 @@
 
 #include "TwoPunctures.h"
 #include "aeh.h"
+#include "bhahaha_interface.h"
 #include "bssn_constraints.h"
 #include "checkPoint.h"
 #include "ctx.h"
@@ -344,6 +345,15 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     void calculate_full_grid_size();
 
     void store_bh_loc_history();
+
+    void findAEH() {
+        DVec& m_evar = m_var[VL::CPU_EV];
+        DendroScalar* eVar[bssn::BSSN_NUM_VARS];
+        m_evar.to_2d(eVar);
+
+        AEH::aeh->find_horizons(m_uiMesh, (const double**)eVar,
+                                m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+    }
 };
 
 }  // end of namespace bssn

@@ -10,6 +10,7 @@
 #include "parameters.h"
 
 #include <limits>
+#include <memory>
 
 namespace bssn {
 
@@ -71,10 +72,10 @@ std::string BSSN_PROFILE_FILE_PREFIX      = "bssn_prof";
 double BSSN_BH1_AMR_R                     = 2.0;
 double BSSN_BH2_AMR_R                     = 2.0;
 // ratio for the near to far portion, was originally 2.5
-double BSSN_AMR_R_RATIO = 2.0;
+double BSSN_AMR_R_RATIO                   = 2.0;
 
-double BSSN_BH1_CONSTRAINT_R = 5.0;
-double BSSN_BH2_CONSTRAINT_R = 5.0;
+double BSSN_BH1_CONSTRAINT_R              = 5.0;
+double BSSN_BH2_CONSTRAINT_R              = 5.0;
 
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
@@ -145,7 +146,7 @@ unsigned int DISSIPATION_TYPE                            = 0;
 unsigned int BSSN_DENDRO_GRAIN_SZ                        = 1000;
 
 double BSSN_DENDRO_AMR_FAC                               = 0.1;
-double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0; 
+double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0;
 
 unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
@@ -402,7 +403,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     }
 
     if (parFile.contains("BSSN_DENDRO_AMR_FAC_POST_MERGER")) {
-        bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER = parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"].as_floating();
+        bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
+            parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"].as_floating();
     }
 
     if (parFile.contains("BSSN_BH1_MAX_LEV"))
@@ -617,6 +619,156 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     if (parFile.contains("AEH_BETA"))
         AEH::AEH_BETA = parFile["AEH_BETA"].as_floating();
 
+    std::cout << "NOW READING AEH_PARAMS" << std::endl;
+
+    // if the parFile has the AEH "dictionary"
+    if (parFile.contains("AEH_PARAMS")) {
+        auto aeh_pars        = parFile["AEH_PARAMS"];
+
+        AEH::AEH_SOLVER_FREQ = aeh_pars["AEH_SOLVER_FREQ"].as_integer();
+        AEH::N_HORIZONS      = aeh_pars["N_HORIZONS"].as_integer();
+        AEH::N_RESOLUTIONS_MULTIGRID =
+            aeh_pars["N_RESOLUTIONS_MULTIGRID"].as_integer();
+        AEH::MAX_ITERATIONS =
+            toml::find<std::vector<int>>(aeh_pars, "MAX_ITERATIONS");
+        AEH::INITIAL_X_CENTER =
+            toml::find<std::vector<double>>(aeh_pars, "INITIAL_X_CENTER");
+        AEH::INITIAL_Y_CENTER =
+            toml::find<std::vector<double>>(aeh_pars, "INITIAL_Y_CENTER");
+        AEH::INITIAL_Y_CENTER =
+            toml::find<std::vector<double>>(aeh_pars, "INITIAL_Z_CENTER");
+        AEH::M_SCALE = toml::find<std::vector<double>>(aeh_pars, "M_SCALE");
+        AEH::CFL_FACTOR =
+            toml::find<std::vector<double>>(aeh_pars, "CFL_FACTOR");
+        AEH::THETA_L2_M_TOL =
+            toml::find<std::vector<double>>(aeh_pars, "THETA_L2_M_TOL");
+        AEH::THETA_LINF_M_TOL =
+            toml::find<std::vector<double>>(aeh_pars, "THETA_LINF_M_TOL");
+        AEH::ETA_DAMP_M =
+            toml::find<std::vector<double>>(aeh_pars, "ETA_DAMP_M");
+        AEH::KO_STRENGTH =
+            toml::find<std::vector<double>>(aeh_pars, "KO_STRENGTH");
+        AEH::MAX_SEARCH_RADIUS =
+            toml::find<std::vector<double>>(aeh_pars, "MAX_SEARCH_RADIUS");
+        AEH::NR_INTERP_MAX =
+            toml::find<std::vector<int>>(aeh_pars, "NR_INTERP_MAX");
+        AEH::NPHI_MAX     = aeh_pars["NPHI_MAX"].as_integer();
+        AEH::NTHETA_MAX   = aeh_pars["NTHETA_MAX"].as_integer();
+        AEH::AEH_SAVE_DIR = aeh_pars["AEH_SAVE_DIR"].as_string();
+        AEH::NUM_RESOLUTIONS_AFTER_FIND =
+            aeh_pars["NUM_RESOLUTIONS_AFTER_FIND"].as_integer();
+        AEH::NTHETA_ARRAY =
+            toml::find<std::vector<int>>(aeh_pars, "NTHETA_ARRAY");
+        AEH::NPHI_ARRAY = toml::find<std::vector<int>>(aeh_pars, "NPHI_ARRAY");
+        AEH::ENABLE_ETA_VARYING_ALG =
+            aeh_pars["ENABLE_ETA_VARYING_ALG"].as_integer();
+        AEH::VERBOSITY_LEVEL = aeh_pars["VERBOSITY_LEVEL"].as_integer();
+    }
+
+    bool is_bbh_temp = false;
+    std::vector<dendro_aeh::SimpleBlackHoleData> simpleBHData;
+    if (BSSN_ID_TYPE == 0 || BSSN_ID_TYPE == 1) {
+        is_bbh_temp  = true;
+        simpleBHData = {dendro_aeh::SimpleBlackHoleData(
+                            bssn::BH1.getBHCoordX(), bssn::BH1.getBHCoordY(),
+                            bssn::BH1.getBHCoordZ(), bssn::BH1.getBHMass()),
+                        dendro_aeh::SimpleBlackHoleData(
+                            bssn::BH2.getBHCoordX(), bssn::BH2.getBHCoordY(),
+                            bssn::BH2.getBHCoordZ(), bssn::BH2.getBHMass())};
+    }
+
+    // this is the function that will convert our inputs of chi, trK, at, and Gt
+    // into the standard metric variables of Gd and Kd
+    auto transform = [](const std::vector<double>& inputs) {
+        // do the transformation here
+
+        // so this is the transformation that'll be applied at each point, it
+        // expects 12 outputs in this order: gd00, gd01, gd02, gd11, gd12, gd22,
+        // Kd00, Kd01, Kd02, Kd11, Kd12, Kd22
+        std::vector<double> output(12, 0.0);
+
+        // the input follow aeh::AEH_INDICES, which are "constant"
+        constexpr int chi_idx  = 0;
+        constexpr int trK_idx  = 1;
+        constexpr int at00_idx = 2;
+        constexpr int at01_idx = 3;
+        constexpr int at02_idx = 4;
+        constexpr int at11_idx = 5;
+        constexpr int at12_idx = 6;
+        constexpr int at22_idx = 7;
+        constexpr int Gt00_idx = 8;
+        constexpr int Gt01_idx = 9;
+        constexpr int Gt02_idx = 10;
+        constexpr int Gt11_idx = 11;
+        constexpr int Gt12_idx = 12;
+        constexpr int Gt22_idx = 13;
+
+        constexpr int gd00     = 0;
+        constexpr int gd01     = 1;
+        constexpr int gd02     = 2;
+        constexpr int gd11     = 3;
+        constexpr int gd12     = 4;
+        constexpr int gd22     = 5;
+        constexpr int Kd00     = 6;
+        constexpr int Kd01     = 7;
+        constexpr int Kd02     = 8;
+        constexpr int Kd11     = 9;
+        constexpr int Kd12     = 10;
+        constexpr int Kd22     = 11;
+
+        // chi = idetgd^(1/3)
+        double idetgd          = pow(inputs[chi_idx], -3.0);
+        // detgd = 1 / idetgd
+        double detgd           = 1.0 / idetgd;
+
+        double inv_chi         = 1.0 / inputs[chi_idx];
+        double trK_third       = (1.0 / 3.0) * inputs[trK_idx];
+
+        // calculate local gd
+        output[gd00]           = inputs[Gt00_idx] * inv_chi;
+        output[gd01]           = inputs[Gt01_idx] * inv_chi;
+        output[gd02]           = inputs[Gt02_idx] * inv_chi;
+        output[gd11]           = inputs[Gt11_idx] * inv_chi;
+        output[gd12]           = inputs[Gt12_idx] * inv_chi;
+        output[gd22]           = inputs[Gt22_idx] * inv_chi;
+
+        // fill in Kd values
+        // basically: Atd[i,j] / chi + (1/3) * gd[i,j] * trK
+        output[Kd00] = inputs[at00_idx] * inv_chi + output[gd00] * trK_third;
+        output[Kd01] = inputs[at01_idx] * inv_chi + output[gd01] * trK_third;
+        output[Kd02] = inputs[at02_idx] * inv_chi + output[gd02] * trK_third;
+        output[Kd11] = inputs[at11_idx] * inv_chi + output[gd11] * trK_third;
+        output[Kd12] = inputs[at12_idx] * inv_chi + output[gd12] * trK_third;
+        output[Kd22] = inputs[at22_idx] * inv_chi + output[gd22] * trK_third;
+
+        return output;
+    };
+
+    Point grid_limits[2];
+    Point domain_limits[2];
+
+    grid_limits[0]   = Point(bssn::BSSN_OCTREE_MIN[0], bssn::BSSN_OCTREE_MIN[1],
+                             bssn::BSSN_OCTREE_MIN[2]);
+    grid_limits[1]   = Point(bssn::BSSN_OCTREE_MAX[0], bssn::BSSN_OCTREE_MAX[1],
+                             bssn::BSSN_OCTREE_MAX[2]);
+
+    domain_limits[0] = Point(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+                             bssn::BSSN_COMPD_MIN[2]);
+    domain_limits[1] = Point(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+                             bssn::BSSN_COMPD_MAX[2]);
+
+    // now we build up the aeh solver
+    AEH::aeh         = std::make_unique<dendro_aeh::AEH_BHaHAHA>(
+        AEH::N_HORIZONS, is_bbh_temp, AEH::INITIAL_X_CENTER,
+        AEH::INITIAL_Y_CENTER, AEH::INITIAL_Z_CENTER,
+        AEH::N_RESOLUTIONS_MULTIGRID, AEH::M_SCALE, AEH::CFL_FACTOR,
+        AEH::MAX_ITERATIONS, AEH::THETA_L2_M_TOL, AEH::THETA_LINF_M_TOL,
+        AEH::ETA_DAMP_M, AEH::KO_STRENGTH, AEH::MAX_SEARCH_RADIUS,
+        AEH::NR_INTERP_MAX, AEH::NTHETA_MAX, AEH::NPHI_MAX, AEH::AEH_SAVE_DIR,
+        simpleBHData, AEH::AEH_INDICES, transform, grid_limits, domain_limits,
+        AEH::NUM_RESOLUTIONS_AFTER_FIND, AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY,
+        AEH::ENABLE_ETA_VARYING_ALG, AEH::VERBOSITY_LEVEL);
+
     MPI_Barrier(comm);
 }
 
@@ -667,15 +819,41 @@ unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 }  // namespace GW
 
 namespace AEH {
-unsigned int AEH_LMAX        = 6;
-unsigned int AEH_Q_THETA     = 32;
-unsigned int AEH_Q_PHI       = 32;
-unsigned int AEH_MAXITER     = 50;
-double AEH_ATOL              = 1e-8;
-double AEH_RTOL              = 1e-8;
-unsigned int AEH_SOLVER_FREQ = 0;
 
-double AEH_ALPHA             = 1.0;
-double AEH_BETA              = 0.1;
+std::unique_ptr<dendro_aeh::AEH_BHaHAHA> aeh = nullptr;
+
+unsigned int N_HORIZONS                      = 3;
+unsigned int N_RESOLUTIONS_MULTIGRID         = 3;
+std::vector<int> MAX_ITERATIONS              = {10000, 10000, 10000};
+std::vector<double> INITIAL_X_CENTER         = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Y_CENTER         = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Z_CENTER         = {0.0, 0.0, 0.0};
+std::vector<double> M_SCALE                  = {0.0, 0.0, 0.0};
+std::vector<double> CFL_FACTOR               = {1.0, 1.0, 1.0};
+std::vector<double> THETA_L2_M_TOL           = {1.e-2, 1.e-2, 1.e-2};
+std::vector<double> THETA_LINF_M_TOL         = {1.e-5, 1.e-5, 1.e-5};
+std::vector<double> ETA_DAMP_M               = {7.0, 7.0, 7.0};
+std::vector<double> KO_STRENGTH              = {0.0, 0.0, 0.0};
+std::vector<double> MAX_SEARCH_RADIUS        = {1.5, 1.5, 1.5};
+std::vector<int> NR_INTERP_MAX               = {48, 48, 48};
+int NTHETA_MAX                               = 32;
+int NPHI_MAX                                 = 64;
+std::string AEH_SAVE_DIR                     = "";
+int NUM_RESOLUTIONS_AFTER_FIND               = 3;
+std::vector<int> NTHETA_ARRAY                = {8, 16, 32};
+std::vector<int> NPHI_ARRAY                  = {16, 32, 64};
+int ENABLE_ETA_VARYING_ALG                   = 0;
+int VERBOSITY_LEVEL                          = 1;
+
+unsigned int AEH_LMAX                        = 6;
+unsigned int AEH_Q_THETA                     = 32;
+unsigned int AEH_Q_PHI                       = 32;
+unsigned int AEH_MAXITER                     = 50;
+double AEH_ATOL                              = 1e-8;
+double AEH_RTOL                              = 1e-8;
+unsigned int AEH_SOLVER_FREQ                 = 0;
+
+double AEH_ALPHA                             = 1.0;
+double AEH_BETA                              = 0.1;
 
 }  // namespace AEH

@@ -13,6 +13,7 @@
 #include <iostream>
 #include <toml.hpp>
 
+#include "aeh_bhahaha.h"
 #include "bh.h"
 #include "dendro.h"
 #include "grDef.h"
@@ -489,6 +490,43 @@ extern unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 }  // namespace GW
 
 namespace AEH {
+
+extern std::unique_ptr<dendro_aeh::AEH_BHaHAHA> aeh;
+
+/**@brief absolute tolerance for AH convergence*/
+extern double AEH_ATOL;
+extern std::vector<int> MAX_ITERATIONS;
+
+extern unsigned int N_HORIZONS;
+extern unsigned int N_RESOLUTIONS_MULTIGRID;
+extern std::vector<double> INITIAL_X_CENTER;
+extern std::vector<double> INITIAL_Y_CENTER;
+extern std::vector<double> INITIAL_Z_CENTER;
+extern std::vector<double> M_SCALE;
+extern std::vector<double> CFL_FACTOR;
+extern std::vector<double> THETA_L2_M_TOL;
+extern std::vector<double> THETA_LINF_M_TOL;
+extern std::vector<double> ETA_DAMP_M;
+extern std::vector<double> KO_STRENGTH;
+extern std::vector<double> MAX_SEARCH_RADIUS;
+extern std::vector<int> NR_INTERP_MAX;
+extern int NTHETA_MAX;
+extern int NPHI_MAX;
+extern std::string AEH_SAVE_DIR;
+extern int NUM_RESOLUTIONS_AFTER_FIND;
+extern std::vector<int> NTHETA_ARRAY;
+extern std::vector<int> NPHI_ARRAY;
+extern int ENABLE_ETA_VARYING_ALG;
+extern int VERBOSITY_LEVEL;
+
+// these indices will be extracted for the AEH solver internally, they MUST
+// match up with the lambda that will be written
+const std::vector<int> AEH_INDICES = {
+    bssn::U_CHI,    bssn::U_K,      bssn::U_SYMAT0, bssn::U_SYMAT1,
+    bssn::U_SYMAT2, bssn::U_SYMAT3, bssn::U_SYMAT4, bssn::U_SYMAT5,
+    bssn::U_SYMGT0, bssn::U_SYMGT1, bssn::U_SYMGT2, bssn::U_SYMGT3,
+    bssn::U_SYMGT4, bssn::U_SYMGT5};
+
 /**@brief lmax used for AH surface parameterization*/
 extern unsigned int AEH_LMAX;
 
@@ -500,9 +538,6 @@ extern unsigned int AEH_Q_PHI;
 
 /**@brief number of max. iterations for AH solver*/
 extern unsigned int AEH_MAXITER;
-
-/**@brief absolute tolerance for AH convergence*/
-extern double AEH_ATOL;
 
 /**@brief relative tolerance for AH convergence*/
 extern double AEH_RTOL;
