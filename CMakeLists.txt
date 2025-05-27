@@ -80,6 +80,8 @@ option(USE_FD_INTERP_FOR_UNZIP "use FD style interpolation for unzip" OFF)
 option(MPIX_CUDA_AWARE_SUPPORT "use FD style interpolation for unzip" OFF)
 
 option(DENDRO_USE_NEW_DERIVS "Use the new Dendro derivatives" ON)
+option(DVEC_ZERO_ALLOC "Make the memory allocation of dvec on CPU initialize as zeros" OFF)
+
 
 # option(KWAY "K parameter for alltoallv_kway" 128)
 set(KWAY
@@ -223,6 +225,12 @@ if(USE_FD_INTERP_FOR_UNZIP)
 endif()
 
 add_definitions(-DMATVEC_PROFILE)
+
+# don't forget the zero allocation
+if(DVEC_ZERO_ALLOC)
+  add_definitions(-DDVEC_ZERO_ALLOC)
+endif()
+
 
 set(CHECK_GIT_INCLUDE_PATH ${CMAKE_SOURCE_DIR}/cmake-modules)
 include(${CHECK_GIT_INCLUDE_PATH}/CheckGit.cmake)
