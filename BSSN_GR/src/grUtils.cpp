@@ -2912,7 +2912,7 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac) {
     }
 
     bssn::BSSN_DERIV_WORKSPACE =
-        new double[s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS];
+        new double[s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS]{};
 
 #ifdef DENDRO_USE_NEW_DERIVS
     // make sure the maximum block size is properly set

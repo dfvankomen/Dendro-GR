@@ -99,10 +99,10 @@ inline void enforce_bssn_constraints(double **uiVar, unsigned int node) {
     //     std::cout << "beta1 is NaN " << std::endl;
     //     exit(0);
     // }
-    if (std::isnan(beta2)) {
-        std::cout << "beta2 is NaN " << std::endl;
-        exit(0);
-    }
+    // if (std::isnan(beta2)) {
+    //     std::cout << "beta2 is NaN " << std::endl;
+    //     exit(0);
+    // }
     // if (std::isnan(Atd[0][0])) {
     //     std::cout
     //         << "At0 is NaN Reset to another value for testing purposes...."
