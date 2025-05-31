@@ -2568,6 +2568,26 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             return std::min(bssn::BSSN_WAVELET_TOL_MAX * exp(coordtime),
                             bssn::BSSN_WAVELET_TOL * pow(10, r - R_0));
         }
+    }
+        else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 11) {
+        const double r = sqrt(x * x + y * y + z * z);
+        Point grid_p(x, y, z);
+        double R_0 = TEUK_REFINEMENT_R0;
+	  double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
+        if ( coordtime < 25.0){
+            if (r < R_0)
+            return bssn::BSSN_WAVELET_TOL;
+        else {
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+        }
+        }
+        else{
+        if (r < R_0)
+            return bssn::BSSN_WAVELET_TOL;
+        else {
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coordtime),bssn::BSSN_WAVELET_TOL*pow(10,10*(r-R_0)));
+        }
+    }
     } else {
         // return global wavelet tolerance, irrespective of position
         return bssn::BSSN_WAVELET_TOL;
