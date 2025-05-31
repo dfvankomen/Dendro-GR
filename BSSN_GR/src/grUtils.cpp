@@ -2556,7 +2556,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
                 bssn::BSSN_WAVELET_TOL_MAX,
                 ((std::pow(10, WTOL_EXP_FAC)) * bssn::BSSN_WAVELET_TOL));
         }
-    } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 9) {
+    } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 10) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
         double R_0       = TEUK_REFINEMENT_R0;
