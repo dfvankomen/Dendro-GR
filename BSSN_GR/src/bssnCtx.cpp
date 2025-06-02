@@ -16,6 +16,7 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <string>
 
 #include "grUtils.h"
 #include "parUtils.h"
@@ -943,8 +944,9 @@ int BSSNCtx::write_checkpt() {
         std::cout << "Now checkpointing the AEH solver..." << std::endl;
     }
 
-    std::string aeh_chkpt_file =
-        bssn::BSSN_CHKPT_FILE_PREFIX + "_aeh_solver_checkpt.json";
+    std::string aeh_chkpt_file = bssn::BSSN_CHKPT_FILE_PREFIX +
+                                 "_aeh_solver_checkpt-cp" +
+                                 std::to_string(cpIndex) + ".json";
 
     AEH::aeh->create_checkpoint(m_uiMesh, aeh_chkpt_file);
 
@@ -1339,8 +1341,9 @@ int BSSNCtx::restore_checkpt() {
     if (!rank) {
         std::cout << "Now restoring AEH solver from checkpoint..." << std::endl;
     }
-    std::string aeh_chkpt_file =
-        bssn::BSSN_CHKPT_FILE_PREFIX + "_aeh_solver_checkpt.json";
+    std::string aeh_chkpt_file = bssn::BSSN_CHKPT_FILE_PREFIX +
+                                 "_aeh_solver_checkpt-cp" +
+                                 std::to_string(restoreFileIndex) + ".json";
 
     AEH::aeh->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
 
