@@ -220,7 +220,6 @@ set(BSSN_INC include/parameters.h
         include/dataUtils.h
         include/aeh.h
         include/trumpet.h
-        include/bhahaha_interface.h
         )
 
 set(BSSN_SRC src/parameters.cpp
@@ -240,7 +239,6 @@ set(BSSN_SRC src/parameters.cpp
            src/dataUtils.cpp
            src/hadrhs.F90
            src/trumpet.cpp
-           src/bhahaha_interface.cpp
         )
 
 if(WITH_CUDA)
