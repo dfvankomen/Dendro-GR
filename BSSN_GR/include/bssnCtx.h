@@ -20,7 +20,6 @@
 
 #include "TwoPunctures.h"
 #include "aeh.h"
-#include "bhahaha_interface.h"
 #include "bssn_constraints.h"
 #include "checkPoint.h"
 #include "ctx.h"
