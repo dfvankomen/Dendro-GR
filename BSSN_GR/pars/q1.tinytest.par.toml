@@ -258,11 +258,12 @@ BSSN_GW_NUM_LMODES = 3
 BSSN_GW_RADAII = [50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
 BSSN_GW_L_MODES = [2, 3, 4]
 
+# How frequently to call the AEH Solver itself (based on simulation steps)
+AEH_SOLVER_FREQ = 50
+
 ## ====================
 ## APPARANT EVENT HORIZON PARAMETERS
 [AEH_PARAMS]
-# How frequently to call the AEH Solver itself (based on simulation steps)
-AEH_SOLVER_FREQ = 50
 
 # The number of horizons that need to be found, if the initial data type is 0 or 1 (tpid), this must be 3
 # For all parameters, the 0th entry is for BH1, 1st for BH2, and 2nd for shared. Configure properly!

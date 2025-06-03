@@ -11,6 +11,8 @@
 
 #include <limits>
 #include <memory>
+#include <stdexcept>
+#include <type_traits>
 
 namespace bssn {
 
@@ -203,102 +205,132 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
 
-    auto parFile                = toml::parse(fName);
+    auto parFile   = toml::parse(fName);
 
-    bssn::BSSN_IO_OUTPUT_FREQ   = parFile["BSSN_IO_OUTPUT_FREQ"].as_integer();
-    bssn::BSSN_REMESH_TEST_FREQ = parFile["BSSN_REMESH_TEST_FREQ"].as_integer();
-    bssn::BSSN_CHECKPT_FREQ     = parFile["BSSN_CHECKPT_FREQ"].as_integer();
-    bssn::BSSN_IO_OUTPUT_GAP    = parFile["BSSN_IO_OUTPUT_GAP"].as_integer();
-    bssn::BSSN_VTU_FILE_PREFIX  = parFile["BSSN_VTU_FILE_PREFIX"].as_string();
-    bssn::BSSN_CHKPT_FILE_PREFIX =
-        parFile["BSSN_CHKPT_FILE_PREFIX"].as_string();
+    auto set_param = [&](auto& pardata, const std::string& key, auto& var,
+                         bool required = false) {
+        if (required && !pardata.contains(key)) {
+            throw std::runtime_error("Missing required parameter: " + key);
+        }
+        // so, if it has the key then we set it, if not we print a warning
+        if (pardata.contains(key)) {
+            if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                         std::vector<int>>) {
+                var = toml::find<std::vector<int>>(pardata, key);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                std::vector<double>>) {
+                var = toml::find<std::vector<double>>(pardata, key);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                int>) {
+                var = pardata[key].as_integer();
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                std::string>) {
+                var = pardata[key].as_string();
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                double>) {
+                var = pardata[key].as_floating();
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                float>) {
+                var = pardata[key].as_floating();
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                float>) {
+                var = pardata[key].as_floating();
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(var)>,
+                                                bool>) {
+                var = pardata[key].as_boolean();
+            }
+        } else {
+            if (rank == 0) {
+                std::cout << YLW << "\tOPTIONAL PARAMETER '" << key
+                          << "' wasn't found! Using default!" << NRM
+                          << std::endl;
+            }
+        }
+    };
 
-    bssn::BSSN_PROFILE_FILE_PREFIX =
-        parFile["BSSN_PROFILE_FILE_PREFIX"].as_string();
-    bssn::BSSN_RESTORE_SOLVER = parFile["BSSN_RESTORE_SOLVER"].as_integer();
-    bssn::BSSN_ID_TYPE        = parFile["BSSN_ID_TYPE"].as_integer();
+    set_param(parFile, "BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ, true);
+    set_param(parFile, "BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ,
+              true);
+    set_param(parFile, "BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ, true);
+    // set_param(parFile, "BSSN_IO_OUTPUT_GAP", bssn::BSSN_IO_OUTPUT_GAP, true);
+    set_param(parFile, "BSSN_VTU_FILE_PREFIX", bssn::BSSN_VTU_FILE_PREFIX,
+              true);
+    set_param(parFile, "BSSN_CHKPT_FILE_PREFIX", bssn::BSSN_CHKPT_FILE_PREFIX,
+              true);
+    set_param(parFile, "BSSN_PROFILE_FILE_PREFIX",
+              bssn::BSSN_PROFILE_FILE_PREFIX, true);
+    set_param(parFile, "BSSN_RESTORE_SOLVER", bssn::BSSN_RESTORE_SOLVER, true);
+    set_param(parFile, "BSSN_ID_TYPE", bssn::BSSN_ID_TYPE, true);
+    set_param(parFile, "BSSN_ENABLE_BLOCK_ADAPTIVITY",
+              bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY, true);
+    set_param(parFile, "BSSN_BLK_MIN_X", bssn::BSSN_BLK_MIN_X, true);
+    set_param(parFile, "BSSN_BLK_MAX_X", bssn::BSSN_BLK_MAX_X, true);
+    set_param(parFile, "BSSN_BLK_MIN_Y", bssn::BSSN_BLK_MIN_Y, true);
+    set_param(parFile, "BSSN_BLK_MAX_Y", bssn::BSSN_BLK_MAX_Y, true);
+    set_param(parFile, "BSSN_BLK_MIN_Z", bssn::BSSN_BLK_MIN_Z, true);
+    set_param(parFile, "BSSN_BLK_MAX_Z", bssn::BSSN_BLK_MAX_Z, true);
 
-    bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
-        parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"].as_integer();
+    set_param(parFile, "BSSN_DENDRO_GRAIN_SZ", bssn::BSSN_DENDRO_GRAIN_SZ,
+              true);
+    set_param(parFile, "BSSN_ASYNC_COMM_K", bssn::BSSN_ASYNC_COMM_K, true);
+    set_param(parFile, "BSSN_DENDRO_AMR_FAC", bssn::BSSN_DENDRO_AMR_FAC, true);
+    set_param(parFile, "BSSN_LOAD_IMB_TOL", bssn::BSSN_LOAD_IMB_TOL, true);
+    set_param(parFile, "BSSN_RK_TIME_BEGIN", bssn::BSSN_RK_TIME_BEGIN, true);
+    set_param(parFile, "BSSN_RK_TIME_END", bssn::BSSN_RK_TIME_END, true);
+    set_param(parFile, "BSSN_RK_TYPE", bssn::BSSN_RK_TYPE, true);
 
-    bssn::BSSN_BLK_MIN_X       = parFile["BSSN_BLK_MIN_X"].as_floating();
-    bssn::BSSN_BLK_MIN_Y       = parFile["BSSN_BLK_MIN_Y"].as_floating();
-    bssn::BSSN_BLK_MIN_Z       = parFile["BSSN_BLK_MIN_Z"].as_floating();
-    bssn::BSSN_BLK_MAX_X       = parFile["BSSN_BLK_MAX_X"].as_floating();
-    bssn::BSSN_BLK_MAX_Y       = parFile["BSSN_BLK_MAX_Y"].as_floating();
-    bssn::BSSN_BLK_MAX_Z       = parFile["BSSN_BLK_MAX_Z"].as_floating();
+    set_param(parFile, "BSSN_RK45_TIME_STEP_SIZE",
+              bssn::BSSN_RK45_TIME_STEP_SIZE, false);
+    set_param(parFile, "BSSN_RK45_DESIRED_TOL", bssn::BSSN_RK45_DESIRED_TOL,
+              false);
 
-    bssn::BSSN_DENDRO_GRAIN_SZ = parFile["BSSN_DENDRO_GRAIN_SZ"].as_integer();
-    bssn::BSSN_ASYNC_COMM_K    = parFile["BSSN_ASYNC_COMM_K"].as_integer();
-    bssn::BSSN_DENDRO_AMR_FAC  = parFile["BSSN_DENDRO_AMR_FAC"].as_floating();
-    bssn::BSSN_LOAD_IMB_TOL    = parFile["BSSN_LOAD_IMB_TOL"].as_floating();
-    bssn::BSSN_RK_TIME_BEGIN   = parFile["BSSN_RK_TIME_BEGIN"].as_floating();
-    bssn::BSSN_RK_TIME_END     = parFile["BSSN_RK_TIME_END"].as_floating();
-    bssn::BSSN_RK_TYPE         = parFile["BSSN_RK_TYPE"].as_integer();
-    bssn::BSSN_RK45_TIME_STEP_SIZE =
-        parFile["BSSN_RK45_TIME_STEP_SIZE"].as_floating();
-    bssn::BSSN_RK45_DESIRED_TOL =
-        parFile["BSSN_RK45_DESIRED_TOL"].as_floating();
-    bssn::BSSN_DIM        = parFile["BSSN_DIM"].as_integer();
-    bssn::BSSN_MAXDEPTH   = parFile["BSSN_MAXDEPTH"].as_integer();
+    set_param(parFile, "BSSN_DIM", bssn::BSSN_DIM, true);
+    set_param(parFile, "BSSN_MAXDEPTH", bssn::BSSN_MAXDEPTH, true);
 
-    bssn::BH1             = BH(parFile["BSSN_BH1"]["MASS"].as_floating(),
-                               parFile["BSSN_BH1"]["X"].as_floating(),
-                               parFile["BSSN_BH1"]["Y"].as_floating(),
-                               parFile["BSSN_BH1"]["Z"].as_floating(),
-                               parFile["BSSN_BH1"]["V_X"].as_floating(),
-                               parFile["BSSN_BH1"]["V_Y"].as_floating(),
-                               parFile["BSSN_BH1"]["V_Z"].as_floating(),
-                               parFile["BSSN_BH1"]["SPIN"].as_floating(),
-                               parFile["BSSN_BH1"]["SPIN_THETA"].as_floating(),
-                               parFile["BSSN_BH1"]["SPIN_PHI"].as_floating());
-    bssn::BH2             = BH(parFile["BSSN_BH2"]["MASS"].as_floating(),
-                               parFile["BSSN_BH2"]["X"].as_floating(),
-                               parFile["BSSN_BH2"]["Y"].as_floating(),
-                               parFile["BSSN_BH2"]["Z"].as_floating(),
-                               parFile["BSSN_BH2"]["V_X"].as_floating(),
-                               parFile["BSSN_BH2"]["V_Y"].as_floating(),
-                               parFile["BSSN_BH2"]["V_Z"].as_floating(),
-                               parFile["BSSN_BH2"]["SPIN"].as_floating(),
-                               parFile["BSSN_BH2"]["SPIN_THETA"].as_floating(),
-                               parFile["BSSN_BH2"]["SPIN_PHI"].as_floating());
+    bssn::BH1 = BH(parFile["BSSN_BH1"]["MASS"].as_floating(),
+                   parFile["BSSN_BH1"]["X"].as_floating(),
+                   parFile["BSSN_BH1"]["Y"].as_floating(),
+                   parFile["BSSN_BH1"]["Z"].as_floating(),
+                   parFile["BSSN_BH1"]["V_X"].as_floating(),
+                   parFile["BSSN_BH1"]["V_Y"].as_floating(),
+                   parFile["BSSN_BH1"]["V_Z"].as_floating(),
+                   parFile["BSSN_BH1"]["SPIN"].as_floating(),
+                   parFile["BSSN_BH1"]["SPIN_THETA"].as_floating(),
+                   parFile["BSSN_BH1"]["SPIN_PHI"].as_floating());
+    bssn::BH2 = BH(parFile["BSSN_BH2"]["MASS"].as_floating(),
+                   parFile["BSSN_BH2"]["X"].as_floating(),
+                   parFile["BSSN_BH2"]["Y"].as_floating(),
+                   parFile["BSSN_BH2"]["Z"].as_floating(),
+                   parFile["BSSN_BH2"]["V_X"].as_floating(),
+                   parFile["BSSN_BH2"]["V_Y"].as_floating(),
+                   parFile["BSSN_BH2"]["V_Z"].as_floating(),
+                   parFile["BSSN_BH2"]["SPIN"].as_floating(),
+                   parFile["BSSN_BH2"]["SPIN_THETA"].as_floating(),
+                   parFile["BSSN_BH2"]["SPIN_PHI"].as_floating());
 
-    bssn::BSSN_GRID_MIN_X = parFile["BSSN_GRID_MIN_X"].as_floating();
-    bssn::BSSN_GRID_MAX_X = parFile["BSSN_GRID_MAX_X"].as_floating();
-    bssn::BSSN_GRID_MIN_Y = parFile["BSSN_GRID_MIN_Y"].as_floating();
-    bssn::BSSN_GRID_MAX_Y = parFile["BSSN_GRID_MAX_Y"].as_floating();
-    bssn::BSSN_GRID_MIN_Z = parFile["BSSN_GRID_MIN_Z"].as_floating();
-    bssn::BSSN_GRID_MAX_Z = parFile["BSSN_GRID_MAX_Z"].as_floating();
+    set_param(parFile, "BSSN_GRID_MIN_X", bssn::BSSN_GRID_MIN_X, true);
+    set_param(parFile, "BSSN_GRID_MAX_X", bssn::BSSN_GRID_MAX_X, true);
+    set_param(parFile, "BSSN_GRID_MIN_Y", bssn::BSSN_GRID_MIN_Y, true);
+    set_param(parFile, "BSSN_GRID_MAX_Y", bssn::BSSN_GRID_MAX_Y, true);
+    set_param(parFile, "BSSN_GRID_MIN_Z", bssn::BSSN_GRID_MIN_Z, true);
+    set_param(parFile, "BSSN_GRID_MAX_Z", bssn::BSSN_GRID_MAX_Z, true);
 
-    bssn::ETA_CONST       = parFile["ETA_CONST"].as_floating();
-    bssn::ETA_R0          = parFile["ETA_R0"].as_floating();
-    bssn::ETA_DAMPING     = parFile["ETA_DAMPING"].as_floating();
-    bssn::ETA_DAMPING_EXP = parFile["ETA_DAMPING_EXP"].as_floating();
+    set_param(parFile, "ETA_CONST", bssn::ETA_CONST, true);
+    set_param(parFile, "ETA_R0", bssn::ETA_R0, true);
+    set_param(parFile, "ETA_DAMPING", bssn::ETA_DAMPING, true);
+    set_param(parFile, "ETA_DAMPING_EXP", bssn::ETA_DAMPING_EXP, true);
 
-    if (parFile.contains("RIT_ETA_FUNCTION")) {
-        bssn::RIT_ETA_FUNCTION = parFile["RIT_ETA_FUNCTION"].as_integer();
-    }
-    if (parFile.contains("RIT_ETA_OUTER")) {
-        bssn::RIT_ETA_OUTER = parFile["RIT_ETA_OUTER"].as_floating();
-    }
-    if (parFile.contains("RIT_ETA_CENTRAL")) {
-        bssn::RIT_ETA_CENTRAL = parFile["RIT_ETA_CENTRAL"].as_floating();
-    }
-    if (parFile.contains("RIT_ETA_WIDTH")) {
-        bssn::RIT_ETA_WIDTH = parFile["RIT_ETA_WIDTH"].as_floating();
-    }
+    set_param(parFile, "RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION, false);
+    set_param(parFile, "RIT_ETA_OUTER", bssn::RIT_ETA_OUTER, false);
+    set_param(parFile, "RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL, false);
+    set_param(parFile, "RIT_ETA_WIDTH", bssn::RIT_ETA_WIDTH, false);
 
-    if (parFile.contains("BSSN_KO_SIGMA_SCALE_BY_CONFORMAL")) {
-        bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL =
-            parFile["BSSN_KO_SIGMA_SCALE_BY_CONFORMAL"].as_boolean();
-    }
+    set_param(parFile, "BSSN_KO_SIGMA_SCALE_BY_CONFORMAL",
+              bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL, false);
+    set_param(parFile, "BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY",
+              bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY, false);
 
-    if (parFile.contains("BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY")) {
-        bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY =
-            parFile["BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY"]
-                .as_boolean();
-    }
-
+    // update some values based on the ONLY param
     if (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY) {
         bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL = false;
     }
@@ -306,19 +338,13 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CAKO_ENABLED = true;
     }
 
-    if (parFile.contains("BSSN_EPSILON_CAKO_GAUGE")) {
-        bssn::BSSN_EPSILON_CAKO_GAUGE =
-            parFile["BSSN_EPSILON_CAKO_GAUGE"].as_floating();
-    }
-    if (parFile.contains("BSSN_EPSILON_CAKO_OTHER")) {
-        bssn::BSSN_EPSILON_CAKO_OTHER =
-            parFile["BSSN_EPSILON_CAKO_OTHER"].as_floating();
-    }
+    set_param(parFile, "BSSN_EPSILON_CAKO_GAUGE", bssn::BSSN_EPSILON_CAKO_GAUGE,
+              false);
+    set_param(parFile, "BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER,
+              false);
+    set_param(parFile, "BSSN_CAHD_C", bssn::BSSN_CAHD_C, false);
 
-    if (parFile.contains("BSSN_CAHD_C")) {
-        bssn::BSSN_CAHD_C = parFile["BSSN_CAHD_C"].as_floating();
-    }
-
+    // these ones are a bit trickier than set_param
     bssn::BSSN_LAMBDA[0]   = parFile["BSSN_LAMBDA"][0].as_integer();
     bssn::BSSN_LAMBDA[1]   = parFile["BSSN_LAMBDA"][1].as_integer();
     bssn::BSSN_LAMBDA[2]   = parFile["BSSN_LAMBDA"][2].as_integer();
@@ -330,38 +356,36 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_XI[1]       = (unsigned int)parFile["BSSN_XI"][1].as_integer();
     bssn::BSSN_XI[2]       = (unsigned int)parFile["BSSN_XI"][2].as_integer();
 
-    if (parFile.contains("BSSN_ELE_ORDER"))
-        bssn::BSSN_ELE_ORDER = parFile["BSSN_ELE_ORDER"].as_integer();
-    bssn::CHI_FLOOR = parFile["CHI_FLOOR"].as_floating();
-    bssn::BSSN_TRK0 = parFile["BSSN_TRK0"].as_floating();
+    set_param(parFile, "BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, false);
+    set_param(parFile, "CHI_FLOOR", bssn::CHI_FLOOR, true);
+    set_param(parFile, "BSSN_TRK0", bssn::BSSN_TRK0, true);
+    set_param(parFile, "DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, false);
 
-    if (parFile.contains("DISSIPATION_TYPE"))
-        bssn::DISSIPATION_TYPE = parFile["DISSIPATION_TYPE"].as_integer();
-
-    bssn::KO_DISS_SIGMA     = parFile["KO_DISS_SIGMA"].as_floating();
-
-    bssn::BSSN_ETA_R0       = parFile["BSSN_ETA_R0"].as_floating();
+    set_param(parFile, "KO_DISS_SIGMA", bssn::KO_DISS_SIGMA, true);
+    set_param(parFile, "BSSN_ETA_R0", bssn::BSSN_ETA_R0, true);
     bssn::BSSN_ETA_POWER[0] = parFile["BSSN_ETA_POWER"][0].as_floating();
     bssn::BSSN_ETA_POWER[1] = parFile["BSSN_ETA_POWER"][1].as_floating();
 
-    bssn::BSSN_USE_WAVELET_TOL_FUNCTION =
-        parFile["BSSN_USE_WAVELET_TOL_FUNCTION"].as_integer();
-    bssn::BSSN_WAVELET_TOL     = parFile["BSSN_WAVELET_TOL"].as_floating();
-    bssn::BSSN_WAVELET_TOL_MAX = parFile["BSSN_WAVELET_TOL_MAX"].as_floating();
-    bssn::BSSN_WAVELET_TOL_FUNCTION_R0 =
-        parFile["BSSN_WAVELET_TOL_FUNCTION_R0"].as_floating();
-    bssn::BSSN_WAVELET_TOL_FUNCTION_R1 =
-        parFile["BSSN_WAVELET_TOL_FUNCTION_R1"].as_floating();
+    set_param(parFile, "BSSN_USE_WAVELET_TOL_FUNCTION",
+              bssn::BSSN_USE_WAVELET_TOL_FUNCTION, true);
+    set_param(parFile, "BSSN_WAVELET_TOL", bssn::BSSN_WAVELET_TOL, true);
+    set_param(parFile, "BSSN_WAVELET_TOL_MAX", bssn::BSSN_WAVELET_TOL_MAX,
+              true);
+    set_param(parFile, "BSSN_WAVELET_TOL_FUNCTION_R0",
+              bssn::BSSN_WAVELET_TOL_FUNCTION_R0, true);
+    set_param(parFile, "BSSN_WAVELET_TOL_FUNCTION_R1",
+              bssn::BSSN_WAVELET_TOL_FUNCTION_R1, true);
 
-    bssn::BSSN_NUM_REFINE_VARS = parFile["BSSN_NUM_REFINE_VARS"].as_integer();
+    set_param(parFile, "BSSN_NUM_REFINE_VARS", bssn::BSSN_NUM_REFINE_VARS,
+              true);
     for (unsigned int i = 0; i < bssn::BSSN_NUM_REFINE_VARS; i++)
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i].as_integer();
 
-    bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT =
-        parFile["BSSN_NUM_EVOL_VARS_VTU_OUTPUT"].as_integer();
-    bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT =
-        parFile["BSSN_NUM_CONST_VARS_VTU_OUTPUT"].as_integer();
+    set_param(parFile, "BSSN_NUM_EVOL_VARS_VTU_OUTPUT",
+              bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT, true);
+    set_param(parFile, "BSSN_NUM_CONST_VARS_VTU_OUTPUT",
+              bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT, true);
 
     for (unsigned int i = 0; i < bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT; i++)
         bssn::BSSN_VTU_OUTPUT_EVOL_INDICES[i] =
@@ -371,12 +395,11 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_VTU_OUTPUT_CONST_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_CONST_INDICES"][i].as_integer();
 
-    if (parFile.contains("BSSN_CFL_FACTOR"))
-        bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"].as_floating();
-
-    if (parFile.contains("BSSN_VTU_Z_SLICE_ONLY"))
-        bssn::BSSN_VTU_Z_SLICE_ONLY =
-            parFile["BSSN_VTU_Z_SLICE_ONLY"].as_boolean();
+    set_param(parFile, "BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, false);
+    set_param(parFile, "BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY,
+              false);
+    set_param(parFile, "BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY,
+              false);
 
     if (parFile.contains("BSSN_GW_EXTRACT_FREQ"))
         bssn::BSSN_GW_EXTRACT_FREQ =
@@ -392,20 +415,13 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_TIME_STEP_OUTPUT_FREQ = bssn::BSSN_GW_EXTRACT_FREQ;
     }
 
-    if (parFile.contains("BSSN_BH1_AMR_R"))
-        bssn::BSSN_BH1_AMR_R = parFile["BSSN_BH1_AMR_R"].as_floating();
-
-    if (parFile.contains("BSSN_BH2_AMR_R"))
-        bssn::BSSN_BH2_AMR_R = parFile["BSSN_BH2_AMR_R"].as_floating();
-
-    if (parFile.contains("BSSN_AMR_R_RATIO")) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_DENDRO_AMR_FAC_POST_MERGER")) {
-        bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
-            parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"].as_floating();
-    }
+    set_param(parFile, "BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R, false);
+    set_param(parFile, "BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R, false);
+    set_param(parFile, "BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO, false);
+    set_param(parFile, "BSSN_DENDRO_AMR_FAC_POST_MERGER",
+              bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER, false);
+    set_param(parFile, "BSSN_DENDRO_AMR_FAC_POST_MERGER",
+              bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER, false);
 
     if (parFile.contains("BSSN_BH1_MAX_LEV"))
         bssn::BSSN_BH1_MAX_LEV = parFile["BSSN_BH1_MAX_LEV"].as_integer();
@@ -417,46 +433,25 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     else
         bssn::BSSN_BH2_MAX_LEV = bssn::BSSN_MAXDEPTH;
 
-    if (parFile.contains("BSSN_INIT_GRID_ITER"))
-        bssn::BSSN_INIT_GRID_ITER = parFile["BSSN_INIT_GRID_ITER"].as_integer();
+    set_param(parFile, "BSSN_INIT_GRID_ITER", bssn::BSSN_INIT_GRID_ITER, false);
+    set_param(parFile, "BSSN_GW_REFINE_WTOL", bssn::BSSN_GW_REFINE_WTOL, false);
+    set_param(parFile, "BSSN_MINDEPTH", bssn::BSSN_MINDEPTH, false);
 
-    if (parFile.contains("BSSN_GW_REFINE_WTOL"))
-        bssn::BSSN_GW_REFINE_WTOL =
-            parFile["BSSN_GW_REFINE_WTOL"].as_floating();
+    set_param(parFile, "BSSN_BH1_CONSTRAINT_R", bssn::BSSN_BH1_CONSTRAINT_R,
+              false);
+    set_param(parFile, "BSSN_BH2_CONSTRAINT_R", bssn::BSSN_BH2_CONSTRAINT_R,
+              false);
+    set_param(parFile, "BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE",
+              bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE, false);
+    set_param(parFile, "BSSN_NYQUIST_M", bssn::BSSN_NYQUIST_M, false);
 
-    if (parFile.contains("BSSN_MINDEPTH"))
-        bssn::BSSN_MINDEPTH = parFile["BSSN_MINDEPTH"].as_integer();
-
-    if (parFile.contains("BSSN_BH1_CONSTRAINT_R"))
-        bssn::BSSN_BH1_CONSTRAINT_R =
-            parFile["BSSN_BH1_CONSTRAINT_R"].as_floating();
-
-    if (parFile.contains("BSSN_BH2_CONSTRAINT_R"))
-        bssn::BSSN_BH2_CONSTRAINT_R =
-            parFile["BSSN_BH2_CONSTRAINT_R"].as_floating();
-
-    if (parFile.contains("BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE"))
-        bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE =
-            parFile["BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE"].as_boolean();
-
-    if (parFile.contains("BSSN_NYQUIST_M")) {
-        bssn::BSSN_NYQUIST_M = parFile["BSSN_NYQUIST_M"].as_integer();
-    }
-
-    if (parFile.contains("BSSN_SCALE_VTU_AND_GW_EXTRACTION")) {
-        bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION =
-            parFile["BSSN_SCALE_VTU_AND_GW_EXTRACTION"].as_boolean();
-    }
+    set_param(parFile, "BSSN_SCALE_VTU_AND_GW_EXTRACTION",
+              bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION, false);
     bssn::BSSN_IO_OUTPUT_FREQ_TRUE  = bssn::BSSN_IO_OUTPUT_FREQ;
     bssn::BSSN_GW_EXTRACT_FREQ_TRUE = bssn::BSSN_GW_EXTRACT_FREQ;
 
-    if (parFile.contains("BSSN_SSL_SIGMA")) {
-        bssn::BSSN_SSL_SIGMA = parFile["BSSN_SSL_SIGMA"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_SSL_H")) {
-        bssn::BSSN_SSL_H = parFile["BSSN_SSL_H"].as_floating();
-    }
+    set_param(parFile, "BSSN_SSL_SIGMA", bssn::BSSN_SSL_SIGMA, false);
+    set_param(parFile, "BSSN_SSL_H", bssn::BSSN_SSL_H, false);
 
     /* Parameters for TPID */
     TPID::target_M_plus  = parFile["TPID_TARGET_M_PLUS"].as_floating();
@@ -525,14 +520,11 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         TPID::replace_lapse_with_sqrt_chi =
             parFile["TPID_REPLACE_LAPSE_WITH_SQRT_CHI"].as_boolean();
 
-    if (parFile.contains("EXTRACTION_VAR_ID"))
-        BHLOC::EXTRACTION_VAR_ID = parFile["EXTRACTION_VAR_ID"].as_integer();
+    set_param(parFile, "EXTRACTION_VAR_ID", BHLOC::EXTRACTION_VAR_ID, false);
+    set_param(parFile, "EXTRACTION_TOL", BHLOC::EXTRACTION_TOL, false);
 
-    if (parFile.contains("EXTRACTION_TOL"))
-        BHLOC::EXTRACTION_TOL = parFile["EXTRACTION_TOL"].as_floating();
-
-    GW::BSSN_GW_NUM_RADAII = parFile["BSSN_GW_NUM_RADAII"].as_integer();
-    GW::BSSN_GW_NUM_LMODES = parFile["BSSN_GW_NUM_LMODES"].as_integer();
+    set_param(parFile, "BSSN_GW_NUM_RADAII", GW::BSSN_GW_NUM_RADAII, true);
+    set_param(parFile, "BSSN_GW_NUM_LMODES", GW::BSSN_GW_NUM_LMODES, true);
 
     for (unsigned int i = 0; i < GW::BSSN_GW_NUM_RADAII; i++)
         GW::BSSN_GW_RADAII[i] = parFile["BSSN_GW_RADAII"][i].as_floating();
@@ -540,12 +532,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     for (unsigned int i = 0; i < GW::BSSN_GW_NUM_LMODES; i++)
         GW::BSSN_GW_L_MODES[i] = parFile["BSSN_GW_L_MODES"][i].as_integer();
 
-    if (parFile.contains("BSSN_EH_COARSEN_VAL"))
-        bssn::BSSN_EH_COARSEN_VAL =
-            parFile["BSSN_EH_COARSEN_VAL"].as_floating();
-
-    if (parFile.contains("BSSN_EH_REFINE_VAL"))
-        bssn::BSSN_EH_REFINE_VAL = parFile["BSSN_EH_REFINE_VAL"].as_floating();
+    set_param(parFile, "BSSN_EH_COARSEN_VAL", bssn::BSSN_EH_COARSEN_VAL, false);
+    set_param(parFile, "BSSN_EH_REFINE_VAL", bssn::BSSN_EH_REFINE_VAL, false);
 
     if (parFile.contains("BSSN_REFINEMENT_MODE"))
         bssn::BSSN_REFINEMENT_MODE = static_cast<bssn::RefinementMode>(
@@ -610,59 +598,45 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     if (parFile.contains("AEH_RTOL"))
         AEH::AEH_RTOL = parFile["AEH_RTOL"].as_floating();
 
-    if (parFile.contains("AEH_SOLVER_FREQ"))
-        AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"].as_integer();
-
     if (parFile.contains("AEH_ALPHA"))
         AEH::AEH_ALPHA = parFile["AEH_ALPHA"].as_floating();
 
     if (parFile.contains("AEH_BETA"))
         AEH::AEH_BETA = parFile["AEH_BETA"].as_floating();
 
-    std::cout << "NOW READING AEH_PARAMS" << std::endl;
+    // require AEH_SOLVER_FREQ
+    set_param(parFile, "AEH_SOLVER_FREQ", AEH::AEH_SOLVER_FREQ, true);
 
     // if the parFile has the AEH "dictionary"
     if (parFile.contains("AEH_PARAMS")) {
-        auto aeh_pars        = parFile["AEH_PARAMS"];
+        auto aeh_pars = parFile["AEH_PARAMS"];
 
-        AEH::AEH_SOLVER_FREQ = aeh_pars["AEH_SOLVER_FREQ"].as_integer();
-        AEH::N_HORIZONS      = aeh_pars["N_HORIZONS"].as_integer();
-        AEH::N_RESOLUTIONS_MULTIGRID =
-            aeh_pars["N_RESOLUTIONS_MULTIGRID"].as_integer();
-        AEH::MAX_ITERATIONS =
-            toml::find<std::vector<int>>(aeh_pars, "MAX_ITERATIONS");
-        AEH::INITIAL_X_CENTER =
-            toml::find<std::vector<double>>(aeh_pars, "INITIAL_X_CENTER");
-        AEH::INITIAL_Y_CENTER =
-            toml::find<std::vector<double>>(aeh_pars, "INITIAL_Y_CENTER");
-        AEH::INITIAL_Y_CENTER =
-            toml::find<std::vector<double>>(aeh_pars, "INITIAL_Z_CENTER");
-        AEH::M_SCALE = toml::find<std::vector<double>>(aeh_pars, "M_SCALE");
-        AEH::CFL_FACTOR =
-            toml::find<std::vector<double>>(aeh_pars, "CFL_FACTOR");
-        AEH::THETA_L2_M_TOL =
-            toml::find<std::vector<double>>(aeh_pars, "THETA_L2_M_TOL");
-        AEH::THETA_LINF_M_TOL =
-            toml::find<std::vector<double>>(aeh_pars, "THETA_LINF_M_TOL");
-        AEH::ETA_DAMP_M =
-            toml::find<std::vector<double>>(aeh_pars, "ETA_DAMP_M");
-        AEH::KO_STRENGTH =
-            toml::find<std::vector<double>>(aeh_pars, "KO_STRENGTH");
-        AEH::MAX_SEARCH_RADIUS =
-            toml::find<std::vector<double>>(aeh_pars, "MAX_SEARCH_RADIUS");
-        AEH::NR_INTERP_MAX =
-            toml::find<std::vector<int>>(aeh_pars, "NR_INTERP_MAX");
-        AEH::NPHI_MAX     = aeh_pars["NPHI_MAX"].as_integer();
-        AEH::NTHETA_MAX   = aeh_pars["NTHETA_MAX"].as_integer();
-        AEH::AEH_SAVE_DIR = aeh_pars["AEH_SAVE_DIR"].as_string();
-        AEH::NUM_RESOLUTIONS_AFTER_FIND =
-            aeh_pars["NUM_RESOLUTIONS_AFTER_FIND"].as_integer();
-        AEH::NTHETA_ARRAY =
-            toml::find<std::vector<int>>(aeh_pars, "NTHETA_ARRAY");
-        AEH::NPHI_ARRAY = toml::find<std::vector<int>>(aeh_pars, "NPHI_ARRAY");
-        AEH::ENABLE_ETA_VARYING_ALG =
-            aeh_pars["ENABLE_ETA_VARYING_ALG"].as_integer();
-        AEH::VERBOSITY_LEVEL = aeh_pars["VERBOSITY_LEVEL"].as_integer();
+        set_param(aeh_pars, "N_HORIZONS", AEH::N_HORIZONS, false);
+        set_param(aeh_pars, "N_RESOLUTIONS_MULTIGRID",
+                  AEH::N_RESOLUTIONS_MULTIGRID, false);
+        set_param(aeh_pars, "MAX_ITERATIONS", AEH::MAX_ITERATIONS, false);
+        set_param(aeh_pars, "INITIAL_X_CENTER", AEH::INITIAL_X_CENTER, false);
+        set_param(aeh_pars, "INITIAL_Y_CENTER", AEH::INITIAL_Y_CENTER, false);
+        set_param(aeh_pars, "INITIAL_Z_CENTER", AEH::INITIAL_Z_CENTER, false);
+
+        set_param(aeh_pars, "M_SCALE", AEH::M_SCALE, false);
+        set_param(aeh_pars, "CFL_FACTOR", AEH::CFL_FACTOR, false);
+        set_param(aeh_pars, "THETA_L2_M_TOL", AEH::THETA_L2_M_TOL, false);
+        set_param(aeh_pars, "THETA_LINF_M_TOL", AEH::THETA_LINF_M_TOL, false);
+        set_param(aeh_pars, "ETA_DAMP_M", AEH::ETA_DAMP_M, false);
+        set_param(aeh_pars, "KO_STRENGTH", AEH::KO_STRENGTH, false);
+        set_param(aeh_pars, "MAX_SEARCH_RADIUS", AEH::MAX_SEARCH_RADIUS, false);
+        set_param(aeh_pars, "NR_INTERP_MAX", AEH::NR_INTERP_MAX, false);
+        set_param(aeh_pars, "NPHI_MAX", AEH::NPHI_MAX, false);
+        set_param(aeh_pars, "NTHETA_MAX", AEH::NTHETA_MAX, false);
+        set_param(aeh_pars, "AEH_SAVE_DIR", AEH::AEH_SAVE_DIR, false);
+        set_param(aeh_pars, "NUM_RESOLUTIONS_AFTER_FIND",
+                  AEH::NUM_RESOLUTIONS_AFTER_FIND, false);
+        set_param(aeh_pars, "NTHETA_ARRAY", AEH::NTHETA_ARRAY, false);
+        set_param(aeh_pars, "NPHI_ARRAY", AEH::NPHI_ARRAY, false);
+        set_param(aeh_pars, "ENABLE_ETA_VARYING_ALG",
+                  AEH::ENABLE_ETA_VARYING_ALG, false);
+        set_param(aeh_pars, "VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL, false);
     }
 
     bool is_bbh_temp = false;
@@ -830,8 +804,8 @@ std::vector<double> INITIAL_Y_CENTER         = {0.0, 0.0, 0.0};
 std::vector<double> INITIAL_Z_CENTER         = {0.0, 0.0, 0.0};
 std::vector<double> M_SCALE                  = {0.0, 0.0, 0.0};
 std::vector<double> CFL_FACTOR               = {1.0, 1.0, 1.0};
-std::vector<double> THETA_L2_M_TOL           = {1.e-2, 1.e-2, 1.e-2};
-std::vector<double> THETA_LINF_M_TOL         = {1.e-5, 1.e-5, 1.e-5};
+std::vector<double> THETA_L2_M_TOL           = {1.e-5, 1.e-5, 1.e-5};
+std::vector<double> THETA_LINF_M_TOL         = {1.e-2, 1.e-2, 1.e-2};
 std::vector<double> ETA_DAMP_M               = {7.0, 7.0, 7.0};
 std::vector<double> KO_STRENGTH              = {0.0, 0.0, 0.0};
 std::vector<double> MAX_SEARCH_RADIUS        = {1.5, 1.5, 1.5};
