@@ -9,6 +9,7 @@
 
 #include "parameters.h"
 
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -614,6 +615,16 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_BH1_MASS = BH1.getBHMass();
     bssn::BSSN_BH2_MASS = BH2.getBHMass();
 
+    // quick check to see if we're divsible
+    if (AEH::AEH_SOLVER_FREQ > 0) {
+        if ((bssn::BSSN_IO_OUTPUT_FREQ % AEH::AEH_SOLVER_FREQ != 0)) {
+            std::cerr << "Error[parameter file]: BSSN_IO_OUTPUT_FREQ ("
+                      << bssn::BSSN_IO_OUTPUT_FREQ << ") must be a multiple of "
+                      << "AEH_SOLVER_FREQ (" << AEH::AEH_SOLVER_FREQ << ")\n";
+            exit(EXIT_FAILURE);
+        }
+    }
+
     // if the parFile has the AEH "dictionary"
     if (parFile.contains("AEH_PARAMS")) {
         auto aeh_pars                                 = parFile["AEH_PARAMS"];
@@ -754,8 +765,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         AEH::ETA_DAMP_M, AEH::KO_STRENGTH, AEH::MAX_SEARCH_RADIUS,
         AEH::NR_INTERP_MAX, AEH::NTHETA_MAX, AEH::NPHI_MAX, AEH::AEH_SAVE_DIR,
         simpleBHData, AEH::AEH_INDICES, transform, grid_limits, domain_limits,
-        AEH::NUM_RESOLUTIONS_AFTER_FIND, AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY,
-        AEH::ENABLE_ETA_VARYING_ALG, AEH::VERBOSITY_LEVEL);
+        bssn::BSSN_IO_OUTPUT_FREQ, AEH::NUM_RESOLUTIONS_AFTER_FIND,
+        AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY, AEH::ENABLE_ETA_VARYING_ALG,
+        AEH::VERBOSITY_LEVEL);
 
     // check on the unused parameters to see what we didn't use
     std::unordered_set<std::string> all_params_in_parfile;
