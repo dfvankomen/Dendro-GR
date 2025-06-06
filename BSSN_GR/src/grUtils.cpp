@@ -591,7 +591,7 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tRIT_ETA_OUTER: " << bssn::RIT_ETA_OUTER << NRM
              << std::endl;
         sout << YLW << "\tBSSN_LAMBDA : (" << bssn::BSSN_LAMBDA[0] << " ,"
-             << bssn::BSSN_LAMBDA[1] << "," << bssn::BSSN_LAMBDA[2]
+             << bssn::BSSN_LAMBDA[1] << "," << bssn::BSSN_LAMBDA[2] << " ,"
              << bssn::BSSN_LAMBDA[3] << " )" << NRM << std::endl;
         sout << YLW << "\tBSSN_LAMBDA_F : (" << bssn::BSSN_LAMBDA_F[0] << " ,"
              << bssn::BSSN_LAMBDA_F[1] << " )" << NRM << std::endl;
