@@ -346,6 +346,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     void store_bh_loc_history();
 
     void findAEH() {
+        // make sure only active meshes calculate
+        if (!m_uiMesh->isActive()) return;
+
         DVec& m_evar = m_var[VL::CPU_EV];
         DendroScalar* eVar[bssn::BSSN_NUM_VARS];
         m_evar.to_2d(eVar);
