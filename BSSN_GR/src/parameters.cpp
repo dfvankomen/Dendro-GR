@@ -203,6 +203,8 @@ double BSSN_SSL_H                               = 0.6;
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
 struct ParameterInformation {
+    // simple struct that lets us identify what variables are identified by and
+    // where they should go
     std::string key;
     std::any value_reference;
     bool required;
