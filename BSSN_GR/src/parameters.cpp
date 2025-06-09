@@ -212,6 +212,13 @@ std::string BSSN_DERIVTYPE_FIRST                             = "E6";
 std::string BSSN_DERIVTYPE_SECOND                            = "E6";
 std::vector<double> BSSN_DERIV_FIRST_COEFFS                  = {};
 std::vector<double> BSSN_DERIV_SECOND_COEFFS                 = {};
+int BSSN_DERIV_FIRST_MATID = 1;
+int BSSN_DERIV_SECOND_MATID = 1;
+
+std::string BSSN_INMATFILT_FIRST             = "none";
+std::string BSSN_INMATFILT_SECOND            = "none";
+std::vector<double> BSSN_INMATFILT_FIRST_COEFFS              = {};
+std::vector<double> BSSN_INMATFILT_SECOND_COEFFS             = {};
 
 // default initialization
 // this *MUST* be initialized
@@ -633,9 +640,31 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         BSSN_DERIV_SECOND_COEFFS = toml::find<std::vector<double>>(
             parFile, "BSSN_DERIV_SECOND_COEFFS");
     }
+    if (parFile.contains("BSSN_DERIV_FIRST_MATID")) {
+    BSSN_DERIV_FIRST_MATID = parFile["BSSN_DERIV_FIRST_MATID"].as_integer();
+}
 
-    std::cout << BSSN_DERIVTYPE_FIRST << " " << BSSN_DERIVTYPE_SECOND
-              << std::endl;
+if (parFile.contains("BSSN_DERIV_SECOND_MATID")) {
+    BSSN_DERIV_SECOND_MATID = parFile["BSSN_DERIV_SECOND_MATID"].as_integer();
+}
+
+if (parFile.contains("BSSN_INMATFILT_FIRST")) {
+    BSSN_INMATFILT_FIRST = parFile["BSSN_INMATFILT_FIRST"].as_string();
+}
+
+if (parFile.contains("BSSN_INMATFILT_SECOND")) {
+    BSSN_INMATFILT_SECOND = parFile["BSSN_INMATFILT_SECOND"].as_string();
+}
+
+if (parFile.contains("BSSN_INMATFILT_FIRST_COEFFS")) {
+    BSSN_INMATFILT_FIRST_COEFFS = toml::find<std::vector<double>>(parFile, "BSSN_INMATFILT_FIRST_COEFFS");
+}
+
+if (parFile.contains("BSSN_INMATFILT_SECOND_COEFFS")) {
+    BSSN_INMATFILT_SECOND_COEFFS = toml::find<std::vector<double>>(parFile, "BSSN_INMATFILT_SECOND_COEFFS");
+}
+
+
 #endif
 
     BSSN_OCTREE_MAX[0] = (double)(1u << bssn::BSSN_MAXDEPTH);
@@ -711,9 +740,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
 #ifdef DENDRO_USE_NEW_DERIVS
     // establish the dendro derivatives class, this should always be built
-    BSSN_DERIVS = std::make_unique<dendroderivs::DendroDerivatives>(
+  BSSN_DERIVS = std::make_unique<dendroderivs::DendroDerivatives>(
         BSSN_DERIVTYPE_FIRST, BSSN_DERIVTYPE_SECOND, BSSN_ELE_ORDER,
-        BSSN_DERIV_FIRST_COEFFS, BSSN_DERIV_SECOND_COEFFS);
+        BSSN_DERIV_FIRST_COEFFS, BSSN_DERIV_SECOND_COEFFS,
+        BSSN_DERIV_FIRST_MATID, BSSN_DERIV_SECOND_MATID,
+        BSSN_INMATFILT_FIRST, BSSN_INMATFILT_SECOND,
+        BSSN_INMATFILT_FIRST_COEFFS, BSSN_INMATFILT_SECOND_COEFFS);
 #endif
 
     MPI_Barrier(comm);

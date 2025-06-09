@@ -14,6 +14,7 @@
 #include "base.h"
 #include "git_version_and_date.h"
 #include "parameters.h"
+#define PRPL "\033[95m"
 
 namespace bssn {
 
@@ -896,8 +897,34 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         }
 
 #ifdef DENDRO_USE_NEW_DERIVS
-        sout << YLW << "\t DERIVS: " << BSSN_DERIVS->toString() << NRM
-             << std::endl;
+    sout << YLW << "\t DERIVS: " << BSSN_DERIVS->toString() << NRM << std::endl;
+
+    sout << PRPL << "\t BSSN_DERIVTYPE_FIRST:  " << BSSN_DERIVTYPE_FIRST << std::endl;
+    sout << PRPL << "\t BSSN_DERIVTYPE_SECOND: " << BSSN_DERIVTYPE_SECOND << std::endl;
+
+    sout << PRPL << "\t BSSN_DERIV_FIRST_COEFFS:  ";
+    for (const auto& val : BSSN_DERIV_FIRST_COEFFS) sout << val << " ";
+    sout << std::endl;
+
+    sout << PRPL << "\t BSSN_DERIV_SECOND_COEFFS: ";
+    for (const auto& val : BSSN_DERIV_SECOND_COEFFS) sout << val << " ";
+    sout << std::endl;
+
+    sout << PRPL << "\t BSSN_DERIV_FIRST_MATID:  " << BSSN_DERIV_FIRST_MATID << std::endl;
+    sout << PRPL << "\t BSSN_DERIV_SECOND_MATID: " << BSSN_DERIV_SECOND_MATID << std::endl;
+
+    sout << PRPL << "\t BSSN_INMATFILT_FIRST:  " << BSSN_INMATFILT_FIRST << std::endl;
+    sout << PRPL << "\t BSSN_INMATFILT_SECOND: " << BSSN_INMATFILT_SECOND << std::endl;
+
+    sout << PRPL << "\t BSSN_INMATFILT_FIRST_COEFFS:  ";
+    for (const auto& val : BSSN_INMATFILT_FIRST_COEFFS) sout << val << " ";
+    sout << std::endl;
+
+    sout << PRPL << "\t BSSN_INMATFILT_SECOND_COEFFS: ";
+    for (const auto& val : BSSN_INMATFILT_SECOND_COEFFS) sout << val << " ";
+    sout << std::endl;
+
+    sout << NRM;
 #endif
     }
 }

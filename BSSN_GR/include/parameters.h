@@ -455,6 +455,20 @@ extern std::string BSSN_DERIVTYPE_FIRST;
 extern std::string BSSN_DERIVTYPE_SECOND;
 extern std::vector<double> BSSN_DERIV_FIRST_COEFFS;
 extern std::vector<double> BSSN_DERIV_SECOND_COEFFS;
+extern std::string BSSN_DERIVTYPE_FIRST;
+extern std::string BSSN_DERIVTYPE_SECOND;
+
+extern std::vector<double> BSSN_DERIV_FIRST_COEFFS;
+extern std::vector<double> BSSN_DERIV_SECOND_COEFFS;
+
+extern int BSSN_DERIV_FIRST_MATID;
+extern int BSSN_DERIV_SECOND_MATID;
+
+extern std::string BSSN_INMATFILT_FIRST;
+extern std::string BSSN_INMATFILT_SECOND;
+
+extern std::vector<double> BSSN_INMATFILT_FIRST_COEFFS;
+extern std::vector<double> BSSN_INMATFILT_SECOND_COEFFS;
 #endif
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
