@@ -148,9 +148,13 @@ def bssn_puncture_gauge(
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
 
         if enableCAHD:
-            # turn on curvature-adjusted Hamiltonian-constraint damping
-            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation # Etienne's method
-            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
+            # turn on coarse-grid-adjusted Hamiltonian-constraint damping
+            if True: # WKB method
+              # dxsq = dx_i**2 # default; blows up for dx > 1
+              dxsq = dx_i**2 / (1 + 10 * dx_i**2) # to soften large dx
+              chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else: # Etienne method
+              chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
@@ -321,9 +325,13 @@ def bssn_puncture_gauge(
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
 
         if enableCAHD:
-            # turn on curvature-adjusted Hamiltonian-constraint damping
-            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation # Etienne's method
-            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
+            # turn on coarse-grid-adjusted Hamiltonian-constraint damping
+            if True: # WKB method
+              # dxsq = dx_i**2 # default; blows up for dx > 1
+              dxsq = dx_i**2 / (1 + 10 * dx_i**2) # to soften large dx
+              chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else: # Etienne method
+              chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
