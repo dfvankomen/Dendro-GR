@@ -130,9 +130,32 @@ def bssn_puncture_gauge(
 
             h = symbols("h_ssl")
             sig = symbols("sig_ssl")
+            # set up auxiliary Bona--Masso function; f = (2/a) * g
+            if True: # default: f = 2/a
+              g = 1
+            elif False: # first-order shock-avoiding throughout
+              g = 1 - 1/2 * a + 1/3 * a**2
+            elif False: # transition from 0th to 1st post-merger
+              # read in symbols
+              bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = (
+                  symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
+              )
+              # define distance btw the BHs
+              dr = sqrt(
+                  (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
+              )  # distance between BHs
+              # set up parameters
+              T = 1 / (1 + dr**2)
+              a0f = 5/6
+              a0 = 1 - T * (1 - a0f)
+              a1 = 1 - a0
+              a2 = T * (a0 - 1/2)
+              eps = 1 - a # epsilon
+              g = (a0 + a1 * eps + a2 * eps**2)
+            # calculate lapse evolution
             a_rhs = (
                 l1 * dendro.lie(b, a)
-                - 2 * a * K
+                - 2 * a * g * K # g=1 returns default behavior
                 - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
             )
         else:
