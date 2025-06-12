@@ -232,8 +232,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #pragma message( \
     "BSSN: enabling both SSL and CAHD, note that Rochester Gauge and ETA Function are not available currently!")
 // #include "bssn_eqns_SSL_HD.cpp"
-#include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
-// #include "test_bssneqs_CAHD.cpp"
+// #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
+#include "bssn_eqns_SSL_HDdxsq.inc.cpp" // use dx^2/(1+10*dx^2) in H-damping
 #else
 
 #pragma message( \
