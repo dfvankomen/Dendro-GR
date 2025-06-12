@@ -948,7 +948,7 @@ int BSSNCtx::write_checkpt() {
                                  "_aeh_solver_checkpt-cp" +
                                  std::to_string(cpIndex) + ".json";
 
-    AEH::aeh->create_checkpoint(m_uiMesh, aeh_chkpt_file);
+    AEH::ah_bah->create_checkpoint(m_uiMesh, aeh_chkpt_file);
 
     if (!rank) {
         std::cout << "Finished AEH solver checkpoint!" << std::endl;
@@ -1345,7 +1345,7 @@ int BSSNCtx::restore_checkpt() {
                                  "_aeh_solver_checkpt-cp" +
                                  std::to_string(restoreFileIndex) + ".json";
 
-    AEH::aeh->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
+    AEH::ah_bah->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
 
     if (!rank) {
         std::cout << "Finished restoring AEH solver!" << std::endl;

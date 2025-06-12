@@ -534,7 +534,7 @@ bssn:
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
                 // bssnaeh::perform_aeh_step(bssnCtx, rank);
 
-                bssnCtx->findAEH();
+                bssnCtx->findAH();
             }
 
             ets->evolve();

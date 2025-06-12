@@ -491,7 +491,7 @@ extern unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 
 namespace AEH {
 
-extern std::unique_ptr<dendro_aeh::AEH_BHaHAHA> aeh;
+extern std::unique_ptr<dendro_aeh::AEH_BHaHAHA> ah_bah;
 
 /**@brief absolute tolerance for AH convergence*/
 extern double AEH_ATOL;

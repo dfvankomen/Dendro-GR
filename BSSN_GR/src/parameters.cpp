@@ -757,7 +757,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
                              bssn::BSSN_COMPD_MAX[2]);
 
     // now we build up the aeh solver
-    AEH::aeh         = std::make_unique<dendro_aeh::AEH_BHaHAHA>(
+    AEH::ah_bah      = std::make_unique<dendro_aeh::AEH_BHaHAHA>(
         AEH::N_HORIZONS, is_bbh_temp, AEH::INITIAL_X_CENTER,
         AEH::INITIAL_Y_CENTER, AEH::INITIAL_Z_CENTER,
         AEH::N_RESOLUTIONS_MULTIGRID, AEH::M_SCALE, AEH::CFL_FACTOR,
@@ -846,40 +846,40 @@ unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 
 namespace AEH {
 
-std::unique_ptr<dendro_aeh::AEH_BHaHAHA> aeh = nullptr;
+std::unique_ptr<dendro_aeh::AEH_BHaHAHA> ah_bah = nullptr;
 
-unsigned int N_HORIZONS                      = 3;
-unsigned int N_RESOLUTIONS_MULTIGRID         = 3;
-std::vector<int> MAX_ITERATIONS              = {10000, 10000, 10000};
-std::vector<double> INITIAL_X_CENTER         = {0.0, 0.0, 0.0};
-std::vector<double> INITIAL_Y_CENTER         = {0.0, 0.0, 0.0};
-std::vector<double> INITIAL_Z_CENTER         = {0.0, 0.0, 0.0};
-std::vector<double> M_SCALE                  = {0.0, 0.0, 0.0};
-std::vector<double> CFL_FACTOR               = {1.0, 1.0, 1.0};
-std::vector<double> THETA_L2_M_TOL           = {1.e-5, 1.e-5, 1.e-5};
-std::vector<double> THETA_LINF_M_TOL         = {1.e-2, 1.e-2, 1.e-2};
-std::vector<double> ETA_DAMP_M               = {7.0, 7.0, 7.0};
-std::vector<double> KO_STRENGTH              = {0.0, 0.0, 0.0};
-std::vector<double> MAX_SEARCH_RADIUS        = {1.5, 1.5, 1.5};
-std::vector<int> NR_INTERP_MAX               = {48, 48, 48};
-int NTHETA_MAX                               = 32;
-int NPHI_MAX                                 = 64;
-std::string AEH_SAVE_DIR                     = "";
-int NUM_RESOLUTIONS_AFTER_FIND               = 3;
-std::vector<int> NTHETA_ARRAY                = {8, 16, 32};
-std::vector<int> NPHI_ARRAY                  = {16, 32, 64};
-int ENABLE_ETA_VARYING_ALG                   = 0;
-int VERBOSITY_LEVEL                          = 1;
+unsigned int N_HORIZONS                         = 3;
+unsigned int N_RESOLUTIONS_MULTIGRID            = 3;
+std::vector<int> MAX_ITERATIONS                 = {10000, 10000, 10000};
+std::vector<double> INITIAL_X_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Y_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Z_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> M_SCALE                     = {0.0, 0.0, 0.0};
+std::vector<double> CFL_FACTOR                  = {1.0, 1.0, 1.0};
+std::vector<double> THETA_L2_M_TOL              = {1.e-5, 1.e-5, 1.e-5};
+std::vector<double> THETA_LINF_M_TOL            = {1.e-2, 1.e-2, 1.e-2};
+std::vector<double> ETA_DAMP_M                  = {7.0, 7.0, 7.0};
+std::vector<double> KO_STRENGTH                 = {0.0, 0.0, 0.0};
+std::vector<double> MAX_SEARCH_RADIUS           = {1.5, 1.5, 1.5};
+std::vector<int> NR_INTERP_MAX                  = {48, 48, 48};
+int NTHETA_MAX                                  = 32;
+int NPHI_MAX                                    = 64;
+std::string AEH_SAVE_DIR                        = "";
+int NUM_RESOLUTIONS_AFTER_FIND                  = 3;
+std::vector<int> NTHETA_ARRAY                   = {8, 16, 32};
+std::vector<int> NPHI_ARRAY                     = {16, 32, 64};
+int ENABLE_ETA_VARYING_ALG                      = 0;
+int VERBOSITY_LEVEL                             = 1;
 
-unsigned int AEH_LMAX                        = 6;
-unsigned int AEH_Q_THETA                     = 32;
-unsigned int AEH_Q_PHI                       = 32;
-unsigned int AEH_MAXITER                     = 50;
-double AEH_ATOL                              = 1e-8;
-double AEH_RTOL                              = 1e-8;
-unsigned int AEH_SOLVER_FREQ                 = 0;
+unsigned int AEH_LMAX                           = 6;
+unsigned int AEH_Q_THETA                        = 32;
+unsigned int AEH_Q_PHI                          = 32;
+unsigned int AEH_MAXITER                        = 50;
+double AEH_ATOL                                 = 1e-8;
+double AEH_RTOL                                 = 1e-8;
+unsigned int AEH_SOLVER_FREQ                    = 0;
 
-double AEH_ALPHA                             = 1.0;
-double AEH_BETA                              = 0.1;
+double AEH_ALPHA                                = 1.0;
+double AEH_BETA                                 = 0.1;
 
 }  // namespace AEH

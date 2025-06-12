@@ -345,16 +345,21 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     void store_bh_loc_history();
 
-    void findAEH() {
+    void findAH() {
         // make sure only active meshes calculate
         if (!m_uiMesh->isActive()) return;
 
-        DVec& m_evar = m_var[VL::CPU_EV];
+        DVec& m_evar     = m_var[VL::CPU_EV];
+        DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
+
+        // force a synchronization
+        this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
+
         DendroScalar* eVar[bssn::BSSN_NUM_VARS];
         m_evar.to_2d(eVar);
 
-        AEH::aeh->find_horizons(m_uiMesh, (const double**)eVar,
-                                m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+        AEH::ah_bah->find_horizons(m_uiMesh, (const double**)eVar,
+                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
     }
 };
 
