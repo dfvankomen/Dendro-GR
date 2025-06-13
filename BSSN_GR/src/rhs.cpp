@@ -207,12 +207,16 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     bssn::timer::t_rhs.start();
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
+   
+// clang-format off
 #ifdef BSSN_ENABLE_AVX
-#ifdef __INTEL_COMPILER
-#pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
-#pragma ivdep
+  #ifdef __INTEL_COMPILER
+    #pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
+    #pragma ivdep
+  #endif
 #endif
-#endif
+// clang-format on
+    
             for (unsigned int i = PW; i < nx - PW; i++) {
                 const double x = pmin[0] + i * hx;
                 ;
@@ -228,38 +232,40 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                     (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
                     bssn::RIT_ETA_OUTER;
 
+// clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
-#pragma message( \
-    "BSSN: enabling both SSL and CAHD, note that Rochester Gauge and ETA Function are not available currently!")
-// #include "bssn_eqns_SSL_HD.cpp"
-// #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
-#include "bssn_eqns_SSL_HDdxsq.inc.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  #pragma message( \
+    "BSSN: enabling both SSL and CAHD")
+  // #include "bssn_eqns_SSL_HD.cpp"
+  // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
+  // #include "bssn_eqns_SSL_HDdxsq.inc.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  #include "test_bssn_etaG.inc.cpp" // use eta_G exactly as LH23
 #else
-
-#pragma message( \
+  #pragma message( \
     "BSSN: SSL and HD is **NOT** enabled! Using original formalism!")
-#ifdef USE_ROCHESTER_GAUGE
-#pragma message("BSSN: using rochester gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_rochester_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_rochester_gauge.cpp"
+  #ifdef USE_ROCHESTER_GAUGE
+    #pragma message("BSSN: using rochester gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_rochester_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      #include "bssneqs_eta_const_rochester_gauge.cpp"
+    #endif
+  // else for USE_ROCHESTER_GAUGE
+  #else
+    #pragma message("BSSN: using standard gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_standard_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      #include "bssneqs_eta_const_standard_gauge.cpp"
+    #endif
+  #endif
 #endif
-// else for USE_ROCHESTER_GAUGE
-#else
-#pragma message("BSSN: using standard gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_standard_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_standard_gauge.cpp"
-#endif
-#endif
+// clang-format on
 
-#endif
             }
         }
     }
