@@ -66,8 +66,11 @@ dx_min = symbols("dx_min")  # spatial resolution of finest grid
 dendro.set_metric(gt)
 igt = dendro.get_inverse_metric()
 
-if True:
-    # default eta function
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+# set up the shift-damping eta function
+
+if False:
     eta_func = (
         R0
         * sqrt(sum([igt[i, j] * d(i, chi) * d(j, chi) for i, j in dendro.e_ij]))
@@ -161,10 +164,18 @@ def bssn_puncture_gauge(
         else:
             a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
 
-        b_rhs = [
-            (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
-            for i in dendro.e_i
-        ]
+        # shift RHS equation 
+        if False: # use auxiliary field B to evolve shift
+            b_rhs = [
+                (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
+                for i in dendro.e_i
+            ]
+        else: 
+            print("// skipping auxiliary field")
+            b_rhs = [
+                Rational(3, 4) * Gt[i] - eta_damp * b[i]
+                for i in dendro.e_i
+            ]
 
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
@@ -262,15 +273,19 @@ def bssn_puncture_gauge(
 
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
-        B_rhs = [
-            (
-                Gt_rhs[i]
-                - eta_damp * B[i]
-                + l3 * dendro.vec_j_ad_j(b, B[i])
-                - l4 * dendro.vec_j_ad_j(b, Gt[i])
-            )
-            for i in dendro.e_i
-        ]
+        # set up auxiliary field to the shift 
+        if False: # evolve B
+            B_rhs = [
+                (
+                    Gt_rhs[i]
+                    - eta_damp * B[i]
+                    + l3 * dendro.vec_j_ad_j(b, B[i])
+                    - l4 * dendro.vec_j_ad_j(b, Gt[i])
+                )
+                for i in dendro.e_i
+            ]
+        else: # keep it static
+            B_rhs = [Rational(0,1) for i in dendro.e_i] 
 
         ###################################################################
         # generate code
