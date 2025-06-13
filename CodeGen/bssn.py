@@ -801,46 +801,24 @@ def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
 
     if enable_cahd:
         print("// CODEGEN: CAHD was enabled, adding damping term to chi!")
-
-    if staged_type == "staged":
-        print("//Codgen: generating staged version ")
-        if gauge == "rochester":
-            print("//Codgen: using rochester gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, True, prefix, enable_ssl)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, True, prefix, enable_ssl)
-
-        else:
-            print("//Codgen: using standard gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, True, prefix, enable_ssl, enable_cahd)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, True, prefix, enable_ssl, enable_cahd)
-
+    
+    if eta_damp == "func":
+        print("//Codgen: using eta func damping")
+        eta_in = eta_func
     else:
-        print("//Codgen: generating unstage version ")
-        if gauge == "rochester":
-            print("//Codgen: using rochester gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, False, prefix, enable_ssl)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, False, prefix, enable_ssl)
+        print("//Codgen: using eta const damping")
+        eta_in = eta
 
-        else:
-            print("//Codgen: using standard gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, False, prefix, enable_ssl, enable_cahd)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, False, prefix, enable_ssl, enable_cahd)
+    isStaged = (staged_type == "staged")
+    if isStaged:
+        print("//Codgen: generating staged version ")
+    
+    if gauge == "rochester":
+        print("//Codgen: using rochester gauge")
+        bssn_rochester_puncture_gauge(eta_in, isStaged, prefix, enable_ssl)
+    else:
+        print("//Codgen: using standard gauge")
+        bssn_puncture_gauge(eta_in, isStaged, prefix, enable_ssl, enable_cahd)
 
 
 if __name__ == "__main__":
