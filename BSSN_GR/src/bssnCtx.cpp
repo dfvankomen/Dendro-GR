@@ -1025,9 +1025,13 @@ int BSSNCtx::restore_checkpt() {
                 if (checkPoint.find("DENDRO_BSSN_BH_MERGE") !=
                     checkPoint.end()) {
                     // restore bh merge and merge time information
-                    m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                    m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                    m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                    m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                    double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                    unsigned int mergeStep =
+                        checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                    // make sure they're set internally and externally
+                    set_bh_merge_time(mergeTime, mergeStep);
                 }
 
                 // OLD: DEPRECIATED
@@ -1097,20 +1101,20 @@ int BSSNCtx::restore_checkpt() {
 
     // first check to see if the file even exists
     if (!std::filesystem::exists(fName)) {
-      if (!rank) {
-        std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
-                  << fName << " does not exist!" << std::endl;
-      }
-      restoreStatus = 2;
+        if (!rank) {
+            std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
+                      << fName << " does not exist!" << std::endl;
+        }
+        restoreStatus = 2;
     }
 
     if (restoreStatus == 0) {
         std::ifstream infile(fName);
         if (!infile) {
-          if (!rank) {
-            std::cout << fName << " file open failed " << std::endl;
-          }
-          restoreStatus = 1;
+            if (!rank) {
+                std::cout << fName << " file open failed " << std::endl;
+            }
+            restoreStatus = 1;
         }
 
         if (restoreStatus == 0) {
@@ -1139,9 +1143,13 @@ int BSSNCtx::restore_checkpt() {
             // if this key is in, then all three keys should be
             if (checkPoint.find("DENDRO_BSSN_BH_MERGE") != checkPoint.end()) {
                 // restore bh merge and merge time information
-                m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                unsigned int mergeStep =
+                    checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                // make sure they're set internally and externally
+                set_bh_merge_time(mergeTime, mergeStep);
             }
 
             if (checkPoint.find("DENDRO_BSSN_BH_LOC_TIMES") !=
@@ -1354,16 +1362,17 @@ int BSSNCtx::post_timestep(DVec& sIn) {
 }
 
 bool BSSNCtx::is_remesh() {
-    bool isRefine = false;
-    // wkb 27 March 2025 
+    bool isRefine         = false;
+    // wkb 27 March 2025
     // if pre-merger, use AMR_FAC normally
-    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC; 
+    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC;
     // otherwise, use POST_MERGER value if non-zero
-    if (bssn::BSSN_MERGED_CHKPT_WRITTEN && (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
-      // overwrite post-merger value 
-      amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN &&
+        (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+        // overwrite post-merger value
+        amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
     }
-    
+
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;
 
     MPI_Comm comm    = m_uiMesh->getMPIGlobalCommunicator();
@@ -1387,10 +1396,9 @@ bool BSSNCtx::is_remesh() {
         };
 
     if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::WAMR) {
-        isRefine =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               amr_coarse_fac);
+        isRefine = bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar,
+                                      refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
+                                      waveletTolFunc, amr_coarse_fac);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(
@@ -1398,10 +1406,9 @@ bool BSSNCtx::is_remesh() {
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, true);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH_WAMR) {
-        const bool isR1 =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               amr_coarse_fac);
+        const bool isR1 = bssn::isReMeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
         const bool isR2 = bssn::isRemeshEH(
             m_uiMesh, (const double**)unzipVar, bssn::VAR::U_ALPHA,
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, false);
@@ -1417,10 +1424,9 @@ bool BSSNCtx::is_remesh() {
             bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
                              this->get_bh_loc_time_history());
         // WAMR for additional refinement
-        const bool isR2 =
-            bssn::addRemeshWAMR(m_uiMesh, (const double**)unzipVar,
-                                refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
-                                waveletTolFunc, amr_coarse_fac);
+        const bool isR2 = bssn::addRemeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
 
         isRefine = (isR1 || isR2);
     }
