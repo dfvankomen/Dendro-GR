@@ -67,7 +67,7 @@ dendro.set_metric(gt)
 igt = dendro.get_inverse_metric()
 
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # set up the shift-damping eta function
 
 if False:
@@ -134,48 +134,58 @@ def bssn_puncture_gauge(
             h = symbols("h_ssl")
             sig = symbols("sig_ssl")
             # set up auxiliary Bona--Masso function; f = (2/a) * g
-            if True: # default: f = 2/a
-              g = 1
-            elif False: # first-order shock-avoiding throughout
-              g = 1 - 1/2 * a + 1/3 * a**2
-            elif False: # transition from 0th to 1st post-merger
-              # read in symbols
-              bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = (
-                  symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
-              )
-              # define distance btw the BHs
-              dr = sqrt(
-                  (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
-              )  # distance between BHs
-              # set up parameters
-              T = 1 / (1 + dr**2)
-              a0f = 5/6
-              a0 = 1 - T * (1 - a0f)
-              a1 = 1 - a0
-              a2 = T * (a0 - 1/2)
-              eps = 1 - a # epsilon
-              g = (a0 + a1 * eps + a2 * eps**2)
+            if True:  # default: f = 2/a
+                g = 1
+            elif False:  # first-order shock-avoiding throughout
+                g = 1 - 1 / 2 * a + 1 / 3 * a**2
+            elif False:  # transition from 0th to 1st post-merger
+                # read in symbols
+                (
+                    bhMass1,
+                    bhMass2,
+                    bh1x,
+                    bh1y,
+                    bh1z,
+                    bh2x,
+                    bh2y,
+                    bh2z,
+                    x_grid,
+                    y_grid,
+                    z_grid,
+                ) = symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
+                # define distance btw the BHs
+                dr = sqrt(
+                    (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
+                )  # distance between BHs
+                # set up parameters
+                T = 1 / (1 + dr**2)
+                a0f = 5 / 6
+                a0 = 1 - T * (1 - a0f)
+                a1 = 1 - a0
+                a2 = T * (a0 - 1 / 2)
+                eps = 1 - a  # epsilon
+                g = a0 + a1 * eps + a2 * eps**2
             # calculate lapse evolution
             a_rhs = (
                 l1 * dendro.lie(b, a)
-                - 2 * a * g * K # g=1 returns default behavior
+                - 2 * a * g * K  # g=1 returns default behavior
                 - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
             )
         else:
             a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
 
-        # shift RHS equation 
-        if False: # use auxiliary field B to evolve shift
+        # shift RHS equation
+        if False:  # use auxiliary field B to evolve shift
             b_rhs = [
-                (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
+                (
+                    Rational(3, 4) * (lf0 + lf1 * a) * B[i]
+                    + l2 * dendro.vec_j_ad_j(b, b[i])
+                )
                 for i in dendro.e_i
             ]
-        else: 
+        else:
             print("// skipping auxiliary field")
-            b_rhs = [
-                Rational(3, 4) * Gt[i] - eta_damp * b[i]
-                for i in dendro.e_i
-            ]
+            b_rhs = [Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
 
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
@@ -183,12 +193,12 @@ def bssn_puncture_gauge(
 
         if enableCAHD:
             # turn on coarse-grid-adjusted Hamiltonian-constraint damping
-            if True: # WKB method
-              # dxsq = dx_i**2 # default; blows up for dx > 1
-              dxsq = dx_i**2 / (1 + 10 * dx_i**2) # to soften large dx
-              chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
-            else: # Etienne method
-              chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
+            if True:  # WKB method
+                # dxsq = dx_i**2 # default; blows up for dx > 1
+                dxsq = dx_i**2 / (1 + 10 * dx_i**2)  # to soften large dx
+                chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else:  # Etienne method
+                chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
@@ -273,8 +283,8 @@ def bssn_puncture_gauge(
 
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
-        # set up auxiliary field to the shift 
-        if False: # evolve B
+        # set up auxiliary field to the shift
+        if False:  # evolve B
             B_rhs = [
                 (
                     Gt_rhs[i]
@@ -284,8 +294,8 @@ def bssn_puncture_gauge(
                 )
                 for i in dendro.e_i
             ]
-        else: # keep it static
-            B_rhs = [Rational(0,1) for i in dendro.e_i] 
+        else:  # keep it static
+            B_rhs = [Rational(0, 1) for i in dendro.e_i]
 
         ###################################################################
         # generate code
@@ -364,12 +374,12 @@ def bssn_puncture_gauge(
 
         if enableCAHD:
             # turn on coarse-grid-adjusted Hamiltonian-constraint damping
-            if True: # WKB method
-              # dxsq = dx_i**2 # default; blows up for dx > 1
-              dxsq = dx_i**2 / (1 + 10 * dx_i**2) # to soften large dx
-              chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
-            else: # Etienne method
-              chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
+            if True:  # WKB method
+                # dxsq = dx_i**2 # default; blows up for dx > 1
+                dxsq = dx_i**2 / (1 + 10 * dx_i**2)  # to soften large dx
+                chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else:  # Etienne method
+                chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
@@ -816,7 +826,7 @@ def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
 
     if enable_cahd:
         print("// CODEGEN: CAHD was enabled, adding damping term to chi!")
-    
+
     if eta_damp == "func":
         print("//Codgen: using eta func damping")
         eta_in = eta_func
@@ -824,10 +834,10 @@ def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
         print("//Codgen: using eta const damping")
         eta_in = eta
 
-    isStaged = (staged_type == "staged")
+    isStaged = staged_type == "staged"
     if isStaged:
         print("//Codgen: generating staged version ")
-    
+
     if gauge == "rochester":
         print("//Codgen: using rochester gauge")
         bssn_rochester_puncture_gauge(eta_in, isStaged, prefix, enable_ssl)
