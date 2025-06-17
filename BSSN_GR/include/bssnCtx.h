@@ -352,6 +352,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         DVec& m_evar     = m_var[VL::CPU_EV];
         DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
 
+        m_uiMesh->readFromGhostBegin(m_evar.get_vec_ptr(), m_evar.get_dof());
+        m_uiMesh->readFromGhostEnd(m_evar.get_vec_ptr(), m_evar.get_dof());
+
         // force a synchronization
         this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
 
