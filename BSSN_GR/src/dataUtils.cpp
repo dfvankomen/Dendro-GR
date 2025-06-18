@@ -452,7 +452,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         // element order
         const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
         // hardcode ending ORBIT some time past merger
-        constexpr double t_ring = 50; // ringdown time
+        constexpr double t_ring = 100; // ringdown time
         // ORBIT disable time
         const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
         const double t_disable = bh_merge_time + R_GW_max + t_ring; 
@@ -547,7 +547,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double f2      = m1 / (m1 + m2);
             const double f       = std::max(f1, f2);
             const double R_orbit = f * dBH + 8;  // M; resolve scale
-            const int l_orbit    = 7;  // desired refinement level within
+            const int l_orbit    = 9;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
