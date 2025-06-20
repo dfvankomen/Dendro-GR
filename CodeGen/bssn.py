@@ -185,7 +185,10 @@ def bssn_puncture_gauge(
             ]
         else:
             print("// skipping auxiliary field")
-            b_rhs = [Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
+            # literally as in LH23: 
+            # b_rhs = [Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
+            # adding in advective derivative: 
+            b_rhs = [dendro.vec_j_ad_j(b, b[i]) + Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
 
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
