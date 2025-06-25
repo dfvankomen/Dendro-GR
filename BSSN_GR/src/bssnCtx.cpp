@@ -471,7 +471,13 @@ int BSSNCtx::initialize() {
               newGridPoints_g != oldGridPoints_g) &&
              (iterCount < max_iter));
 
+    if (!rank_global) {
+        std::cout << "Now initializing grid..." << std::endl;
+    }
     this->init_grid();
+    if (!rank_global) {
+        std::cout << GRN << "Grid initialized!" << NRM << std::endl;
+    }
 
     // // realloc bssn deriv space
     deallocate_bssn_deriv_workspace();
