@@ -361,8 +361,16 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         DendroScalar* eVar[bssn::BSSN_NUM_VARS];
         m_evar.to_2d(eVar);
 
+        std::vector<Point> bh_locations;
+
+        if (bssn::BSSN_ID_TYPE == 0 || bssn::BSSN_ID_TYPE == 1) {
+            bh_locations.push_back(bssn::BSSN_BH_LOC[0]);
+            bh_locations.push_back(bssn::BSSN_BH_LOC[1]);
+        }
+
         AEH::ah_bah->find_horizons(m_uiMesh, (const double**)eVar,
-                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
+                                   bh_locations);
     }
 };
 
