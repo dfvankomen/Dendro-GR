@@ -17,6 +17,8 @@ struct BH {
    private:
     /**@brief mass of the black hole*/
     double m_uiMass;
+    /**@brief charge of the black hole*/
+    double m_uiCharge;
     /**@brief coordinate of the black hole*/
     Point m_uiCoord;
     /**@brief */
@@ -32,6 +34,7 @@ struct BH {
     /**@brief default constructor*/
     BH() {
         m_uiMass      = 0.0;
+        m_uiCharge     = 0.0;
         m_uiCoord     = Point(0.0, 0.0, 0.0);
         m_uiV         = Point(0.0, 0.0, 0.0);
         m_uiSpin      = 0;
@@ -40,9 +43,10 @@ struct BH {
     }
 
     /**@brief constructor to BH structure*/
-    BH(double pMass, double pCx, double pCy, double pCz, double pVx, double pVy,
+    BH(double pMass,double pCharge, double pCx, double pCy, double pCz, double pVx, double pVy,
        double pVz, double pSpin, double pSpinTheta, double pSpinPhi) {
         m_uiMass      = pMass;
+        m_uiCharge    = pCharge;
         m_uiCoord     = Point(pCx, pCy, pCz);
         m_uiV         = Point(pVx, pVy, pVz);
         m_uiSpin      = pSpin;
@@ -52,6 +56,8 @@ struct BH {
 
     /**@brief returns mass*/
     inline double getBHMass() const { return m_uiMass; }
+    /** @brief returns BH Charge*/
+    inline double getBHCharge() const { return m_uiCharge; }
     /** @brief returns BH coordinates*/
     inline Point getBHCoord() const { return m_uiCoord; }
     /**@brief returns BH x coordinate*/

@@ -70,3 +70,42 @@ ko_deriv_z(grad_2_B1, B1, hz, sz, bflag);
 ko_deriv_x(grad_0_B2, B2, hx, sz, bflag);
 ko_deriv_y(grad_1_B2, B2, hy, sz, bflag);
 ko_deriv_z(grad_2_B2, B2, hz, sz, bflag);
+// KO derivatives for DampPsi
+ko_deriv_x(grad_0_DampPsi, DampPsi, hx, sz, bflag);
+ko_deriv_y(grad_1_DampPsi, DampPsi, hy, sz, bflag);
+ko_deriv_z(grad_2_DampPsi, DampPsi, hz, sz, bflag);
+
+// KO derivatives for DampPhi
+ko_deriv_x(grad_0_DampPhi, DampPhi, hx, sz, bflag);
+ko_deriv_y(grad_1_DampPhi, DampPhi, hy, sz, bflag);
+ko_deriv_z(grad_2_DampPhi, DampPhi, hz, sz, bflag);
+
+// KO derivatives for PerpE0
+ko_deriv_x(grad_0_PerpE0, PerpE0, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpE0, PerpE0, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpE0, PerpE0, hz, sz, bflag);
+
+// KO derivatives for PerpE1
+ko_deriv_x(grad_0_PerpE1, PerpE1, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpE1, PerpE1, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpE1, PerpE1, hz, sz, bflag);
+
+// KO derivatives for PerpE2
+ko_deriv_x(grad_0_PerpE2, PerpE2, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpE2, PerpE2, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpE2, PerpE2, hz, sz, bflag);
+
+// KO derivatives for PerpB0
+ko_deriv_x(grad_0_PerpB0, PerpB0, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpB0, PerpB0, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpB0, PerpB0, hz, sz, bflag);
+
+// KO derivatives for PerpB1
+ko_deriv_x(grad_0_PerpB1, PerpB1, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpB1, PerpB1, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpB1, PerpB1, hz, sz, bflag);
+
+// KO derivatives for PerpB2
+ko_deriv_x(grad_0_PerpB2, PerpB2, hx, sz, bflag);
+ko_deriv_y(grad_1_PerpB2, PerpB2, hy, sz, bflag);
+ko_deriv_z(grad_2_PerpB2, PerpB2, hz, sz, bflag);

@@ -105,6 +105,15 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double *const B0    = &uZipVars[VAR::U_B0][offset];
     const double *const B1    = &uZipVars[VAR::U_B1][offset];
     const double *const B2    = &uZipVars[VAR::U_B2][offset];
+    const double *const PerpB0    = &uZipVars[VAR::U_PERP_B0][offset];
+    const double *const PerpB1    = &uZipVars[VAR::U_PERP_B1][offset];
+    const double *const PerpB2    = &uZipVars[VAR::U_PERP_B2][offset];
+    const double *const PerpE0    = &uZipVars[VAR::U_PERP_E0][offset];
+    const double *const PerpE1    = &uZipVars[VAR::U_PERP_E1][offset];
+    const double *const PerpE2    = &uZipVars[VAR::U_PERP_E2][offset];
+    const double *const DampPhi    = &uZipVars[VAR::U_DAMP_PHI][offset];
+    const double *const DampPsi    = &uZipVars[VAR::U_DAMP_PSI][offset];
+
 
     double *const a_rhs       = &unzipVarsRHS[VAR::U_ALPHA][offset];
     double *const chi_rhs     = &unzipVarsRHS[VAR::U_CHI][offset];
@@ -130,16 +139,23 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     double *const B_rhs0      = &unzipVarsRHS[VAR::U_B0][offset];
     double *const B_rhs1      = &unzipVarsRHS[VAR::U_B1][offset];
     double *const B_rhs2      = &unzipVarsRHS[VAR::U_B2][offset];
-
+    double *const PerpB_rhs0      = &unzipVarsRHS[VAR::U_PERP_B0][offset];
+    double *const PerpB_rhs1      = &unzipVarsRHS[VAR::U_PERP_B1][offset];
+    double *const PerpB_rhs2      = &unzipVarsRHS[VAR::U_PERP_B2][offset];
+    double *const PerpE_rhs0      = &unzipVarsRHS[VAR::U_PERP_E0][offset];
+    double *const PerpE_rhs1      = &unzipVarsRHS[VAR::U_PERP_E1][offset];
+    double *const PerpE_rhs2      = &unzipVarsRHS[VAR::U_PERP_E2][offset];
+    double *const DampPsi_rhs     = &unzipVarsRHS[VAR::U_DAMP_PSI][offset];
+    double *const DampPhi_rhs      = &unzipVarsRHS[VAR::U_DAMP_PHI][offset];
     // then the constraints (should be optimized out if not called)
     const double *const ham   = &uZipConstVars[VAR_CONSTRAINT::C_HAM][offset];
     const double *const mom0  = &uZipConstVars[VAR_CONSTRAINT::C_MOM0][offset];
     const double *const mom1  = &uZipConstVars[VAR_CONSTRAINT::C_MOM1][offset];
     const double *const mom2  = &uZipConstVars[VAR_CONSTRAINT::C_MOM2][offset];
-    const double *const psi4_real =
-        &uZipConstVars[VAR_CONSTRAINT::C_PSI4_REAL][offset];
-    const double *const psi4_img =
-        &uZipConstVars[VAR_CONSTRAINT::C_PSI4_IMG][offset];
+    const double *const psi4_real =&uZipConstVars[VAR_CONSTRAINT::C_PSI4_REAL][offset];
+    const double *const psi4_img =&uZipConstVars[VAR_CONSTRAINT::C_PSI4_IMG][offset];
+    const double *const divE =&uZipConstVars[VAR_CONSTRAINT::C_DIVE][offset];
+    const double *const divB =&uZipConstVars[VAR_CONSTRAINT::C_DIVB][offset];
 
     mem::memory_pool<double> *__mem_pool = &BSSN_MEM_POOL;
 
@@ -285,6 +301,37 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                  0.0, sz, bflag);
         bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin, pmax, 1.0,
                  0.0, sz, bflag);
+        // Boundary conditions for DampPsi
+        bssn_bcs(DampPsi_rhs, DampPsi, grad_0_DampPsi, grad_1_DampPsi, grad_2_DampPsi,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for DampPhi
+        bssn_bcs(DampPhi_rhs, DampPhi, grad_0_DampPhi, grad_1_DampPhi, grad_2_DampPhi,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE0
+        bssn_bcs(PerpE_rhs0, PerpE0, grad_0_PerpE0, grad_1_PerpE0, grad_2_PerpE0,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE1
+        bssn_bcs(PerpE_rhs1, PerpE1, grad_0_PerpE1, grad_1_PerpE1, grad_2_PerpE1,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE2
+        bssn_bcs(PerpE_rhs2, PerpE2, grad_0_PerpE2, grad_1_PerpE2, grad_2_PerpE2,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB0
+        bssn_bcs(PerpB_rhs0, PerpB0, grad_0_PerpB0, grad_1_PerpB0, grad_2_PerpB0,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB1
+        bssn_bcs(PerpB_rhs1, PerpB1, grad_0_PerpB1, grad_1_PerpB1, grad_2_PerpB1,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB2
+        bssn_bcs(PerpB_rhs2, PerpB2, grad_0_PerpB2, grad_1_PerpB2, grad_2_PerpB2,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
 
         bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0, pmin, pmax,
                  2.0, 0.0, sz, bflag);
@@ -472,6 +519,32 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                         sigma * (grad_0_B1[pp] + grad_1_B1[pp] + grad_2_B1[pp]);
                     B_rhs2[pp] +=
                         sigma * (grad_0_B2[pp] + grad_1_B2[pp] + grad_2_B2[pp]);
+                    
+                 // KO dissipation for DampPsi
+                DampPsi_rhs[pp] += sigma * (grad_0_DampPsi[pp] + grad_1_DampPsi[pp] + grad_2_DampPsi[pp]);
+
+                // KO dissipation for DampPhi
+                DampPhi_rhs[pp] += sigma * (grad_0_DampPhi[pp] + grad_1_DampPhi[pp] + grad_2_DampPhi[pp]);
+
+                // KO dissipation for PerpE0
+                PerpE_rhs0[pp] += sigma * (grad_0_PerpE0[pp] + grad_1_PerpE0[pp] + grad_2_PerpE0[pp]);
+
+                // KO dissipation for PerpE1
+                PerpE_rhs1[pp] += sigma * (grad_0_PerpE1[pp] + grad_1_PerpE1[pp] + grad_2_PerpE1[pp]);
+
+                // KO dissipation for PerpE2
+                PerpE_rhs2[pp] += sigma * (grad_0_PerpE2[pp] + grad_1_PerpE2[pp] + grad_2_PerpE2[pp]);
+
+                // KO dissipation for PerpB0
+                PerpB_rhs0[pp] += sigma * (grad_0_PerpB0[pp] + grad_1_PerpB0[pp] + grad_2_PerpB0[pp]);
+
+                // KO dissipation for PerpB1
+                PerpB_rhs1[pp] += sigma * (grad_0_PerpB1[pp] + grad_1_PerpB1[pp] + grad_2_PerpB1[pp]);
+
+                // KO dissipation for PerpB2
+                PerpB_rhs2[pp] += sigma * (grad_0_PerpB2[pp] + grad_1_PerpB2[pp] + grad_2_PerpB2[pp]);
+
+
                 }
             }
         }

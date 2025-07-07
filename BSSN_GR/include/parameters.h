@@ -28,10 +28,10 @@ extern unsigned int BSSN_ELE_ORDER;
 extern unsigned int BSSN_PADDING_WIDTH;
 
 /**@brief number of variables*/
-static const unsigned int BSSN_NUM_VARS            = 24;
+static const unsigned int BSSN_NUM_VARS            = 32;
 
 /**@brief number of constraints variables*/
-static const unsigned int BSSN_CONSTRAINT_NUM_VARS = 6;
+static const unsigned int BSSN_CONSTRAINT_NUM_VARS = 8;
 
 /***@brief number of RK45 stages*/
 static const unsigned int BSSN_RK45_STAGES         = 6;
@@ -174,8 +174,13 @@ extern double BSSN_AMR_R_RATIO;
 /**@brief: BH Mass. (BH1)*/
 extern double BSSN_BH1_MASS;
 
+/**@brief: BH CHARGE. (BH1)*/
+extern double BSSN_BH1_CHARGE;
+
 /**@brief: BH Mass. (BH2)*/
 extern double BSSN_BH2_MASS;
+/**@brief: BH CHARGE. (BH1)*/
+extern double BSSN_BH2_CHARGE;
 
 /**@brief: skip grid point distance from bh < BSSN_BH1_CONSTRAINT_R when
  * computing the constraint norms for BH1*/
@@ -390,9 +395,9 @@ extern double BSSN_SSL_H;
 
 // note ko derivs are not included
 #ifdef BSSN_USE_ADVECTIVE_DERIVS
-const unsigned int BSSN_NUM_DERIVS = 138 + 74;
+const unsigned int BSSN_NUM_DERIVS = 162 + 111;
 #else
-const unsigned int BSSN_NUM_DERIVS = 138;
+const unsigned int BSSN_NUM_DERIVS = 162;
 #endif
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);

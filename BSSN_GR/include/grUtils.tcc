@@ -139,7 +139,7 @@ template <typename T>
 double extractConstraints(const ot::Mesh* mesh, const T** constraintVar,
                           const T* maskVec, double maskthreshoold,
                           unsigned int timestep, double stime) {
-    const unsigned int numConstraints = 4;
+    const unsigned int numConstraints = 6;
     double constraintMaskedL2[numConstraints];  // remove the psi4
 
     unsigned int rankGlobal = mesh->getMPIRankGlobal();
@@ -170,12 +170,15 @@ double extractConstraints(const ot::Mesh* mesh, const T** constraintVar,
             fileGW.open(fName, std::ofstream::app);
             // writes the header
             if (timestep == 0)
-                fileGW << "TimeStep\t"
-                       << " time\t"
-                       << " C_HAM\t"
-                       << " C_MOM0\t"
-                       << " C_MOM1\t"
-                       << " C_MOM2\t" << std::endl;
+            fileGW << "TimeStep\t"
+                << " time\t"
+                << " C_HAM\t"
+                << " C_MOM0\t"
+                << " C_MOM1\t"
+                << " C_MOM2\t"
+                << " C_DIVE\t"
+                << " C_DIVB\t" << std::endl;
+
 
             fileGW << timestep << "\t" << stime << "\t" << constraintMaskedL2[0]
                    << "\t" << constraintMaskedL2[1] << "\t"

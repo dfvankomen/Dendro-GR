@@ -74,6 +74,9 @@ double BSSN_BH2_CONSTRAINT_R = 5.0;
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
 
+double BSSN_BH1_CHARGE;
+double BSSN_BH2_CHARGE;
+
 unsigned int BSSN_BH1_MAX_LEV;
 unsigned int BSSN_BH2_MAX_LEV;
 
@@ -144,15 +147,15 @@ double BSSN_DENDRO_AMR_FAC                               = 0.1;
 unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,24,25,26,27,28,29,30,31};
 
 unsigned int BSSN_NUM_EVOL_VARS_VTU_OUTPUT               = 1;
 unsigned int BSSN_NUM_CONST_VARS_VTU_OUTPUT              = 1;
 unsigned int BSSN_VTU_OUTPUT_EVOL_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,24,25,26,27,28,29,30,31};
 unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[BSSN_CONSTRAINT_NUM_VARS] = {
-    0, 1, 2, 3, 4, 5};
+    0, 1, 2, 3, 4, 5,6,7};
 
 unsigned int BSSN_XI[3]                         = {0, 0, 0};
 
@@ -236,6 +239,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_MAXDEPTH   = parFile["BSSN_MAXDEPTH"].as_integer();
 
     bssn::BH1             = BH(parFile["BSSN_BH1"]["MASS"].as_floating(),
+                               parFile["BSSN_BH1"]["CHARGE"].as_floating(),
                                parFile["BSSN_BH1"]["X"].as_floating(),
                                parFile["BSSN_BH1"]["Y"].as_floating(),
                                parFile["BSSN_BH1"]["Z"].as_floating(),
@@ -246,6 +250,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
                                parFile["BSSN_BH1"]["SPIN_THETA"].as_floating(),
                                parFile["BSSN_BH1"]["SPIN_PHI"].as_floating());
     bssn::BH2             = BH(parFile["BSSN_BH2"]["MASS"].as_floating(),
+                               parFile["BSSN_BH2"]["CHARGE"].as_floating(),
                                parFile["BSSN_BH2"]["X"].as_floating(),
                                parFile["BSSN_BH2"]["Y"].as_floating(),
                                parFile["BSSN_BH2"]["Z"].as_floating(),
@@ -582,6 +587,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         Point(BH2.getBHCoordX(), BH2.getBHCoordY(), BH2.getBHCoordZ());
     bssn::BSSN_BH1_MASS = BH1.getBHMass();
     bssn::BSSN_BH2_MASS = BH2.getBHMass();
+    bssn::BSSN_BH1_CHARGE = BH1.getBHCharge();
+    bssn::BSSN_BH2_CHARGE = BH2.getBHCharge();
 
     // AH parameters
     if (parFile.contains("AEH_LMAX"))

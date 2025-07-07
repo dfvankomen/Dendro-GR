@@ -14,7 +14,7 @@ from sympy import *
 
 l1, l2, l3, l4, eta = symbols("lambda[0] lambda[1] lambda[2] lambda[3] eta")
 lf0, lf1 = symbols("lambda_f[0] lambda_f[1]")
-
+kappa = symbols("kappa")
 # Additional parameters for damping term
 R0 = symbols("BSSN_ETA_R0")
 ep1, ep2 = symbols("BSSN_ETA_POWER[0] BSSN_ETA_POWER[1]")
@@ -35,9 +35,24 @@ At = dendro.sym_3x3("At", "[pp]")
 
 Gt_rhs = dendro.vec3("Gt_rhs", "[pp]")
 
+PerpE = dendro.vec3("PerpE", "[pp]")
+
+PerpB = dendro.vec3("PerpB", "[pp]")
+
+DampPsi = dendro.scalar("DampPsi", "[pp]")
+
+DampPhi =dendro.scalar("DampPhi", "[pp]")
+
 # Lie derivative weight
 weight = -Rational(2, 3)
 weight_Gt = Rational(2, 3)
+
+# standard Levi-Civita symbol
+leviCivita = [
+    [[0, 0, 0], [0, 0, 1], [0, -1, 0]],
+    [[0, 0, -1], [0, 0, 0], [1, 0, 0]],
+    [[0, 1, 0], [-1, 0, 0], [0, 0, 0]],
+]
 
 # specify the functions for computing first and second derivatives
 
@@ -83,7 +98,51 @@ def bssn_puncture_gauge(
     """
     BSSN puncture gauge (HAD/ traditional BSSN puncture gaugue) with const eta damping
     """
+    rho = (
+    1 / (8 * pi)
+    * sum(
+        sum(
+            PerpE[i] * PerpE[j] * gt[i, j] + PerpB[i] * PerpB[j] * gt[i, j]
+            for i in dendro.e_i
+        )
+        for j in dendro.e_i
+    )
+    / chi
+)
 
+    J = Matrix([
+        1 / (4 * pi)
+        * (chi) ** Rational(-1, 2)
+        * sum(
+            leviCivita[i][j][k]
+            * gt[j, l] * PerpE[l]
+            * gt[k, m] * PerpB[m]
+            for j in dendro.e_i
+            for k in dendro.e_i
+            for l in dendro.e_i
+            for m in dendro.e_i
+        )
+        for i in dendro.e_i
+    ])
+
+
+    PerpT =PerpT = Matrix([
+    (1 / (4 * pi)) * (1 / chi**2) * (
+        - sum(PerpE[l] * gt[l, i] for l in dendro.e_i)
+          * sum(PerpE[m] * gt[m, j] for m in dendro.e_i)
+        - sum(PerpB[l] * gt[l, i] for l in dendro.e_i)
+          * sum(PerpB[m] * gt[m, j] for m in dendro.e_i)
+        + Rational(1, 2) * gt[i, j] * sum(
+            (PerpE[p] * PerpE[q] + PerpB[p] * PerpB[q]) * gt[p, q]
+            for p in dendro.e_i
+            for q in dendro.e_i
+        )
+    )
+    for i, j in dendro.e_ij
+]).reshape(3, 3)
+
+
+    PerpTTrace= sum(sum(igt[i,j]*PerpT[i,j]for i in dendro.e_i )for j in dendro.e_i) * chi
     if not isStaged:
         C1 = dendro.get_first_christoffel()
         C2 = dendro.get_second_christoffel()
@@ -143,12 +202,13 @@ def bssn_puncture_gauge(
             dendro.lie(b, At, weight)
             + chi * dendro.trace_free(a * R - dendro.DiDj(a))
             + a * (K * At - 2 * AikAkj.reshape(3, 3))
-        )
+        ) - 8 *pi*a* (chi* PerpT - Rational(1,3)*PerpTTrace* gt)
 
         K_rhs = (
             dendro.lie(b, K)
             - dendro.laplacian(a, chi)
             + a * (K * K / 3 + dendro.sqr(At))
+            + 4 * pi * (rho + PerpTTrace)
         )
 
         At_UU = dendro.up_up(At)
@@ -205,7 +265,12 @@ def bssn_puncture_gauge(
                     for i in dendro.e_i
                 ]
             )
-        )
+            
+                -Matrix([
+                16 * pi * a / chi * J[i]
+                for i in dendro.e_i
+                ])
+        ) 
 
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
@@ -218,12 +283,56 @@ def bssn_puncture_gauge(
             )
             for i in dendro.e_i
         ]
+        PerpE_rhs = [
+                dendro.lie(b, PerpE, weight)[i]
+                + a * K * PerpE[i]
+                + pow(chi, 0.5) * sum(
+                leviCivita[i][j][k] * (
+                sum(gt[k, l] * PerpB[l] for l in dendro.e_i) * d(j, a)
+                + a * sum(PerpB[l] * d(j, gt[k, l]) for l in dendro.e_i)
+                + sum(gt[k, l] * d(j, PerpB[l]) for l in dendro.e_i)
+                - sum((gt[k, l] / chi) * PerpB[l] * d(j, chi) for l in dendro.e_i)
+                )
+                for j in dendro.e_i
+                for k in dendro.e_i
+                )
+                - a * chi * sum(igt[i, j] * d(j, DampPsi) for j in dendro.e_i)
+                for i in dendro.e_i]
+
+
+        PerpB_rhs =[
+            dendro.lie(b, PerpB, weight)[i] + a * K * PerpB[i]
+            - pow(chi, 0.5) * sum(
+                leviCivita[i][j][k] * (
+                    sum(gt[k, l] * PerpE[l] for l in dendro.e_i) * d(j, a)
+                    + a * sum(PerpE[l] * d(j, gt[k, l]) for l in dendro.e_i)
+                    + sum(gt[k, l] * d(j, PerpE[l]) for l in dendro.e_i)
+                    - sum((gt[k, l] / chi) * PerpE[l] * d(j, chi) for l in dendro.e_i)
+                )
+                for j in dendro.e_i
+                for k in dendro.e_i
+            )
+            - a * chi * sum(igt[i, j] * d(j, DampPhi) for j in dendro.e_i)
+            for i in dendro.e_i
+        ]
+
+        DampPhi_rhs = (
+            dendro.lie(b, DampPhi, weight)
+            - a * sum(d(i, PerpB[i]) for i in dendro.e_i)
+            - a * kappa * DampPhi
+        )
+
+        DampPsi_rhs = (
+            dendro.lie(b, DampPsi, weight)
+            - a * sum(d(i, PerpE[i]) for i in dendro.e_i)
+            - a * kappa * DampPsi
+        )
 
         ###################################################################
         # generate code
         ###################################################################
 
-        outs = [a_rhs, b_rhs, gt_rhs, chi_rhs, At_rhs, K_rhs, Gt_rhs, B_rhs]
+        outs = [a_rhs, b_rhs, gt_rhs, chi_rhs, At_rhs, K_rhs, Gt_rhs, B_rhs, PerpE_rhs, PerpB_rhs, DampPhi_rhs, DampPsi_rhs ]
         vnames = [
             "a_rhs",
             "b_rhs",
@@ -233,6 +342,10 @@ def bssn_puncture_gauge(
             "K_rhs",
             "Gt_rhs",
             "B_rhs",
+            "PerpE_rhs",
+            "PerpB_rhs",
+            "DampPhi_rhs",
+            "DampPsi_rhs",
         ]
         dendro.generate_cpu(outs, vnames, "[pp]")
 

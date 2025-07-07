@@ -109,6 +109,19 @@ void bssnrhs_cpu(DEVICE_REAL* const Fu, const DEVICE_REAL* const u,
         const DEVICE_REAL* const B1 = &u[bssn::VAR::U_B1 * sz_per_dof + offset];
         const DEVICE_REAL* const B2 = &u[bssn::VAR::U_B2 * sz_per_dof + offset];
 
+        const DEVICE_REAL* const perp_B0 = &u[bssn::VAR::U_PERP_B0 * sz_per_dof + offset];
+        const DEVICE_REAL* const perp_B1 = &u[bssn::VAR::U_PERP_B1 * sz_per_dof + offset];
+        const DEVICE_REAL* const perp_B2 = &u[bssn::VAR::U_PERP_B2 * sz_per_dof + offset];
+
+        const DEVICE_REAL* const perp_E0 = &u[bssn::VAR::U_PERP_E0 * sz_per_dof + offset];
+        const DEVICE_REAL* const perp_E1 = &u[bssn::VAR::U_PERP_E1 * sz_per_dof + offset];
+        const DEVICE_REAL* const perp_E2 = &u[bssn::VAR::U_PERP_E2 * sz_per_dof + offset];
+
+        const DEVICE_REAL* const DampingPsi =
+            &u[bssn::VAR::U_DAMP_PSI * sz_per_dof + offset];
+           const DEVICE_REAL* const DampingPhi =
+            &u[bssn::VAR::U_DAMP_PHI * sz_per_dof + offset];
+
         DEVICE_REAL* const a_rhs =
             &Fu[bssn::VAR::U_ALPHA * sz_per_dof + offset];
         DEVICE_REAL* const chi_rhs =
@@ -153,6 +166,19 @@ void bssnrhs_cpu(DEVICE_REAL* const Fu, const DEVICE_REAL* const u,
         DEVICE_REAL* const B_rhs0 = &Fu[bssn::VAR::U_B0 * sz_per_dof + offset];
         DEVICE_REAL* const B_rhs1 = &Fu[bssn::VAR::U_B1 * sz_per_dof + offset];
         DEVICE_REAL* const B_rhs2 = &Fu[bssn::VAR::U_B2 * sz_per_dof + offset];
+
+        DEVICE_REAL* const PerpB_rhs0 = &Fu[bssn::VAR::U_PERP_B0 * sz_per_dof + offset];
+        DEVICE_REAL* const PerpB_rhs1 = &Fu[bssn::VAR::U_PERP_B1 * sz_per_dof + offset];
+        DEVICE_REAL* const PerpB_rhs2 = &Fu[bssn::VAR::U_PERP_B2 * sz_per_dof + offset];
+
+        DEVICE_REAL* const PerpE_rhs0 = &Fu[bssn::VAR::U_PERP_E0 * sz_per_dof + offset];
+        DEVICE_REAL* const PerpE_rhs1 = &Fu[bssn::VAR::U_PERP_E1 * sz_per_dof + offset];
+        DEVICE_REAL* const PerpE_rhs2 = &Fu[bssn::VAR::U_PERP_E2 * sz_per_dof + offset];
+
+        DEVICE_REAL* const DampingPsi_rhs =
+            &Fu[bssn::VAR::U_DAMP_PSI * sz_per_dof + offset];
+        DEVICE_REAL* const DampingPhi_rhs =
+            &Fu[bssn::VAR::U_DAMP_PHI * sz_per_dof + offset];
 
         const unsigned int nx     = blk[BLK_ID].m_aligned_sz[0];
         const unsigned int ny     = blk[BLK_ID].m_aligned_sz[1];
@@ -269,6 +295,37 @@ void bssnrhs_cpu(DEVICE_REAL* const Fu, const DEVICE_REAL* const u,
                      pmax, 1.0, 0.0, sz, bflag);
             bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin,
                      pmax, 1.0, 1.0, sz, bflag);
+                  // Boundary conditions for DampPsi
+        bssn_bcs(DampPsi_rhs, DampPsi, grad_0_DampPsi, grad_1_DampPsi, grad_2_DampPsi,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for DampPhi
+        bssn_bcs(DampPhi_rhs, DampPhi, grad_0_DampPhi, grad_1_DampPhi, grad_2_DampPhi,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE0
+        bssn_bcs(PerpE_rhs0, PerpE0, grad_0_PerpE0, grad_1_PerpE0, grad_2_PerpE0,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE1
+        bssn_bcs(PerpE_rhs1, PerpE1, grad_0_PerpE1, grad_1_PerpE1, grad_2_PerpE1,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpE2
+        bssn_bcs(PerpE_rhs2, PerpE2, grad_0_PerpE2, grad_1_PerpE2, grad_2_PerpE2,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB0
+        bssn_bcs(PerpB_rhs0, PerpB0, grad_0_PerpB0, grad_1_PerpB0, grad_2_PerpB0,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB1
+        bssn_bcs(PerpB_rhs1, PerpB1, grad_0_PerpB1, grad_1_PerpB1, grad_2_PerpB1,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
+
+        // Boundary conditions for PerpB2
+        bssn_bcs(PerpB_rhs2, PerpB2, grad_0_PerpB2, grad_1_PerpB2, grad_2_PerpB2,
+                pmin, pmax, 1.0, 0.0, sz, bflag);
         }
 
 #include "../../BSSN_GR/scripts/bssnrhs_ko_derivs.h"
@@ -282,7 +339,29 @@ void bssnrhs_cpu(DEVICE_REAL* const Fu, const DEVICE_REAL* const u,
 #pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
 #pragma ivdep
 #endif
-#endif
+#endif                DampPsi_rhs[pp] += sigma * (grad_0_DampPsi[pp] + grad_1_DampPsi[pp] + grad_2_DampPsi[pp]);
+
+                // KO dissipation for DampPhi
+                DampPhi_rhs[pp] += sigma * (grad_0_DampPhi[pp] + grad_1_DampPhi[pp] + grad_2_DampPhi[pp]);
+
+                // KO dissipation for PerpE0
+                PerpE_rhs0[pp] += sigma * (grad_0_PerpE0[pp] + grad_1_PerpE0[pp] + grad_2_PerpE0[pp]);
+
+                // KO dissipation for PerpE1
+                PerpE_rhs1[pp] += sigma * (grad_0_PerpE1[pp] + grad_1_PerpE1[pp] + grad_2_PerpE1[pp]);
+
+                // KO dissipation for PerpE2
+                PerpE_rhs2[pp] += sigma * (grad_0_PerpE2[pp] + grad_1_PerpE2[pp] + grad_2_PerpE2[pp]);
+
+                // KO dissipation for PerpB0
+                PerpB_rhs0[pp] += sigma * (grad_0_PerpB0[pp] + grad_1_PerpB0[pp] + grad_2_PerpB0[pp]);
+
+                // KO dissipation for PerpB1
+                PerpB_rhs1[pp] += sigma * (grad_0_PerpB1[pp] + grad_1_PerpB1[pp] + grad_2_PerpB1[pp]);
+
+                // KO dissipation for PerpB2
+                PerpB_rhs2[pp] += sigma * (grad_0_PerpB2[pp] + grad_1_PerpB2[pp] + grad_2_PerpB2[pp]);
+
                 for (unsigned int i = PW; i < a_nx - PW; i++) {
                     const unsigned int pp = i + nx * (j + ny * k);
 
@@ -340,6 +419,29 @@ void bssnrhs_cpu(DEVICE_REAL* const Fu, const DEVICE_REAL* const u,
                         sigma * (grad_0_B1[pp] + grad_1_B1[pp] + grad_2_B1[pp]);
                     B_rhs2[pp] +=
                         sigma * (grad_0_B2[pp] + grad_1_B2[pp] + grad_2_B2[pp]);
+                                DampPsi_rhs[pp] += sigma * (grad_0_DampPsi[pp] + grad_1_DampPsi[pp] + grad_2_DampPsi[pp]);
+
+                // KO dissipation for DampPhi
+                DampPhi_rhs[pp] += sigma * (grad_0_DampPhi[pp] + grad_1_DampPhi[pp] + grad_2_DampPhi[pp]);
+
+                // KO dissipation for PerpE0
+                PerpE_rhs0[pp] += sigma * (grad_0_PerpE0[pp] + grad_1_PerpE0[pp] + grad_2_PerpE0[pp]);
+
+                // KO dissipation for PerpE1
+                PerpE_rhs1[pp] += sigma * (grad_0_PerpE1[pp] + grad_1_PerpE1[pp] + grad_2_PerpE1[pp]);
+
+                // KO dissipation for PerpE2
+                PerpE_rhs2[pp] += sigma * (grad_0_PerpE2[pp] + grad_1_PerpE2[pp] + grad_2_PerpE2[pp]);
+
+                // KO dissipation for PerpB0
+                PerpB_rhs0[pp] += sigma * (grad_0_PerpB0[pp] + grad_1_PerpB0[pp] + grad_2_PerpB0[pp]);
+
+                // KO dissipation for PerpB1
+                PerpB_rhs1[pp] += sigma * (grad_0_PerpB1[pp] + grad_1_PerpB1[pp] + grad_2_PerpB1[pp]);
+
+                // KO dissipation for PerpB2
+                PerpB_rhs2[pp] += sigma * (grad_0_PerpB2[pp] + grad_1_PerpB2[pp] + grad_2_PerpB2[pp]);
+
                 }
             }
         }

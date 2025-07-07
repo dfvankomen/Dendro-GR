@@ -107,14 +107,14 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_MAXDEPTH            = parFile["BSSN_MAXDEPTH"];
 
     bssn::BH1                      = BH(
-        (double)parFile["BSSN_BH1"]["MASS"], (double)parFile["BSSN_BH1"]["X"],
+        (double)parFile["BSSN_BH1"]["MASS"],(double)parFile["BSSN_BH1"]["CHARGE"], (double)parFile["BSSN_BH1"]["X"],
         (double)parFile["BSSN_BH1"]["Y"], (double)parFile["BSSN_BH1"]["Z"],
         (double)parFile["BSSN_BH1"]["V_X"], (double)parFile["BSSN_BH1"]["V_Y"],
         (double)parFile["BSSN_BH1"]["V_Z"], (double)parFile["BSSN_BH1"]["SPIN"],
         (double)parFile["BSSN_BH1"]["SPIN_THETA"],
         (double)parFile["BSSN_BH1"]["SPIN_PHI"]);
     bssn::BH2 = BH(
-        (double)parFile["BSSN_BH2"]["MASS"], (double)parFile["BSSN_BH2"]["X"],
+        (double)parFile["BSSN_BH2"]["MASS"],(double)parFile["BSSN_BH2"]["CHARGE"], (double)parFile["BSSN_BH2"]["X"],
         (double)parFile["BSSN_BH2"]["Y"], (double)parFile["BSSN_BH2"]["Z"],
         (double)parFile["BSSN_BH2"]["V_X"], (double)parFile["BSSN_BH2"]["V_Y"],
         (double)parFile["BSSN_BH2"]["V_Z"], (double)parFile["BSSN_BH2"]["SPIN"],
@@ -595,6 +595,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
 
         sout << YLW << "\tBH1 MASS :" << bssn::BH1.getBHMass() << NRM
              << std::endl;
+        sout << YLW << "\tBH1 CHARGE :" << bssn::BH1.getBHCharge() << NRM
+             << std::endl;
         sout << YLW << "\tBH1 POSITION (x,y,z) : (" << bssn::BH1.getBHCoordX()
              << ", " << bssn::BH1.getBHCoordY() << ", "
              << bssn::BH1.getBHCoordZ() << " )" << NRM << std::endl;
@@ -606,6 +608,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << bssn::BH1.getBHSpinPhi() << " )" << NRM << std::endl;
 
         sout << YLW << "\tBH2 MASS :" << bssn::BH2.getBHMass() << NRM
+             << std::endl;
+              sout << YLW << "\tBH1 CHARGE :" << bssn::BH2.getBHCharge() << NRM
              << std::endl;
         sout << YLW << "\tBH2 POSITION (x,y,z) : (" << bssn::BH2.getBHCoordX()
              << ", " << bssn::BH2.getBHCoordY() << ", "
@@ -849,6 +853,11 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
         case 6:
             // minkowski initial data is flat space!
             bssn::kerrData(xx_grid, yy_grid, zz_grid, var);
+
+            break;
+        case 7:
+            // minkowski initial data is flat space!
+            bssn::KerrNewmanData(xx_grid, yy_grid, zz_grid, var);
 
             break;
             // MORE CAN BE ADDED HERE
@@ -1224,6 +1233,40 @@ void kerrData(const double xx1, const double yy1, const double zz1,
     double Chi, TrK, Betau[3];
 
 #include "Kerr.cpp"
+#include "kerr_vars.cpp"
+}
+
+void KerrNewmanData(const double xx1, const double yy1, const double zz1,
+              double* var) {
+    const double xx = GRIDX_TO_X(xx1);
+    const double yy = GRIDY_TO_Y(yy1);
+    const double zz = GRIDZ_TO_Z(zz1);
+
+    // parameters for the BH (mass, location, spin parameter)
+    double M        = BH1.getBHMass();
+    double MQ       = BH1.getBHCharge();
+    double bh1x     = BH1.getBHCoordX();
+    double bh1y     = BH1.getBHCoordY();
+    double bh1z     = BH1.getBHCoordZ();
+    double spin1    = BH1.getBHSpin();
+
+    // coordinates relative to the center of the BH
+    double x        = xx - bh1x;
+    double y        = yy - bh1y;
+    double z        = zz - bh1z;
+
+    // locating as a radial form
+    double r        = sqrt(x * x + y * y + z * z);
+
+    // HL : Angular momentum parameter will be added as param file after
+    // testing
+    double a        = spin1;
+
+    double gtd[3][3], Atd[3][3];
+    double alpha, Gamt[3];
+    double Chi, TrK, Betau[3];
+
+#include "KerrNewman.cpp"
 #include "kerr_vars.cpp"
 }
 

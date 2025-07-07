@@ -136,3 +136,43 @@ __mem_pool->free(grad2_0_2_beta2);
 __mem_pool->free(grad2_1_1_beta2);
 __mem_pool->free(grad2_1_2_beta2);
 __mem_pool->free(grad2_2_2_beta2);
+
+// Free first derivatives of DampPsi
+__mem_pool->free(grad_0_DampPsi);
+__mem_pool->free(grad_1_DampPsi);
+__mem_pool->free(grad_2_DampPsi);
+
+// Free first derivatives of DampPhi
+__mem_pool->free(grad_0_DampPhi);
+__mem_pool->free(grad_1_DampPhi);
+__mem_pool->free(grad_2_DampPhi);
+
+// Free first derivatives of PerpE0
+__mem_pool->free(grad_0_PerpE0);
+__mem_pool->free(grad_1_PerpE0);
+__mem_pool->free(grad_2_PerpE0);
+
+// Free first derivatives of PerpE1
+__mem_pool->free(grad_0_PerpE1);
+__mem_pool->free(grad_1_PerpE1);
+__mem_pool->free(grad_2_PerpE1);
+
+// Free first derivatives of PerpE2
+__mem_pool->free(grad_0_PerpE2);
+__mem_pool->free(grad_1_PerpE2);
+__mem_pool->free(grad_2_PerpE2);
+
+// Free first derivatives of PerpB0
+__mem_pool->free(grad_0_PerpB0);
+__mem_pool->free(grad_1_PerpB0);
+__mem_pool->free(grad_2_PerpB0);
+
+// Free first derivatives of PerpB1
+__mem_pool->free(grad_0_PerpB1);
+__mem_pool->free(grad_1_PerpB1);
+__mem_pool->free(grad_2_PerpB1);
+
+// Free first derivatives of PerpB2
+__mem_pool->free(grad_0_PerpB2);
+__mem_pool->free(grad_1_PerpB2);
+__mem_pool->free(grad_2_PerpB2);

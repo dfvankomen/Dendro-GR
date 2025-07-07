@@ -91,3 +91,32 @@ deriv_z(grad_2_At4, At4, hz, sz, bflag);
 deriv_x(grad_0_At5, At5, hx, sz, bflag);
 deriv_y(grad_1_At5, At5, hy, sz, bflag);
 deriv_z(grad_2_At5, At5, hz, sz, bflag);
+// First derivatives for PerpE0
+deriv_x(grad_0_PerpE0, PerpE0, hx, sz, bflag);
+deriv_y(grad_1_PerpE0, PerpE0, hy, sz, bflag);
+deriv_z(grad_2_PerpE0, PerpE0, hz, sz, bflag);
+
+// First derivatives for PerpE1
+deriv_x(grad_0_PerpE1, PerpE1, hx, sz, bflag);
+deriv_y(grad_1_PerpE1, PerpE1, hy, sz, bflag);
+deriv_z(grad_2_PerpE1, PerpE1, hz, sz, bflag);
+
+// First derivatives for PerpE2
+deriv_x(grad_0_PerpE2, PerpE2, hx, sz, bflag);
+deriv_y(grad_1_PerpE2, PerpE2, hy, sz, bflag);
+deriv_z(grad_2_PerpE2, PerpE2, hz, sz, bflag);
+
+// First derivatives for PerpB0
+deriv_x(grad_0_PerpB0, PerpB0, hx, sz, bflag);
+deriv_y(grad_1_PerpB0, PerpB0, hy, sz, bflag);
+deriv_z(grad_2_PerpB0, PerpB0, hz, sz, bflag);
+
+// First derivatives for PerpB1
+deriv_x(grad_0_PerpB1, PerpB1, hx, sz, bflag);
+deriv_y(grad_1_PerpB1, PerpB1, hy, sz, bflag);
+deriv_z(grad_2_PerpB1, PerpB1, hz, sz, bflag);
+
+// First derivatives for PerpB2
+deriv_x(grad_0_PerpB2, PerpB2, hx, sz, bflag);
+deriv_y(grad_1_PerpB2, PerpB2, hy, sz, bflag);
+deriv_z(grad_2_PerpB2, PerpB2, hz, sz, bflag);

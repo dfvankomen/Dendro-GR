@@ -28,6 +28,8 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     double *const mom2      = &uZipConVars[VAR_CONSTRAINT::C_MOM2][offset];
     double *const psi4_real = &uZipConVars[VAR_CONSTRAINT::C_PSI4_REAL][offset];
     double *const psi4_img  = &uZipConVars[VAR_CONSTRAINT::C_PSI4_IMG][offset];
+    double *const divE = &uZipConVars[VAR_CONSTRAINT::C_DIVE][offset];
+    double *const divB  = &uZipConVars[VAR_CONSTRAINT::C_DIVB][offset];
 
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];
@@ -53,6 +55,14 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     const double *const B0    = &uZipVars[VAR::U_B0][offset];
     const double *const B1    = &uZipVars[VAR::U_B1][offset];
     const double *const B2    = &uZipVars[VAR::U_B2][offset];
+    const double *const PerpB0    = &uZipVars[VAR::U_PERP_B0][offset];
+    const double *const PerpB1    = &uZipVars[VAR::U_PERP_B1][offset];
+    const double *const PerpB2    = &uZipVars[VAR::U_PERP_B2][offset];
+    const double *const PerpE0    = &uZipVars[VAR::U_PERP_E0][offset];
+    const double *const PerpE1    = &uZipVars[VAR::U_PERP_E1][offset];
+    const double *const PerpE2    = &uZipVars[VAR::U_PERP_E2][offset];
+    const double *const DampPhi    = &uZipVars[VAR::U_DAMP_PHI][offset];
+    const double *const DampPsi    = &uZipVars[VAR::U_DAMP_PSI][offset];
     const unsigned int PW     = bssn::BSSN_PADDING_WIDTH;
 
     const unsigned int BLK_SZ = n;

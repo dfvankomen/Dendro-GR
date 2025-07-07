@@ -24,6 +24,8 @@ K = dendro.scalar("K", "[pp]")
 Gt = dendro.vec3("Gt", "[pp]")
 gt = dendro.sym_3x3("gt", "[pp]")
 At = dendro.sym_3x3("At", "[pp]")
+PerpE = dendro.vec3("PerpE", "[pp]")
+PerpB = dendro.vec3("PerpB", "[pp]")
 
 # Specify the operators needed for computing first and second derivatives
 d = dendro.set_first_derivative("grad")  # first argument is direction
@@ -41,6 +43,11 @@ C2 = dendro.get_second_christoffel()
 C2_spatial = dendro.get_complete_christoffel(chi)
 R, Rt, Rphi, CalGt = dendro.compute_ricci(Gt, chi)
 
+leviCivita = [
+    [[0, 0, 0], [0, 0, 1], [0, -1, 0]],
+    [[0, 0, -1], [0, 0, 0], [1, 0, 0]],
+    [[0, 1, 0], [-1, 0, 0], [0, 0, 0]],
+]
 
 ###################################################################
 # Calculate the tetrad used in the Psi4 calculation
@@ -112,6 +119,33 @@ phi /= sqrt(
 ###################################################################
 # Calculate the Weyl scalar, Psi4, for graviational wave extraction
 ###################################################################
+
+rho = (
+    1 / (8 * pi)
+    * sum(
+        sum(
+            PerpE[i] * PerpE[j] * gt[i, j] + PerpB[i] * PerpB[j] * gt[i, j]
+            for i in dendro.e_i
+        )
+        for j in dendro.e_i
+    )
+    / chi
+)
+
+J = Matrix([
+        1 / (4 * pi)
+        * (chi) ** Rational(-1, 2)
+        * sum(
+            leviCivita[i][j][k]
+            * gt[j, l] * PerpE[l]
+            * gt[k, m] * PerpB[m]
+            for j in dendro.e_i
+            for k in dendro.e_i
+            for l in dendro.e_i
+            for m in dendro.e_i
+        )
+        for i in dendro.e_i
+    ])
 
 # Rename the tetrad quantities for calculating Psi4
 r_np = Matrix([[r_vec[0], r_vec[1], r_vec[2]]])
@@ -251,7 +285,7 @@ ham = (
     sum(chi * igt[j, k] * R[j, k] for j, k in dendro.e_ij)
     - dendro.sqr(At)
     + Rational(2, 3) * K**2
-)
+) - 16 * pi * rho
 
 # The momentum  constraints
 mom = (
@@ -279,14 +313,16 @@ mom = (
         ]
     )
     - Rational(2, 3) * Matrix([d(i, K) for i in dendro.e_i])
-)
+ - 8 * pi * Matrix([J[i]  for i in dendro.e_i]))
 mom = [item for sublist in mom.tolist() for item in sublist]
-
+# the Calculation of the E&M Constraints:
+divE = sum ( d(i, PerpE[i])for i in dendro.e_i)
+divB = sum ( d(i, PerpB[i])for i in dendro.e_i)
 # Output for this should be included psi4_real and psi4_img as double precision
 ###################################################################
 # generate code
 ###################################################################
 # uncomment to terminal code gen
-outs = [psi4_real, psi4_img, ham, mom]
-vnames = ["psi4_real", "psi4_img", "ham", "mom"]
+outs = [psi4_real, psi4_img, ham, mom, divE, divB]
+vnames = ["psi4_real", "psi4_img", "ham", "mom", "divE", "divB"]
 dendro.generate_cpu(outs, vnames, "[pp]")

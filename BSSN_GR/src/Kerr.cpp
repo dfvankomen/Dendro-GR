@@ -1,5 +1,5 @@
-double mass   = bssn::BH1.getBHMass();
-double a_spin = bssn::BH1.getBHSpin();
+double mass   = 1.0;
+double a_spin = 0.0;
 // double mass = emda::EMDA_SINGLE_BH_MASS ;
 // double a_spin = emda::EMDA_SINGLE_BH_SPIN ;
 double rbar;
@@ -153,6 +153,27 @@ var[VAR::U_SYMAT3] =
          f_0);
 
 var[VAR::U_SYMAT5] = 0.0;
+
+var[VAR::U_DAMP_PSI] = 0.0 ;  // dampingPsi
+var[VAR::U_DAMP_PHI] = 0.0 ;  // dampingPhi
+//var[VAR::U_DAMPINGPSI] = var[VAR::U_AT00] ;  // dampingPsi
+//var[VAR::U_DAMPINGPHI] = var[VAR::U_AT01] ;  // dampingPhi
+//var[VAR::U_DAMPINGPSI] = pow(Sigma_bar,1.0/6.0) ;  // dampingPsi
+//var[VAR::U_DAMPINGPHI] = CC-1.0 ;  // dampingPhi
+
+var[VAR::U_PERP_E0] = 0.0;
+
+var[VAR::U_PERP_E1] = 0.0;
+
+var[VAR::U_PERP_E2] = 0.0;
+
+var[VAR::U_PERP_B0] = 0.0;
+
+var[VAR::U_PERP_B1] = 0.0;
+
+var[VAR::U_PERP_B2] = 0.0;
+
+
 
 // var[VAR::U_DILATONPHI] = 0.0 ;  // the dilaton
 // var[VAR::U_CAPITALPI]  = 0.0 ;  // time deriv of dilaton

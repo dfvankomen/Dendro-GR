@@ -136,3 +136,42 @@ double* grad2_0_2_beta2 = deriv_base + 134 * BLK_SZ;
 double* grad2_1_1_beta2 = deriv_base + 135 * BLK_SZ;
 double* grad2_1_2_beta2 = deriv_base + 136 * BLK_SZ;
 double* grad2_2_2_beta2 = deriv_base + 137 * BLK_SZ;
+// DampPsi
+double* grad_0_DampPsi  = deriv_base + 138 * BLK_SZ;
+double* grad_1_DampPsi  = deriv_base + 139 * BLK_SZ;
+double* grad_2_DampPsi  = deriv_base + 140 * BLK_SZ;
+
+// DampPhi
+double* grad_0_DampPhi  = deriv_base + 141 * BLK_SZ;
+double* grad_1_DampPhi  = deriv_base + 142 * BLK_SZ;
+double* grad_2_DampPhi  = deriv_base + 143 * BLK_SZ;
+
+// PerpE0
+double* grad_0_PerpE0   = deriv_base + 144 * BLK_SZ;
+double* grad_1_PerpE0   = deriv_base + 145 * BLK_SZ;
+double* grad_2_PerpE0   = deriv_base + 146 * BLK_SZ;
+
+// PerpE1
+double* grad_0_PerpE1   = deriv_base + 147 * BLK_SZ;
+double* grad_1_PerpE1   = deriv_base + 148 * BLK_SZ;
+double* grad_2_PerpE1   = deriv_base + 149 * BLK_SZ;
+
+// PerpE2
+double* grad_0_PerpE2   = deriv_base + 150 * BLK_SZ;
+double* grad_1_PerpE2   = deriv_base + 151 * BLK_SZ;
+double* grad_2_PerpE2   = deriv_base + 152 * BLK_SZ;
+
+// PerpB0
+double* grad_0_PerpB0   = deriv_base + 153 * BLK_SZ;
+double* grad_1_PerpB0   = deriv_base + 154 * BLK_SZ;
+double* grad_2_PerpB0   = deriv_base + 155 * BLK_SZ;
+
+// PerpB1
+double* grad_0_PerpB1   = deriv_base + 156 * BLK_SZ;
+double* grad_1_PerpB1   = deriv_base + 157 * BLK_SZ;
+double* grad_2_PerpB1   = deriv_base + 158 * BLK_SZ;
+
+// PerpB2
+double* grad_0_PerpB2   = deriv_base + 159 * BLK_SZ;
+double* grad_1_PerpB2   = deriv_base + 160 * BLK_SZ;
+double* grad_2_PerpB2   = deriv_base + 161 * BLK_SZ;
