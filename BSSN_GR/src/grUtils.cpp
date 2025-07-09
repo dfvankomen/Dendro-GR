@@ -2148,7 +2148,16 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
                 std::log10(eps_disable) + slope * (T_CURRENT - t_lim);
             return std::pow(10.0, lg_eps);
         }
-    } else {
+    } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 7) {
+        const double r = sqrt(x * x + y * y + z * z);
+        Point grid_p(x, y, z);
+        double R_0 = BSSN_WAVELET_TOL_FUNCTION_R0;
+        if (r < R_0)
+            return bssn::BSSN_WAVELET_TOL;
+        else {
+            return std::min(bssn::BSSN_WAVELET_TOL_MAX,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+        }
+    }else {
         // return global wavelet tolerance, irrespective of position
         return bssn::BSSN_WAVELET_TOL;
     }
