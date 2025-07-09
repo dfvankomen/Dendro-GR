@@ -95,55 +95,162 @@ eta_func = (
 def bssn_puncture_gauge(
     eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, enableCAHD=False
 ):
-    """
-    BSSN puncture gauge (HAD/ traditional BSSN puncture gaugue) with const eta damping
-    """
-    rho = (
-    1 / (8 * pi)
-    * sum(
-        sum(
-            PerpE[i] * PerpE[j] * gt[i, j] + PerpB[i] * PerpB[j] * gt[i, j]
-            for i in dendro.e_i
-        )
-        for j in dendro.e_i
-    )
-    / chi
-)
+        # set up all 10 parts of the stress energy tensor
 
-    J = Matrix([
-        1 / (4 * pi)
-        * (chi) ** Rational(-1, 2)
+
+
+    perpTpart4 = (
+        1
+        / (8 * pi)
+        * Matrix(
+            [
+                2
+                / (pow(chi, 2.0))
+                * sum(
+                    [
+                        PerpB[k]
+                        * PerpB[m]
+                        * leviCivita[i][j][k]
+                        * leviCivita[l][f][m]
+                        * igt[j, f]
+                        for k in dendro.e_i
+                        for j in dendro.e_i
+                        for m in dendro.e_i
+                        for f in dendro.e_i
+                    ]
+                )
+                for i, l in dendro.e_ij
+            ]
+        )
+    )
+
+    perpTpart5 = (
+        1
+        / (8 * pi)
+        * Matrix(
+            [
+                -2
+                / (chi**2)
+                * sum(
+                    [
+                        gt[i, k] * gt[j, l] * PerpE[k] * PerpE[l]
+                        for k in dendro.e_i
+                        for l in dendro.e_i
+                    ]
+                )
+                for i, j in dendro.e_ij
+            ]
+        )
+    )
+    perpTpart6 = (
+        1
+        / (8 * pi)
+        * Matrix(
+            [
+                1
+                / (chi**2)
+                * sum(
+                    [
+                        PerpB[l] * PerpB[m] * gt[l, m]
+                        for l in dendro.e_i
+                        for m in dendro.e_i
+                    ]
+                )
+                * gt[i, j]
+                for i, j in dendro.e_ij
+            ]
+        )
+    )
+    perpTpart7 = (
+        1
+        / (8 * pi)
+        * Matrix(
+            [
+
+                1/ (chi**2)
+                * sum(
+                    [
+                        PerpE[l] * PerpE[m] * gt[l, m]
+                        for l in dendro.e_i
+                        for m in dendro.e_i
+                    ]
+                )
+                * gt[i, j]
+                for i, j in dendro.e_ij
+            ]
+        )
+    )
+   
+   
+    perpTpart4 = perpTpart4.reshape(3, 3)
+    perpTpart5 = perpTpart5.reshape(3, 3)
+    perpTpart6 = perpTpart6.reshape(3, 3)
+    perpTpart7 = perpTpart7.reshape(3, 3)
+   
+
+    # assemble stress energy tensor, shows up in At_rhs
+    perpT = Matrix(
+        [
+
+            + perpTpart4[i, j]
+            + perpTpart5[i, j]
+            + perpTpart6[i, j]
+            + perpTpart7[i, j]
+
+            for i, j in dendro.e_ij
+        ]
+    )
+    perpT = perpT.reshape(
+        3, 3
+    )  # very key. Before, it would return a 9x1 sym.Matrix I think
+    # stress energy density, shows up in trK_rhs
+    rho = (
+        1
+        / (8 * pi)
+        * (sum(
+                [
+                    PerpE[i] * PerpE[j] * gt[i, j]
+                    for i in dendro.e_i
+                    for j in dendro.e_i
+                ]
+            )
+            / chi
+            + 
+            sum(
+                [
+                    PerpB[i] * PerpB[j] * gt[i, j]
+                    for i in dendro.e_i
+                    for j in dendro.e_i
+                ]
+            )
+            / chi
+        )
+    )
+    # stress energy current, shows up in Gt_rhs
+    stressCurrent = [
+        1
+        / (8 * pi)
+        * 2
+        * (chi) ** (Rational(1, 2))
         * sum(
-            leviCivita[i][j][k]
-            * gt[j, l] * PerpE[l]
-            * gt[k, m] * PerpB[m]
-            for j in dendro.e_i
-            for k in dendro.e_i
-            for l in dendro.e_i
-            for m in dendro.e_i
+            [
+                leviCivita[i][j][k] * gt[j, l] * PerpE[l] * gt[k, m] * PerpB[m]
+                for j in dendro.e_i
+                for k in dendro.e_i
+                for l in dendro.e_i
+                for m in dendro.e_i
+            ]
         )
         for i in dendro.e_i
-    ])
-
-
-    PerpT =PerpT = Matrix([
-    (1 / (4 * pi)) * (1 / chi**2) * (
-        - sum(PerpE[l] * gt[l, i] for l in dendro.e_i)
-          * sum(PerpE[m] * gt[m, j] for m in dendro.e_i)
-        - sum(PerpB[l] * gt[l, i] for l in dendro.e_i)
-          * sum(PerpB[m] * gt[m, j] for m in dendro.e_i)
-        + Rational(1, 2) * gt[i, j] * sum(
-            (PerpE[p] * PerpE[q]* gt[p, q] + PerpB[p] * PerpB[q]* gt[p, q]) 
-            for p in dendro.e_i
-            for q in dendro.e_i
-        )
-    )
-    for i, j in dendro.e_ij
-]).reshape(3, 3)
-
-
-    PerpTTrace= sum(sum(igt[i,j]*PerpT[i,j]for i in dendro.e_i )for j in dendro.e_i) * chi
-
+    ]
+# compute the trace of the stress energy tensor, this shows up in trK_rhs
+    perpTTrace = dendro.trace(perpT)
+# [EWH]:  I don't think these two quantities (the covariant version of the
+#         normal vector to the spacelike hypersurfaces and the mean extrinsic
+#         curvature used in the gauge conditions) get used, so I will comment
+#         them out.
+# nc = (-a, 0, 0, 0)
+# trK0 = 0
     if not isStaged:
         C1 = dendro.get_first_christoffel()
         C2 = dendro.get_second_christoffel()
@@ -200,16 +307,19 @@ def bssn_puncture_gauge(
         ).reshape(3, 3)
 
         At_rhs = (
-            dendro.lie(b, At, weight)
-            + chi * dendro.trace_free(a * R - dendro.DiDj(a))
-            + a * (K * At - 2 * AikAkj.reshape(3, 3))
-        ) - 8 *pi*a* (chi* PerpT - Rational(1,3)*PerpTTrace* gt)
+            (dendro.lie(b, At, weight))
+            + chi
+            * dendro.trace_free(
+                a * R - dendro.DiDj(a) - 8 * pi * a * perpT
+            )
+            + a * (K * At - 2 * AikAkj)
+        )
 
         K_rhs = (
             dendro.lie(b, K)
             - dendro.laplacian(a, chi)
             + a * (K * K / 3 + dendro.sqr(At))
-            + 4 * pi * a * (rho + PerpTTrace)
+            + 4 * pi * a * (rho + perpTTrace)
         )
 
         At_UU = dendro.up_up(At)
@@ -267,10 +377,9 @@ def bssn_puncture_gauge(
                 ]
             )
             
-                -Matrix([
-                16 * pi * a / chi * J[i]
-                for i in dendro.e_i
-                ])
+                +Matrix(
+            ([-16 * pi * a/ chi * stressCurrent[i] for i in dendro.e_i])
+        )
         ) 
 
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
@@ -285,48 +394,118 @@ def bssn_puncture_gauge(
             for i in dendro.e_i
         ]
         PerpE_rhs = [
-                dendro.lie(b, PerpE, weight)[i]
-                + a * K * PerpE[i]
-                + pow(chi, 0.5) * sum(
-                leviCivita[i][j][k] * (
-                sum(gt[k, l] * PerpB[l] for l in dendro.e_i) * d(j, a)
-                + a * sum(PerpB[l] * d(j, gt[k, l]) for l in dendro.e_i)
-                + a*sum(gt[k, l] * d(j, PerpB[l]) for l in dendro.e_i)
-                - a* sum((gt[k, l] / chi) * PerpB[l] * d(j, chi) for l in dendro.e_i)
-                )
-                for j in dendro.e_i
-                for k in dendro.e_i
-                )
-                - a * chi * sum(igt[i, j] * d(j, DampPsi) for j in dendro.e_i)
-                for i in dendro.e_i]
-
-
-        PerpB_rhs =[
-            dendro.lie(b, PerpB, weight)[i] + a * K * PerpB[i]
-            - pow(chi, 0.5) * sum(
-                leviCivita[i][j][k] * (
-                    sum(gt[k, l] * PerpE[l] for l in dendro.e_i) * d(j, a)
-                    + a * sum(PerpE[l] * d(j, gt[k, l]) for l in dendro.e_i)
-                    + a*sum(gt[k, l] * d(j, PerpE[l]) for l in dendro.e_i)
-                    - a* sum((gt[k, l] / chi) * PerpE[l] * d(j, chi) for l in dendro.e_i)
-                )
-                for j in dendro.e_i
-                for k in dendro.e_i
+            dendro.lie(b, PerpE)[i]
+            + a * K * PerpE[i]
+            - a
+            * chi
+            * sum([igt[i, j] * d(j, DampPsi) for j in dendro.e_i])
+            - pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[j][i][k] * gt[k, l] * PerpB[l] * d(j, a)
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
             )
-            - a * chi * sum(igt[i, j] * d(j, DampPhi) for j in dendro.e_i)
+            - a
+            * pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[j][i][k] * PerpB[l] * d(j, gt[k, l])
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            - a
+            * pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[j][i][k] * gt[k, l] * d(j, PerpB[l])
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            + a
+            * pow(chi, -Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[j][i][k] * gt[k, l] * PerpB[l] * d(j, chi)
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            for i in dendro.e_i
+        ]
+
+
+        PerpB_rhs = [
+            a * K * PerpB[i]
+            - a
+            * chi
+            * sum([igt[i, j] * d(j, DampPhi) for j in dendro.e_i])
+            - pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[i][j][k] * gt[k, l] * PerpE[l] * d(j, a)
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            + pow(chi, -Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[i][j][k] * a * gt[k, l] * PerpE[l] * d(j, chi)
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            - a
+            * pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[i][j][k] * PerpE[l] * d(j, gt[k, l])
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            - a
+            * pow(chi, Rational(1, 2))
+            * sum(
+                [
+                    leviCivita[i][j][k] * gt[k, l] * d(j, PerpE[l])
+                    for j in dendro.e_i
+                    for k in dendro.e_i
+                    for l in dendro.e_i
+                ]
+            )
+            + dendro.lie(b, PerpB)[i]
             for i in dendro.e_i
         ]
 
         DampPhi_rhs = (
-            dendro.lie(b, DampPhi, weight)
-            - a * sum(d(i, PerpB[i]) for i in dendro.e_i)
-            - a * kappa * DampPhi
+                        dendro.vec_j_del_j(b, DampPhi)
+            - a * sum([d(i, PerpB[i]) for i in dendro.e_i])
+            + 3
+            * a
+            / (2 * chi)
+            * sum([PerpB[i] * d(i, chi) for i in dendro.e_i])
+            - a * 0.4 * DampPhi
         )
 
         DampPsi_rhs = (
-            dendro.lie(b, DampPsi, weight)
-            - a * sum(d(i, PerpE[i]) for i in dendro.e_i)
-            - a * kappa * DampPsi
+            dendro.vec_j_del_j(b, DampPsi)
+            - a * sum([d(i, PerpE[i]) for i in dendro.e_i])
+            + 3
+            * a
+            / (2 * chi)
+            * sum([PerpE[i] * d(i, chi) for i in dendro.e_i])
         )
 
         ###################################################################
