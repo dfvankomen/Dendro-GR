@@ -237,7 +237,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
   #pragma message("BSSN: enabling both SSL and CAHD")
   // #include "bssn_eqns_SSL_HD.cpp"
   // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
-  #include "bssn_eqns_SSL_HDdxsq.inc.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  #include "bssneqs_SSL_HD_dxsq.cpp" // use dx^2/(1+10*dx^2) in H-damping
   // #include "test_bssn_etaG.inc.cpp" // use eta_G exactly as LH23
   // #include "test_bssn_etaG_adv.inc.cpp" // use eta_G w/ advective term
 #else

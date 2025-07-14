@@ -175,7 +175,7 @@ def bssn_puncture_gauge(
             a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
 
         # shift RHS equation
-        if False:  # use auxiliary field B to evolve shift
+        if True:  # use auxiliary field B to evolve shift
             b_rhs = [
                 (
                     Rational(3, 4) * (lf0 + lf1 * a) * B[i]
@@ -287,7 +287,7 @@ def bssn_puncture_gauge(
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
         # set up auxiliary field to the shift
-        if False:  # evolve B
+        if True:  # evolve B
             B_rhs = [
                 (
                     Gt_rhs[i]
