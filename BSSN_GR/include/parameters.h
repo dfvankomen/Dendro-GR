@@ -416,7 +416,7 @@ static const int do_initial_debug_output    = 1;
 static const int multiply_old_lapse         = 0;
 static const double TP_Tiny                 = 1.0e-15;
 static const double TP_Extend_Radius        = 0.0;
-static const int Newton_maxit               = 5;
+static const int Newton_maxit               = 15;
 
 extern double target_M_plus;
 extern double target_M_minus;
