@@ -39,6 +39,8 @@ option(BSSN_ENABLE_AVX "use vectorized computation for RHS (intel compilers only
 option(BSSN_VERBOSE_LOGGING "Enable more verbose logging (only useful during debug)" OFF)
 option(BSSN_ENABLE_SSL_HD "Enable SSL and HD formalism modifications" ON)
 
+option(BSSN_ENABLE_TEUK_ANALYTIC "Enable the analytic calculation of the Teuk variables" OFF)
+
 
 if(BSSN_ENABLE_AVX)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
@@ -139,6 +141,10 @@ if(BSSN_ENABLE_SSL_HD)
   add_definitions(-DBSSN_ENABLE_SSL_HD)
 endif()
 
+if(BSSN_ENABLE_TEUK_ANALYTIC)
+  add_definitions(-DBSSN_ENABLE_TEUK_ANALYTIC)
+endif()
+
 
 
 #message(${KWAY})
@@ -227,6 +233,7 @@ set(BSSN_INC include/parameters.h
         include/TwoPunctures.h
         include/dataUtils.h
         include/aeh.h
+        include/Linear_Teukolsky.h
         )
 
 set(BSSN_SRC src/parameters.cpp
@@ -244,6 +251,7 @@ set(BSSN_SRC src/parameters.cpp
            src/TPUtilities.cpp
            src/TwoPunctures.cpp
            src/dataUtils.cpp
+           src/Linear_Teukolsky.cpp
            src/hadrhs.F90
         )
 

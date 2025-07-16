@@ -897,35 +897,44 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         }
 
 #ifdef DENDRO_USE_NEW_DERIVS
-    sout << YLW << "\t DERIVS: " << BSSN_DERIVS->toString() << NRM << std::endl;
+        sout << YLW << "\t DERIVS: " << BSSN_DERIVS->toString() << NRM
+             << std::endl;
 
-    sout << PRPL << "\t BSSN_DERIVTYPE_FIRST:  " << BSSN_DERIVTYPE_FIRST << std::endl;
-    sout << PRPL << "\t BSSN_DERIVTYPE_SECOND: " << BSSN_DERIVTYPE_SECOND << std::endl;
+        sout << PRPL << "\t BSSN_DERIVTYPE_FIRST:  " << BSSN_DERIVTYPE_FIRST
+             << std::endl;
+        sout << PRPL << "\t BSSN_DERIVTYPE_SECOND: " << BSSN_DERIVTYPE_SECOND
+             << std::endl;
 
-    sout << PRPL << "\t BSSN_DERIV_FIRST_COEFFS:  ";
-    for (const auto& val : BSSN_DERIV_FIRST_COEFFS) sout << val << " ";
-    sout << std::endl;
+        sout << PRPL << "\t BSSN_DERIV_FIRST_COEFFS:  ";
+        for (const auto& val : BSSN_DERIV_FIRST_COEFFS) sout << val << " ";
+        sout << std::endl;
 
-    sout << PRPL << "\t BSSN_DERIV_SECOND_COEFFS: ";
-    for (const auto& val : BSSN_DERIV_SECOND_COEFFS) sout << val << " ";
-    sout << std::endl;
+        sout << PRPL << "\t BSSN_DERIV_SECOND_COEFFS: ";
+        for (const auto& val : BSSN_DERIV_SECOND_COEFFS) sout << val << " ";
+        sout << std::endl;
 
-    sout << PRPL << "\t BSSN_DERIV_FIRST_MATID:  " << BSSN_DERIV_FIRST_MATID << std::endl;
-    sout << PRPL << "\t BSSN_DERIV_SECOND_MATID: " << BSSN_DERIV_SECOND_MATID << std::endl;
+        sout << PRPL << "\t BSSN_DERIV_FIRST_MATID:  " << BSSN_DERIV_FIRST_MATID
+             << std::endl;
+        sout << PRPL
+             << "\t BSSN_DERIV_SECOND_MATID: " << BSSN_DERIV_SECOND_MATID
+             << std::endl;
 
-    sout << PRPL << "\t BSSN_INMATFILT_FIRST:  " << BSSN_INMATFILT_FIRST << std::endl;
-    sout << PRPL << "\t BSSN_INMATFILT_SECOND: " << BSSN_INMATFILT_SECOND << std::endl;
+        sout << PRPL << "\t BSSN_INMATFILT_FIRST:  " << BSSN_INMATFILT_FIRST
+             << std::endl;
+        sout << PRPL << "\t BSSN_INMATFILT_SECOND: " << BSSN_INMATFILT_SECOND
+             << std::endl;
 
-    sout << PRPL << "\t BSSN_INMATFILT_FIRST_COEFFS:  ";
-    for (const auto& val : BSSN_INMATFILT_FIRST_COEFFS) sout << val << " ";
-    sout << std::endl;
+        sout << PRPL << "\t BSSN_INMATFILT_FIRST_COEFFS:  ";
+        for (const auto& val : BSSN_INMATFILT_FIRST_COEFFS) sout << val << " ";
+        sout << NRM << std::endl;
 
-    sout << PRPL << "\t BSSN_INMATFILT_SECOND_COEFFS: ";
-    for (const auto& val : BSSN_INMATFILT_SECOND_COEFFS) sout << val << " ";
-    sout << std::endl;
+        sout << PRPL << "\t BSSN_INMATFILT_SECOND_COEFFS: ";
+        for (const auto& val : BSSN_INMATFILT_SECOND_COEFFS) sout << val << " ";
+        sout << NRM << std::endl;
 
-    sout << NRM;
 #endif
+        // make sure we always end with NRM no matter what!
+        sout << NRM;
     }
 }
 
@@ -2595,26 +2604,27 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             return std::min(bssn::BSSN_WAVELET_TOL_MAX * exp(coordtime),
                             bssn::BSSN_WAVELET_TOL * pow(10, r - R_0));
         }
-    }
-        else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 11) {
+    } else if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 11) {
         const double r = sqrt(x * x + y * y + z * z);
         Point grid_p(x, y, z);
-        double R_0 = TEUK_REFINEMENT_R0;
-	  double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
-        if ( coordtime < 25.0){
+        double R_0       = TEUK_REFINEMENT_R0;
+        double coordtime = bssn::BSSN_CURRENT_RK_COORD_TIME;
+        if (coordtime < 25.0) {
             if (r < R_0)
-            return bssn::BSSN_WAVELET_TOL;
-        else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX,bssn::BSSN_WAVELET_TOL*pow(10,r-R_0));
+                return bssn::BSSN_WAVELET_TOL;
+            else {
+                return std::min(bssn::BSSN_WAVELET_TOL_MAX,
+                                bssn::BSSN_WAVELET_TOL * pow(10, r - R_0));
+            }
+        } else {
+            if (r < R_0)
+                return bssn::BSSN_WAVELET_TOL;
+            else {
+                return std::min(
+                    bssn::BSSN_WAVELET_TOL_MAX * exp(coordtime),
+                    bssn::BSSN_WAVELET_TOL * pow(10, 10 * (r - R_0)));
+            }
         }
-        }
-        else{
-        if (r < R_0)
-            return bssn::BSSN_WAVELET_TOL;
-        else {
-            return std::min(bssn::BSSN_WAVELET_TOL_MAX*exp(coordtime),bssn::BSSN_WAVELET_TOL*pow(10,10*(r-R_0)));
-        }
-    }
     } else {
         // return global wavelet tolerance, irrespective of position
         return bssn::BSSN_WAVELET_TOL;

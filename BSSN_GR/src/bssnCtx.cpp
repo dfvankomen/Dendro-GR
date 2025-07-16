@@ -17,6 +17,7 @@
 
 #include <cstdint>
 
+#include "grDef.h"
 #include "grUtils.h"
 #include "parUtils.h"
 #include "parameters.h"
@@ -40,6 +41,16 @@ BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     m_var[VL::CPU_CV_UZ_IN].create_vector(
         m_uiMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
         BSSN_CONSTRAINT_NUM_VARS, true);
+
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+    // create the analytic vectors as well
+    m_var[VL::CPU_ANALYTIC].create_vector(
+        m_uiMesh, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+    m_var[VL::CPU_ANALYTIC_DIFF].create_vector(
+        m_uiMesh, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+#endif
 
     m_uiTinfo._m_uiStep = 0;
     m_uiTinfo._m_uiT    = 0;
@@ -764,6 +775,18 @@ int BSSNCtx::write_vtu() {
     m_evar.to_2d(evolVar);
     m_cvar.to_2d(consVar);
 
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+    DVec& m_analytic      = m_var[VL::CPU_ANALYTIC];
+    DVec& m_analytic_diff = m_var[VL::CPU_ANALYTIC_DIFF];
+
+    this->compute_analytic();
+    DendroScalar* analyticVar[bssn::TEUK_NUM_ANALYTIC_VARS];
+    DendroScalar* analyticDiffVar[bssn::TEUK_NUM_ANALYTIC_VARS];
+
+    m_analytic.to_2d(analyticVar);
+    m_analytic_diff.to_2d(analyticDiffVar);
+#endif
+
     // make sure the constraint variables are computed, they should be, but at
     // least it'll early exit if they are this time step
     this->compute_constraint_variables();
@@ -778,7 +801,16 @@ int BSSNCtx::write_vtu() {
     const unsigned int numConstVars = bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT;
     const unsigned int numEvolVars  = bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT;
 
-    double* pData[(numConstVars + numEvolVars)];
+#if BSSN_ENABLE_TEUK_ANALYTIC
+    const unsigned int numAnalyticVars = bssn::TEUK_NUM_ANALYTIC_VARS * 2;
+
+    const unsigned int totalNumVTUVars =
+        numConstVars + numEvolVars + numAnalyticVars;
+#else
+    const unsigned int totalNumVTUVars = numConstVars + numEvolVars;
+#endif
+
+    double* pData[totalNumVTUVars];
 
     for (unsigned int i = 0; i < numEvolVars; i++) {
         pDataNames.push_back(
@@ -791,6 +823,25 @@ int BSSNCtx::write_vtu() {
             bssn::BSSN_CONSTRAINT_VAR_NAMES[BSSN_VTU_OUTPUT_CONST_INDICES[i]]));
         pData[numEvolVars + i] = consVar[BSSN_VTU_OUTPUT_CONST_INDICES[i]];
     }
+
+#if BSSN_ENABLE_TEUK_ANALYTIC
+    std::vector<unsigned int> idxs_use = {
+        bssn::VAR::U_SYMGT0, bssn::VAR::U_SYMGT1, bssn::VAR::U_SYMGT2,
+        bssn::VAR::U_SYMGT3, bssn::VAR::U_SYMGT4, bssn::VAR::U_SYMGT5};
+
+    for (unsigned int i = 0; i < bssn::TEUK_NUM_ANALYTIC_VARS; i++) {
+        pDataNames.push_back(std::string(bssn::BSSN_VAR_NAMES[idxs_use[i]]) +
+                             "_ANLYT");
+        pData[numEvolVars + numConstVars + i] = analyticVar[i];
+    }
+
+    for (unsigned int i = 0; i < bssn::TEUK_NUM_ANALYTIC_VARS; i++) {
+        pDataNames.push_back(std::string(bssn::BSSN_VAR_NAMES[idxs_use[i]]) +
+                             "_DIFF");
+        pData[numEvolVars + numConstVars + bssn::TEUK_NUM_ANALYTIC_VARS + i] =
+            analyticDiffVar[i];
+    }
+#endif
 
     std::vector<char*> pDataNames_char;
     pDataNames_char.reserve(pDataNames.size());
@@ -817,14 +868,13 @@ int BSSNCtx::write_vtu() {
         if (bssn::BSSN_VTU_Z_SLICE) s_norm[2] = 1;
 
         io::vtk::mesh2vtu_slice(m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames,
-                                fData, (numEvolVars + numConstVars),
+                                fData, totalNumVTUVars,
                                 (const char**)&pDataNames_char[0],
                                 (const double**)pData);
     } else
-        io::vtk::mesh2vtuFine(m_uiMesh, fPrefix, 2, fDataNames, fData,
-                              (numEvolVars + numConstVars),
-                              (const char**)&pDataNames_char[0],
-                              (const double**)pData);
+        io::vtk::mesh2vtuFine(
+            m_uiMesh, fPrefix, 2, fDataNames, fData, totalNumVTUVars,
+            (const char**)&pDataNames_char[0], (const double**)pData);
 
 // TODO: add in option for this to be on or off
 #if 0
@@ -1306,6 +1356,16 @@ int BSSNCtx::restore_checkpt() {
         newMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
         BSSN_CONSTRAINT_NUM_VARS, true);
 
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+    // create the analytic vectors as well
+    m_var[VL::CPU_ANALYTIC].create_vector(
+        newMesh, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+    m_var[VL::CPU_ANALYTIC_DIFF].create_vector(
+        newMesh, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+#endif
+
     ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                       BSSN_ASYNC_COMM_K);
     ot::alloc_mpi_ctx<DendroScalar>(newMesh, m_mpi_ctx, BSSN_NUM_VARS,
@@ -1465,6 +1525,9 @@ int BSSNCtx::terminal_output() {
     if (m_uiMesh->isActive()) {
         DendroScalar min = 0, max = 0;
         DVec& m_evar = m_var[VL::CPU_EV];
+        DendroScalar* zippedUp[bssn::BSSN_NUM_VARS];
+        m_var[VL::CPU_EV].to_2d(zippedUp);
+
         min = vecMin(m_uiMesh, m_evar.get_vec_ptr(), ot::VEC_TYPE::CG_NODAL,
                      true);
         max = vecMax(m_uiMesh, m_evar.get_vec_ptr(), ot::VEC_TYPE::CG_NODAL,
@@ -1480,6 +1543,124 @@ int BSSNCtx::terminal_output() {
                 MPI_Abort(m_uiMesh->getMPICommunicator(), 0);
             }
         }
+
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+        // only compute this stuff if we're in a Teuk ID type
+        if (bssn::BSSN_ID_TYPE == 7 || bssn::BSSN_ID_TYPE == 9 ||
+            bssn::BSSN_ID_TYPE == 12) {
+            // we're good to continue
+            this->compute_analytic();
+
+            char fName[256];
+            sprintf(fName, "%s_ANALYTICAL_DIFF.csv",
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str());
+
+            std::vector<unsigned int> idxs_use = {
+                bssn::VAR::U_SYMGT0, bssn::VAR::U_SYMGT1, bssn::VAR::U_SYMGT2,
+                bssn::VAR::U_SYMGT3, bssn::VAR::U_SYMGT4, bssn::VAR::U_SYMGT5};
+
+            // write the header
+            if (!(m_uiMesh->getMPIRankGlobal())) {
+                if (this->m_uiTinfo._m_uiStep == 0) {
+                    std::ofstream fileDiff;
+                    fileDiff.open(fName, std::ofstream::app);
+                    std::cout << "header..." << std::endl;
+                    fileDiff << "Timestep,Time,";
+                    for (unsigned int i = 0; i < bssn::TEUK_NUM_ANALYTIC_VARS;
+                         i++) {
+                        unsigned int v = idxs_use[i];
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_MIN,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_MAX,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_L2,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_RMSE,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_NRMSE,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_MAE,";
+                        fileDiff << std::string(bssn::BSSN_VAR_NAMES[v]) +
+                                        "_DIFF_L2_INT,";
+                    }
+
+                    fileDiff << std::endl;
+                    fileDiff.close();
+                }
+            }
+
+            DendroScalar* zippedUpAnalyticalDiff[bssn::TEUK_NUM_ANALYTIC_VARS];
+            m_var[VL::CPU_ANALYTIC_DIFF].to_2d(zippedUpAnalyticalDiff);
+
+            for (unsigned int i = 0; i < bssn::TEUK_NUM_ANALYTIC_VARS; i++) {
+                unsigned int v = idxs_use[i];
+                double l_min   = vecMin(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+                double l_max = vecMax(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+                double l2_norm = normL2(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+
+                double l2_integrated = ot::calculateL2FullMeshIntegration(
+                    m_uiMesh, zippedUpAnalyticalDiff[i]);
+
+                double rmse = normRMSE(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+
+                double nrmse = normNRMSE(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    &zippedUp[v][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+
+                double mae = normMAE(
+                    &zippedUpAnalyticalDiff[i][m_uiMesh->getNodeLocalBegin()],
+                    (m_uiMesh->getNumLocalMeshNodes()),
+                    m_uiMesh->getMPICommunicator());
+
+                if (!(m_uiMesh->getMPIRankGlobal())) {
+                    std::cout << "\t[var]:  " << std::setw(12)
+                              << std::string(BSSN_VAR_NAMES[v]) + "_DIFF";
+                    std::cout
+                        << " (min, max, l2, rmse, nrmse, mae, l2_int) : \t ( "
+                        << l_min << ", " << l_max << ", " << l2_norm << ", "
+                        << rmse << ", " << nrmse << ", " << mae << ", "
+                        << l2_integrated << ") " << std::endl;
+
+                    // write to file
+                    std::ofstream fileDiff;
+                    fileDiff.open(fName, std::ofstream::app);
+
+                    if (i == 0) {
+                        fileDiff << this->m_uiTinfo._m_uiStep << ","
+                                 << this->m_uiTinfo._m_uiT << ",";
+                    }
+
+                    fileDiff << l_min << "," << l_max << "," << l2_norm << ","
+                             << rmse << "," << nrmse << "," << mae << "," << ","
+                             << l2_integrated;
+                    fileDiff.close();
+                }
+            }
+
+            if (!(m_uiMesh->getMPIRankGlobal())) {
+                std::ofstream fileDiff;
+                fileDiff.open(fName, std::ofstream::app);
+                fileDiff << std::endl;
+                fileDiff.close();
+            }
+        }
+
+#endif
     }
 
     return 0;
@@ -1567,6 +1748,19 @@ int BSSNCtx::grid_transfer(const ot::Mesh* m_new) {
     m_var[VL::CPU_EV_UZ_OUT].create_vector(
         m_new, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
         BSSN_NUM_VARS, true);
+
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+    m_var[VL::CPU_ANALYTIC].destroy_vector();
+    m_var[VL::CPU_ANALYTIC_DIFF].destroy_vector();
+
+    // create the analytic vectors as well
+    m_var[VL::CPU_ANALYTIC].create_vector(
+        m_new, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+    m_var[VL::CPU_ANALYTIC_DIFF].create_vector(
+        m_new, ot::DVEC_TYPE::OCT_SHARED_NODES, ot::DVEC_LOC::HOST,
+        bssn::TEUK_NUM_ANALYTIC_VARS, true);
+#endif
 
     ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                       BSSN_ASYNC_COMM_K);
@@ -2168,5 +2362,121 @@ void BSSNCtx::lts_smooth(DVec sIn, LTS_SMOOTH_MODE mode) {
     }
 }
 #endif
+
+void BSSNCtx::compute_analytic() {
+    if (m_bAnalyticalComputed) return;
+
+    // don't compute if we're inactive
+    if (!m_uiMesh->isActive()) {
+        m_bAnalyticalComputed = true;
+        return;
+    }
+
+#ifdef BSSN_ENABLE_TEUK_ANALYTIC
+    // check if is teuk initial data
+    if (bssn::BSSN_ID_TYPE == 7 || bssn::BSSN_ID_TYPE == 9 ||
+        bssn::BSSN_ID_TYPE == 12) {
+        // we're good to continue
+    } else {
+        // otherwise, we have no analytical solution to compute, so we'll exit
+        m_bAnalyticalComputed = true;
+        return;
+    }
+
+    DVec& m_evar                = m_var[VL::CPU_EV];
+    DVec& m_analytic            = m_var[VL::CPU_ANALYTIC];
+    DVec& m_analytic_diff       = m_var[VL::CPU_ANALYTIC_DIFF];
+
+    const ot::TreeNode* pNodes  = &(*(m_uiMesh->getAllElements().begin()));
+    const unsigned int eleOrder = m_uiMesh->getElementOrder();
+    const unsigned int* e2n_cg  = &(*(m_uiMesh->getE2NMapping().begin()));
+    const unsigned int* e2n_dg  = &(*(m_uiMesh->getE2NMapping_DG().begin()));
+    const unsigned int nPe      = m_uiMesh->getNumNodesPerElement();
+    const unsigned int nodeLocalBegin = m_uiMesh->getNodeLocalBegin();
+    const unsigned int nodeLocalEnd   = m_uiMesh->getNodeLocalEnd();
+
+    DendroScalar* analytical_var[bssn::TEUK_NUM_ANALYTIC_VARS];
+    DendroScalar* analytical_diff[bssn::TEUK_NUM_ANALYTIC_VARS];
+    DendroScalar* zipped_vars[bssn::BSSN_NUM_VARS];
+
+    m_analytic.to_2d(analytical_var);
+    m_analytic_diff.to_2d(analytical_diff);
+    m_evar.to_2d(zipped_vars);
+
+    for (unsigned int elem = m_uiMesh->getElementLocalBegin();
+         elem < m_uiMesh->getElementLocalEnd(); elem++) {
+        DendroScalar var[bssn::TEUK_NUM_ANALYTIC_VARS];
+        for (unsigned int k = 0; k < (eleOrder + 1); k++)
+            for (unsigned int j = 0; j < (eleOrder + 1); j++)
+                for (unsigned int i = 0; i < (eleOrder + 1); i++) {
+                    const unsigned int nodeLookUp_CG =
+                        e2n_cg[elem * nPe +
+                               k * (eleOrder + 1) * (eleOrder + 1) +
+                               j * (eleOrder + 1) + i];
+                    if (nodeLookUp_CG >= nodeLocalBegin &&
+                        nodeLookUp_CG < nodeLocalEnd) {
+                        const unsigned int nodeLookUp_DG =
+                            e2n_dg[elem * nPe +
+                                   k * (eleOrder + 1) * (eleOrder + 1) +
+                                   j * (eleOrder + 1) + i];
+                        unsigned int ownerID, ii_x, jj_y, kk_z;
+                        m_uiMesh->dg2eijk(nodeLookUp_DG, ownerID, ii_x, jj_y,
+                                          kk_z);
+
+                        const DendroScalar len =
+                            (double)(1u << (m_uiMaxDepth -
+                                            pNodes[ownerID].getLevel()));
+                        const DendroScalar x =
+                            pNodes[ownerID].getX() + ii_x * (len / (eleOrder));
+                        const DendroScalar y =
+                            pNodes[ownerID].getY() + jj_y * (len / (eleOrder));
+                        const DendroScalar z =
+                            pNodes[ownerID].getZ() + kk_z * (len / (eleOrder));
+
+                        // NOTE: x,y,z are ON GRID not on physical domain
+                        bssn::LinearTeuk((double)x, (double)y, (double)z,
+                                         m_uiTinfo._m_uiT, var, true);
+
+                        // move the variables in and calculate the difference
+                        std::vector<unsigned int> idxs_use = {
+                            bssn::VAR::U_SYMGT0, bssn::VAR::U_SYMGT1,
+                            bssn::VAR::U_SYMGT2, bssn::VAR::U_SYMGT3,
+                            bssn::VAR::U_SYMGT4, bssn::VAR::U_SYMGT5};
+
+                        for (unsigned int v = 0;
+                             v < bssn::TEUK_NUM_ANALYTIC_VARS; v++) {
+                            // move true solution out of var into the vector
+                            analytical_var[v][nodeLookUp_CG] = var[v];
+
+                            // NOTE: make sure we use the idxs use, they should
+                            // correspond with the values directly tied in to
+                            // the teuk calculations
+                            analytical_diff[v][nodeLookUp_CG] =
+                                zipped_vars[idxs_use[v]][nodeLookUp_CG] -
+                                var[v];
+                        }
+                    }
+                }
+    }
+
+    // NOTE: not sure if I need to actually do the communication here or
+    // not I think BSSN did it simply because of the extraction step for
+    // grav waves
+    m_uiMesh->readFromGhostBegin(m_analytic.get_vec_ptr(),
+                                 m_analytic.get_dof());
+    m_uiMesh->readFromGhostEnd(m_analytic.get_vec_ptr(), m_analytic.get_dof());
+    m_uiMesh->readFromGhostBegin(m_analytic_diff.get_vec_ptr(),
+                                 m_analytic_diff.get_dof());
+    m_uiMesh->readFromGhostEnd(m_analytic_diff.get_vec_ptr(),
+                               m_analytic_diff.get_dof());
+
+    if (!(m_uiMesh->getMPIRank())) {
+        std::cout << "\t\tFinished computation of analytical!" << std::endl;
+    }
+#endif
+
+    m_bAnalyticalComputed = true;
+    return;
+}
 
 }  // end of namespace bssn.

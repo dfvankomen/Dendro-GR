@@ -17,6 +17,7 @@
 #include <iostream>
 #include <limits>
 
+#include "Linear_Teukolsky.h"
 #include "TwoPunctures.h"
 #include "aeh.h"
 #include "bssn_constraints.h"
@@ -40,6 +41,8 @@ enum LTS_SMOOTH_MODE { KO = 0, WEIGHT_FUNC };
 enum VL {
     CPU_EV = 0,
     CPU_CV,
+    CPU_ANALYTIC,
+    CPU_ANALYTIC_DIFF,
     CPU_EV_UZ_IN,
     CPU_EV_UZ_OUT,
     CPU_CV_UZ_IN,
@@ -75,6 +78,7 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     bool m_bConstraintsComputed  = false;
     bool m_bBHEvolved            = false;
+    bool m_bAnalyticalComputed   = false;
 
    public:
     /** @brief: default constructor*/
@@ -87,6 +91,7 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         // make sure some things are ready for the next iteration
         m_bConstraintsComputed = false;
         m_bBHEvolved           = false;
+        m_bAnalyticalComputed  = false;
     }
 
     /** @brief get bh locations*/
@@ -312,6 +317,8 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     void calculate_full_grid_size();
 
     void store_bh_loc_history();
+
+    void compute_analytic();
 };
 
 }  // end of namespace bssn

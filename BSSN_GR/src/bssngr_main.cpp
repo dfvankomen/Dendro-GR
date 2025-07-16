@@ -172,6 +172,8 @@ bssn:
 
     int root = std::min(1, npes - 1);
     bssn::dumpParamFile(std::cout, root, comm);
+    // throwing a barrier here so our code can continue
+    MPI_Barrier(comm);
 
     _InitializeHcurve(bssn::BSSN_DIM);
     m_uiMaxDepth = bssn::BSSN_MAXDEPTH;
@@ -268,12 +270,21 @@ bssn:
         function2Octree(f_init, bssn::BSSN_NUM_VARS, varIndex, interpVars,
                         tmpNodes, maxDepthIn, bssn::BSSN_WAVELET_TOL,
                         bssn::BSSN_ELE_ORDER, comm);
+
+        if (!rank)
+            std::cout
+                << YLW
+                << "function2Octree routine finished, now generating mesh..."
+                << NRM << std::endl;
     }
 
     ot::Mesh* mesh =
         ot::createMesh(tmpNodes.data(), tmpNodes.size(), bssn::BSSN_ELE_ORDER,
                        comm, 1, ot::SM_TYPE::FDM, bssn::BSSN_DENDRO_GRAIN_SZ,
                        bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX);
+    if (!rank)
+        std::cout << GRN << "Mesh generation finished!" << NRM << std::endl;
+
     mesh->setDomainBounds(Point(bssn::BSSN_GRID_MIN_X, bssn::BSSN_GRID_MIN_Y,
                                 bssn::BSSN_GRID_MIN_Z),
                           Point(bssn::BSSN_GRID_MAX_X, bssn::BSSN_GRID_MAX_Y,
@@ -281,6 +292,7 @@ bssn:
     unsigned int lmin, lmax;
     mesh->computeMinMaxLevel(lmin, lmax);
     if (!rank) {
+        std::cout << GRN << "Mesh generation finished!" << NRM << std::endl;
         std::cout << "================= Grid Info (Before init grid "
                      "converge):==============================================="
                      "========"

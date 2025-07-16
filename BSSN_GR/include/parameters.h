@@ -448,6 +448,8 @@ extern unsigned int TEUK_KK;
 
 extern double TEUK_REFINEMENT_R0;
 
+const unsigned int TEUK_NUM_ANALYTIC_VARS = 6;
+
 #ifdef DENDRO_USE_NEW_DERIVS
 extern std::unique_ptr<dendroderivs::DendroDerivatives> BSSN_DERIVS;
 
