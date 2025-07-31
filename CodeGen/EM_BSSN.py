@@ -506,6 +506,7 @@ def bssn_puncture_gauge(
             * a
             / (2 * chi)
             * sum([PerpE[i] * d(i, chi) for i in dendro.e_i])
+            - a * 0.4 * DampPsi
         )
 
         ###################################################################

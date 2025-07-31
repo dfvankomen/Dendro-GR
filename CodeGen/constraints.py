@@ -316,8 +316,8 @@ mom = (
  - 8 * pi * Matrix([J[i]  for i in dendro.e_i]))
 mom = [item for sublist in mom.tolist() for item in sublist]
 # the Calculation of the E&M Constraints:
-divE = sum ( d(i, PerpE[i])for i in dendro.e_i)
-divB = sum ( d(i, PerpB[i])for i in dendro.e_i)
+divE = sum ( d(i, PerpE[i])for i in dendro.e_i) - Rational(3,2) * sum( d(i,chi) * PerpE[i] for i in dendro.e_i)/chi
+divB = sum ( d(i, PerpB[i])for i in dendro.e_i) - Rational(3,2) * sum( d(i,chi) * PerpB[i] for i in dendro.e_i)/chi
 # Output for this should be included psi4_real and psi4_img as double precision
 ###################################################################
 # generate code

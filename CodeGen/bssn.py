@@ -1,3 +1,4 @@
+
 """
 BSSN core variables .
 """
@@ -285,7 +286,7 @@ def bssn_puncture_gauge(
             for i in dendro.e_i
         ]
         PerpE_rhs = [
-                dendro.lie(b, PerpE, weight)[i]
+                dendro.lie(b, PerpE)[i]
                 + a * K * PerpE[i]
                 + pow(chi, 0.5) * sum(
                 leviCivita[i][j][k] * (
@@ -302,7 +303,7 @@ def bssn_puncture_gauge(
 
 
         PerpB_rhs =[
-            dendro.lie(b, PerpB, weight)[i] + a * K * PerpB[i]
+            dendro.lie(b, PerpB)[i] + a * K * PerpB[i]
             - pow(chi, 0.5) * sum(
                 leviCivita[i][j][k] * (
                     sum(gt[k, l] * PerpE[l] for l in dendro.e_i) * d(j, a)
@@ -318,15 +319,17 @@ def bssn_puncture_gauge(
         ]
 
         DampPhi_rhs = (
-            dendro.lie(b, DampPhi, weight)
+            dendro.vec_j_del_j(b, DampPhi)
             - a * sum(d(i, PerpB[i]) for i in dendro.e_i)
-            - a * kappa * DampPhi
+            + a / chi * Rational(3, 2) * sum(PerpB[i] * d(i, chi) for i in dendro.e_i)
+            - a * Rational(4,10) * DampPhi
         )
 
         DampPsi_rhs = (
-            dendro.lie(b, DampPsi, weight)
+           dendro.vec_j_del_j(b, DampPsi)
             - a * sum(d(i, PerpE[i]) for i in dendro.e_i)
-            - a * kappa * DampPsi
+            + a / chi * Rational(3, 2) * sum(PerpE[i] * d(i, chi) for i in dendro.e_i)
+            - a * Rational(4,10) * DampPsi
         )
 
         ###################################################################
