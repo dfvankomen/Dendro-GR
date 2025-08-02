@@ -825,27 +825,27 @@ def bssn_rochester_puncture_gauge(
 
 def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
     if enable_ssl:
-        print("// CODEGEN: SSL was enabled, adding term to gauge condition!")
+        print("// CodeGen: SSL was enabled, adding term to gauge condition!")
 
     if enable_cahd:
-        print("// CODEGEN: CAHD was enabled, adding damping term to chi!")
+        print("// CodeGen: CAHD was enabled, adding damping term to chi!")
 
     if eta_damp == "func":
-        print("//Codgen: using eta func damping")
+        print("// CodeGen: using eta func damping")
         eta_in = eta_func
     else:
-        print("//Codgen: using eta const damping")
+        print("// CodeGen: using eta const damping")
         eta_in = eta
 
     isStaged = staged_type == "staged"
     if isStaged:
-        print("//Codgen: generating staged version ")
+        print("// CodeGen: generating staged version ")
 
     if gauge == "rochester":
-        print("//Codgen: using rochester gauge")
+        print("// CodeGen: using rochester gauge")
         bssn_rochester_puncture_gauge(eta_in, isStaged, prefix, enable_ssl)
     else:
-        print("//Codgen: using standard gauge")
+        print("// CodeGen: using standard gauge")
         bssn_puncture_gauge(eta_in, isStaged, prefix, enable_ssl, enable_cahd)
 
 
