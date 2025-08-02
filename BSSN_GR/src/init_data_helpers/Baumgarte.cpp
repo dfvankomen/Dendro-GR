@@ -34,9 +34,11 @@ double rho           = sqrt(rho_sqrd);
 double r_sqrd        = rho_sqrd + zbar * zbar;
 double rr            = sqrt(r_sqrd);
 
-double epsilon_sq    = 1.0e-8;  // maybe we can read in grid info later?
+double epsilon_sq    = 1.0e-5;  // maybe we can read in grid info later?
 double r_origin      = sqrt(r_sqrd + epsilon_sq);
-
+if(rr<1e-6){
+    rr=r_origin;
+}
 // Away from the axis of symmetry
 if (abs(xbar) > 1.0e-7 || abs(ybar) > 1.0e-7) {
     sin_theta  = rho / rr;
@@ -108,77 +110,196 @@ double rho_axis;
 double A2;
 double B2;
 double C2;
-//we will here make use of a taylor expanded expression of these functions as to avoid singularities arising from imperfect cancelationsat the origin  We do this out to 
-if (rr < 1.0e-2 ) {
-A2 = (-64*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
-   (64*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
-   (32*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
-    (35.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12));
-B2 = (-32*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
-   (32*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
-   (16*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
-    (15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12));
-C2 = (-32*A*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
-   (352*A*pow(rr,2)*(-8*pow(r0,6) + 60*pow(r0,4)*pow(lambda,2) - 90*pow(r0,2)*pow(lambda,4) + 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
-   (368*A*pow(rr,4)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/
-    (105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + (208*A*pow(rr,6)*
-      (-32*pow(r0,10) + 720*pow(r0,8)*pow(lambda,2) - 5040*pow(r0,6)*pow(lambda,4) + 12600*pow(r0,4)*pow(lambda,6) - 9450*pow(r0,2)*pow(lambda,8) + 945*pow(lambda,10)))/
-    (945.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,16));
+double t=0;
+
+//we will here make use of a taylor expanded expression of these functions as to avoid singularities arising from imperfect cancelations at the origin  We do this out to order 6. 
+if (rr < 0.1 ) {
+A2 = (12*A*(-1 + lambda)*pow(lambda,4))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,4)) - (12*A*(-2*pow(r0,2) + pow(lambda,2))*(-1 + 3*lambda - 6*pow(lambda,2) + 4*pow(lambda,3)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,2)*pow(lambda,2)) - 
+   (2*A*((6*r0*(1 - 2*lambda)*pow(lambda,4)*(2*pow(r0,2) - pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (6*r0*pow(lambda,4)*(-1 + 2*lambda)*(2*pow(r0,2) - pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2))))/(rr*pow(lambda,8)) - 
+   (2*A*rr*((r0*(1 - 2*lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + 
+        (r0*(-1 + 2*lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + (64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6))))/pow(lambda,8) - 
+   (2*A*pow(rr,3)*((r0*(1 - 2*lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        (r0*(-1 + 2*lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12))))/pow(lambda,8) - 
+   (2*A*pow(rr,5)*((r0*(1 - 2*lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) + 
+        (r0*(-1 + 2*lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/
+         (90.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) + ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*
+           (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(90.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18))))/pow(lambda,8) - 
+   (2*A*((-4*pow(r0,2)*(1 - 2*lambda)*lambda*(2*pow(r0,2) - 3*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (4*pow(r0,2)*lambda*(-1 + 2*lambda)*(2*pow(r0,2) - 3*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) - 
+        ((-1 + lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (12*(2*pow(r0,2) - pow(lambda,2))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (2*r0*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) - 
+        (2*r0*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/pow(E,pow(r0,2)/pow(lambda,2))))/pow(lambda,8) - 
+   (2*A*pow(rr,2)*((2*(96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2)) - 
+        (2*pow(r0,2)*(1 - 2*lambda)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,5)) + 
+        (2*pow(r0,2)*(-1 + 2*lambda)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,5)) - 
+        ((-1 + lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (2*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) - 
+        (2*r0*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*r0*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) - 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (2*(2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6))))/
+    pow(lambda,8) - (2*A*pow(rr,4)*(32/pow(E,pow(r0,2)/pow(lambda,2)) - (256*pow(r0,2))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + 
+        (2*(2*pow(r0,2) - pow(lambda,2))*(96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) - 
+        (2*pow(r0,2)*(1 - 2*lambda)*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,11)) + 
+        (2*pow(r0,2)*(-1 + 2*lambda)*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,11)) - 
+        ((-1 + lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        (2*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/
+         (15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) - (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) - 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/
+         (3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12))))/pow(lambda,8) - (2*A*pow(rr,6)*((-256*pow(r0,2)*(2*pow(r0,2) - 3*pow(lambda,2)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        (32*(2*pow(r0,2) - pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + ((96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3))*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/
+         (3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) - (pow(r0,2)*(1 - 2*lambda)*(16*pow(r0,8) - 288*pow(r0,6)*pow(lambda,2) + 1512*pow(r0,4)*pow(lambda,4) - 2520*pow(r0,2)*pow(lambda,6) + 945*pow(lambda,8)))/
+         (1890.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,17)) + (pow(r0,2)*(-1 + 2*lambda)*(16*pow(r0,8) - 288*pow(r0,6)*pow(lambda,2) + 1512*pow(r0,4)*pow(lambda,4) - 2520*pow(r0,2)*pow(lambda,6) + 945*pow(lambda,8)))/
+         (1890.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,17)) - ((-1 + lambda)*(32*pow(r0,10) - 720*pow(r0,8)*pow(lambda,2) + 5040*pow(r0,6)*pow(lambda,4) - 12600*pow(r0,4)*pow(lambda,6) + 9450*pow(r0,2)*pow(lambda,8) - 945*pow(lambda,10)))/
+         (18900.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) + ((16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8))*
+           (2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(210.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,24)) - 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        (r0*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/
+         (315.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,21)) - (r0*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6))*
+           (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(315.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,21)) + 
+        ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*
+           (16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/(45.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18))))/pow(lambda,8);
+
+B2 = (-48*A*(-1 + lambda)*pow(lambda,4))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,4)) + (48*A*pow(-1 + lambda,3)*(-2*pow(r0,2) + pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,2)*pow(lambda,2)) + 
+   (8*A*((-8*pow(r0,2)*(2*pow(r0,2) + 6*lambda - 9*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (8*pow(r0,2)*(-1 + lambda)*(2*pow(r0,2) - 3*pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + 
+        (12*pow(lambda,2)*(2*pow(r0,2) + lambda - 2*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (6*(-1 + lambda)*(-2*pow(r0,2) + (-2 + lambda)*lambda)*(2*pow(r0,2) - pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*lambda) - 
+        ((-1 + lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3))))/pow(lambda,5) + 
+   (8*A*pow(rr,2)*(8/pow(E,pow(r0,2)/pow(lambda,2)) - (48*pow(r0,2))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) - 
+        (8*pow(r0,2)*(2*pow(r0,2) + 6*lambda - 9*pow(lambda,2))*(2*pow(r0,2) - 3*pow(lambda,2)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (12*(2*pow(r0,2) + lambda - 2*pow(lambda,2))*(2*pow(r0,2) - pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,4)) + 
+        ((-1 + lambda)*(-2*pow(r0,2) + (-2 + lambda)*lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,7)) + 
+        (4*pow(r0,2)*(-1 + lambda)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) - 
+        ((-1 + lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9))))/pow(lambda,5) + 
+   (8*A*pow(rr,4)*((-16*pow(r0,2)*(2*pow(r0,2) - 3*pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + (8*(2*pow(r0,2) - pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (2*(2*pow(r0,2) + lambda - 2*pow(lambda,2))*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,10)) - 
+        (4*pow(r0,2)*(2*pow(r0,2) + 6*lambda - 9*pow(lambda,2))*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        (4*pow(r0,2)*(-1 + lambda)*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) + 
+        ((-1 + lambda)*(-2*pow(r0,2) + (-2 + lambda)*lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,13)) - 
+        ((-1 + lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15))))/pow(lambda,5) + 
+   (8*A*pow(rr,6)*((4*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) - 
+        (8*pow(r0,2)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) - 
+        (4*pow(r0,2)*(2*pow(r0,2) + 6*lambda - 9*pow(lambda,2))*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(315.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) + 
+        (2*(2*pow(r0,2) + lambda - 2*pow(lambda,2))*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,16)) + 
+        ((-1 + lambda)*(-2*pow(r0,2) + (-2 + lambda)*lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,19)) + 
+        (pow(r0,2)*(-1 + lambda)*(16*pow(r0,8) - 288*pow(r0,6)*pow(lambda,2) + 1512*pow(r0,4)*pow(lambda,4) - 2520*pow(r0,2)*pow(lambda,6) + 945*pow(lambda,8)))/(945.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,20)) - 
+        ((-1 + lambda)*(32*pow(r0,10) - 720*pow(r0,8)*pow(lambda,2) + 5040*pow(r0,6)*pow(lambda,4) - 12600*pow(r0,4)*pow(lambda,6) + 9450*pow(r0,2)*pow(lambda,8) - 945*pow(lambda,10)))/(18900.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,21))))/
+    pow(lambda,5);
+
+C2 =(12*A*(-1 + lambda)*pow(lambda,4))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,4)) - (12*A*(-2*pow(r0,2) + pow(lambda,2))*(-1 + 3*lambda - 6*pow(lambda,2) + 4*pow(lambda,3)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(rr,2)*pow(lambda,2)) - 
+   (2*A*((6*r0*(1 - 2*lambda)*pow(lambda,4)*(2*pow(r0,2) - pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (6*r0*pow(lambda,4)*(-1 + 2*lambda)*(2*pow(r0,2) - pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2))))/(rr*pow(lambda,8)) - 
+   (2*A*rr*((r0*(1 - 2*lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + 
+        (r0*(-1 + 2*lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + (64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6))))/pow(lambda,8) - 
+   (2*A*pow(rr,3)*((r0*(1 - 2*lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        (r0*(-1 + 2*lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((2*pow(r0,2) - pow(lambda,2))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12))))/pow(lambda,8) - 
+   (2*A*pow(rr,5)*((r0*(1 - 2*lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) + 
+        (r0*(-1 + 2*lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,14)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(6.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/
+         (90.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) + ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*
+           (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(90.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18))))/pow(lambda,8) - 
+   (2*A*((-4*pow(r0,2)*(1 - 2*lambda)*lambda*(2*pow(r0,2) - 3*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) + (4*pow(r0,2)*lambda*(-1 + 2*lambda)*(2*pow(r0,2) - 3*pow(lambda,2)))/pow(E,pow(r0,2)/pow(lambda,2)) - 
+        ((-1 + lambda)*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/pow(E,pow(r0,2)/pow(lambda,2)) + 
+        (12*(2*pow(r0,2) - pow(lambda,2))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (2*r0*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) - 
+        (2*r0*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/pow(E,pow(r0,2)/pow(lambda,2))))/pow(lambda,8) - 
+   (2*A*pow(rr,2)*((2*(96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3)))/pow(E,pow(r0,2)/pow(lambda,2)) - 
+        (2*pow(r0,2)*(1 - 2*lambda)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,5)) + 
+        (2*pow(r0,2)*(-1 + 2*lambda)*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4)))/(5.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,5)) - 
+        ((-1 + lambda)*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6)))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + 
+        (2*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) - 
+        (2*r0*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*r0*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,3)) + 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) - 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (2*(2*pow(r0,2) - pow(lambda,2))*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6))))/
+    pow(lambda,8) - (2*A*pow(rr,4)*(32/pow(E,pow(r0,2)/pow(lambda,2)) - (256*pow(r0,2))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,2)) + 
+        (2*(2*pow(r0,2) - pow(lambda,2))*(96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) - 
+        (2*pow(r0,2)*(1 - 2*lambda)*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,11)) + 
+        (2*pow(r0,2)*(-1 + 2*lambda)*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6)))/(105.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,11)) - 
+        ((-1 + lambda)*(16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8)))/(420.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) + 
+        (2*(8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*(2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/
+         (15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) - (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (2*r0*(2*pow(r0,2) - 3*pow(lambda,2))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,9)) + 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) - 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        ((4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4))*(16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/
+         (3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12))))/pow(lambda,8) - (2*A*pow(rr,6)*((-256*pow(r0,2)*(2*pow(r0,2) - 3*pow(lambda,2)))/(3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,8)) + 
+        (32*(2*pow(r0,2) - pow(lambda,2)))/(pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,6)) + ((96*pow(r0,2)*pow(lambda,2) + 16*(1 - 5*lambda)*pow(lambda,3))*(4*pow(r0,4) - 12*pow(r0,2)*pow(lambda,2) + 3*pow(lambda,4)))/
+         (3.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,12)) - (pow(r0,2)*(1 - 2*lambda)*(16*pow(r0,8) - 288*pow(r0,6)*pow(lambda,2) + 1512*pow(r0,4)*pow(lambda,4) - 2520*pow(r0,2)*pow(lambda,6) + 945*pow(lambda,8)))/
+         (1890.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,17)) + (pow(r0,2)*(-1 + 2*lambda)*(16*pow(r0,8) - 288*pow(r0,6)*pow(lambda,2) + 1512*pow(r0,4)*pow(lambda,4) - 2520*pow(r0,2)*pow(lambda,6) + 945*pow(lambda,8)))/
+         (1890.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,17)) - ((-1 + lambda)*(32*pow(r0,10) - 720*pow(r0,8)*pow(lambda,2) + 5040*pow(r0,6)*pow(lambda,4) - 12600*pow(r0,4)*pow(lambda,6) + 9450*pow(r0,2)*pow(lambda,8) - 945*pow(lambda,10)))/
+         (18900.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18)) + ((16*pow(r0,8) - 224*pow(r0,6)*pow(lambda,2) + 840*pow(r0,4)*pow(lambda,4) - 840*pow(r0,2)*pow(lambda,6) + 105*pow(lambda,8))*
+           (2*pow(r0,2)*pow(lambda,8) + pow(lambda,9) - 4*pow(r0,2)*pow(lambda,9) - 3*pow(lambda,10) + 2*pow(lambda,11)))/(210.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,24)) - 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(64*pow(r0,3)*pow(lambda,3) - 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        (r0*(4*pow(r0,4) - 20*pow(r0,2)*pow(lambda,2) + 15*pow(lambda,4))*(-64*pow(r0,3)*pow(lambda,3) + 48*pow(lambda,3)*(-(r0*lambda) + 4*r0*pow(lambda,2))))/(15.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,15)) + 
+        (r0*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6))*(16*pow(r0,3)*pow(lambda,6)*(-1 + 2*lambda) - 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/
+         (315.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,21)) - (r0*(8*pow(r0,6) - 84*pow(r0,4)*pow(lambda,2) + 210*pow(r0,2)*pow(lambda,4) - 105*pow(lambda,6))*
+           (16*pow(r0,3)*(1 - 2*lambda)*pow(lambda,6) + 24*pow(lambda,6)*(r0*lambda - 3*r0*pow(lambda,2) + 2*r0*pow(lambda,3))))/(315.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,21)) + 
+        ((8*pow(r0,6) - 60*pow(r0,4)*pow(lambda,2) + 90*pow(r0,2)*pow(lambda,4) - 15*pow(lambda,6))*
+           (16*pow(r0,4)*pow(lambda,4) + 12*pow(lambda,6)*(1 - 4*lambda + 5*pow(lambda,2)) - 48*pow(lambda,3)*(-(pow(r0,2)*pow(lambda,2)) + 3*pow(r0,2)*pow(lambda,3))))/(45.*pow(E,pow(r0,2)/pow(lambda,2))*pow(lambda,18))))/pow(lambda,8);
 }
 //else we continue with the numerical formulation:
 else{
-double F =A*(pow(E,-pow(rr - r0,2)/pow(lambda,2)) + pow(E,-pow(rr + r0,2)/pow(lambda,2)))*rr*pow(lambda,4);
-double F1 = A*(pow(E,-pow(rr - r0,2)/pow(lambda,2)) + pow(E,-pow(rr + r0,2)/pow(lambda,2)))*pow(lambda,4) + 
-   A*rr*((-2*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,2)) - (2*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,2)))*pow(lambda,4);
 
-double F2 = A*rr*((4*pow(rr - r0,2))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + (4*pow(rr + r0,2))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)) - 
-      2/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,2)) - 2/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,2)))*pow(lambda,4) + 
-   2*A*((-2*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,2)) - (2*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,2)))*pow(lambda,4);
+A2 = (12*A*((3*(t + rr*(-1 + lambda))*pow(lambda,6) - 4*pow(rr,2)*(rr - t)*pow(-rr + t + r0*lambda,2) - 2*rr*pow(lambda,3)*(3*pow(rr - t,2) - 3*(rr + r0)*(rr - t)*lambda + 2*rr*r0*pow(lambda,2)))/pow(E,pow(-rr + t + r0*lambda,2)/pow(lambda,4)) - 
+       (3*pow(lambda,6)*(rr + t - rr*lambda) + 4*pow(rr,2)*(rr + t)*pow(rr + t - r0*lambda,2) + 2*rr*pow(lambda,3)*(3*pow(rr + t,2) - 3*(rr + r0)*(rr + t)*lambda + 2*rr*r0*pow(lambda,2)))/pow(E,pow(rr + t - r0*lambda,2)/pow(lambda,4)) + 
+       (3*(t + rr*(-1 + lambda))*pow(lambda,6) - 4*pow(rr,2)*(rr - t)*pow(rr - t + r0*lambda,2) - 2*rr*pow(lambda,3)*(rr*lambda*(-3*rr + 3*t - 2*r0*lambda) + 3*(rr - t)*(rr - t + r0*lambda)))/pow(E,pow(rr - t + r0*lambda,2)/pow(lambda,4)) - 
+       (3*pow(lambda,6)*(rr + t - rr*lambda) + 4*pow(rr,2)*(rr + t)*pow(rr + t + r0*lambda,2) + 2*rr*pow(lambda,3)*(3*(rr + t)*(rr + t + r0*lambda) - rr*lambda*(3*(rr + t) + 2*r0*lambda)))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4))))/(pow(rr,5)*pow(lambda,2));
 
-double F3 = A*rr*((-8*pow(rr - r0,3))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,6)) - (8*pow(rr + r0,3))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,6)) + 
-      (12*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + (12*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)))*pow(lambda,4) + 
-   3*A*((4*pow(rr - r0,2))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + (4*pow(rr + r0,2))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)) - 
-      2/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,2)) - 2/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,2)))*pow(lambda,4);
+B2 = (4*A*(3*((pow(E,-pow(rr - t + r0*lambda,2)/pow(lambda,4)) + pow(E,-pow(-rr + t + r0*lambda,2)/pow(lambda,4)))*(rr - t) + (pow(E,-pow(rr + t - r0*lambda,2)/pow(lambda,4)) + pow(E,-pow(rr + t + r0*lambda,2)/pow(lambda,4)))*(rr + t))*pow(lambda,9) - 
+       3*rr*pow(lambda,6)*((pow(lambda,4) - 2*(rr - t)*(rr - t - r0*lambda))/pow(E,pow(-rr + t + r0*lambda,2)/pow(lambda,4)) + (pow(lambda,4) - 2*(rr + t)*(rr + t - r0*lambda))/pow(E,pow(rr + t - r0*lambda,2)/pow(lambda,4)) + 
+          (pow(lambda,4) - 2*(rr - t)*(rr - t + r0*lambda))/pow(E,pow(rr - t + r0*lambda,2)/pow(lambda,4)) + (pow(lambda,4) - 2*(rr + t)*(rr + t + r0*lambda))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4))) + 
+       pow(rr,3)*((3*pow(lambda,8) + 4*(rr + t)*pow(rr + t - r0*lambda,3) - 6*pow(lambda,4)*(rr + t - r0*lambda)*(2*(rr + t) - r0*lambda))/pow(E,pow(rr + t - r0*lambda,2)/pow(lambda,4)) + 
+          (3*pow(lambda,8) - 6*pow(lambda,4)*(2*rr - 2*t + r0*lambda)*(rr - t + r0*lambda) + 4*(rr - t)*pow(rr - t + r0*lambda,3))/pow(E,pow(rr - t + r0*lambda,2)/pow(lambda,4)) + 
+          (3*pow(lambda,8) + 4*(rr - t)*pow(rr - t - r0*lambda,3) - 6*pow(lambda,4)*(-rr + t + r0*lambda)*(-2*rr + 2*t + r0*lambda))/pow(E,pow(-rr + t + r0*lambda,2)/pow(lambda,4)) + 
+          (3*pow(lambda,8) + 4*(rr + t)*pow(rr + t + r0*lambda,3) - 6*pow(lambda,4)*(rr + t + r0*lambda)*(2*(rr + t) + r0*lambda))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4))) - 
+       3*pow(rr,2)*pow(lambda,3)*((pow(lambda,4)*(3*(rr + t) - 2*r0*lambda) - 2*(rr + t)*pow(rr + t - r0*lambda,2))/pow(E,pow(rr + t - r0*lambda,2)/pow(lambda,4)) + 
+          (pow(lambda,4)*(3*rr - 3*t - 2*r0*lambda) - 2*(rr - t)*pow(-rr + t + r0*lambda,2))/pow(E,pow(-rr + t + r0*lambda,2)/pow(lambda,4)) + 
+          (-2*(rr - t)*pow(rr - t + r0*lambda,2) + pow(lambda,4)*(3*rr - 3*t + 2*r0*lambda))/pow(E,pow(rr - t + r0*lambda,2)/pow(lambda,4)) + (-2*(rr + t)*pow(rr + t + r0*lambda,2) + pow(lambda,4)*(3*(rr + t) + 2*r0*lambda))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4)))))
+    /(pow(rr,5)*pow(lambda,5));
 
-double F4 = A*rr*((16*pow(rr - r0,4))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,8)) + (16*pow(rr + r0,4))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,8)) - 
-      (48*pow(rr - r0,2))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,6)) - (48*pow(rr + r0,2))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,6)) + 
-      12/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + 12/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)))*pow(lambda,4) + 
-   4*A*((-8*pow(rr - r0,3))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,6)) - (8*pow(rr + r0,3))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,6)) + 
-      (12*(rr - r0))/(pow(E,pow(rr - r0,2)/pow(lambda,2))*pow(lambda,4)) + (12*(rr + r0))/(pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(lambda,4)))*pow(lambda,4);
-
-A2 = 24*( -F2/(pow(rr,3))+3*F2/(pow(rr,4))-3*F/(pow(rr,5)));
-
-B2 = 4*(-F3/(pow(rr,2))+3*F2/(pow(rr,3))- 6 * F1 /(pow(rr,4))+6*F/(pow(rr,5)));
-
-C2 = 2*(-F4/(rr)+2*F3/(pow(rr,2))- 3* F2 /(pow(rr,3))+ 3* F1/(pow(rr,4))- 3*F/(pow(rr,5)));
+C2 =-((A*((3*pow(lambda,12)*(rr + t - rr*lambda) + 16*pow(rr,4)*(rr + t)*pow(rr + t - r0*lambda,4) + 6*rr*pow(lambda,9)*(rr + t - 2*rr*lambda)*(rr + t - (rr + r0)*lambda) + 
+            16*pow(rr,3)*pow(lambda,3)*pow(rr + t - r0*lambda,2)*(pow(rr + t,2) - (5*rr + r0)*(rr + t)*lambda + 2*rr*r0*pow(lambda,2)) + 
+            12*pow(rr,2)*pow(lambda,6)*(pow(rr + t,3) - 2*(2*rr + r0)*pow(rr + t,2)*lambda + (rr + r0)*(5*rr + r0)*(rr + t)*pow(lambda,2) - 2*rr*r0*(2*rr + r0)*pow(lambda,3)))/pow(E,pow(rr + t - r0*lambda,2)/pow(lambda,4)) + 
+         (-3*(t + rr*(-1 + lambda))*pow(lambda,12) + 16*pow(rr,4)*(rr - t)*pow(-rr + t + r0*lambda,4) + 16*pow(rr,3)*pow(lambda,3)*pow(-rr + t + r0*lambda,2)*(pow(rr - t,2) - (5*rr + r0)*(rr - t)*lambda + 2*rr*r0*pow(lambda,2)) + 
+            12*pow(rr,2)*pow(lambda,6)*(pow(rr - t,3) - 2*(2*rr + r0)*pow(rr - t,2)*lambda + (rr + r0)*(5*rr + r0)*(rr - t)*pow(lambda,2) - 2*rr*r0*(2*rr + r0)*pow(lambda,3)) + 6*rr*pow(lambda,9)*(t + rr*(-1 + lambda) + r0*lambda)*(t + rr*(-1 + 2*lambda)))/
+          pow(E,pow(-rr + t + r0*lambda,2)/pow(lambda,4)) + (-3*(t + rr*(-1 + lambda))*pow(lambda,12) + 16*pow(rr,4)*(rr - t)*pow(rr - t + r0*lambda,4) + 6*rr*pow(lambda,9)*(t + rr*(-1 + lambda) - r0*lambda)*(t + rr*(-1 + 2*lambda)) + 
+            16*pow(rr,3)*pow(lambda,3)*pow(rr - t + r0*lambda,2)*(rr*lambda*(-5*rr + 5*t - 2*r0*lambda) + (rr - t)*(rr - t + r0*lambda)) - 
+            12*pow(rr,2)*pow(lambda,6)*(pow(rr,2)*pow(lambda,2)*(-5*rr + 5*t - 4*r0*lambda) + 2*rr*lambda*(2*rr - 2*t + r0*lambda)*(rr - t + r0*lambda) - (rr - t)*pow(rr - t + r0*lambda,2)))/pow(E,pow(rr - t + r0*lambda,2)/pow(lambda,4)) + 
+         (3*pow(lambda,12)*(rr + t - rr*lambda) + 16*pow(rr,4)*(rr + t)*pow(rr + t + r0*lambda,4) + 6*rr*pow(lambda,9)*(rr + t - 2*rr*lambda)*(rr + t - rr*lambda + r0*lambda) + 
+            16*pow(rr,3)*pow(lambda,3)*pow(rr + t + r0*lambda,2)*((rr + t)*(rr + t + r0*lambda) - rr*lambda*(5*(rr + t) + 2*r0*lambda)) + 
+            12*pow(rr,2)*pow(lambda,6)*((rr + t)*pow(rr + t + r0*lambda,2) - 2*rr*lambda*(rr + t + r0*lambda)*(2*(rr + t) + r0*lambda) + pow(rr,2)*pow(lambda,2)*(5*(rr + t) + 4*r0*lambda)))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4))))/(pow(rr,5)*pow(lambda,8)));
 }
-// double A2= (48 * A * exp(-(pow((rr-r0),2)/(pow(lambda,2))))* (-2 rr* pow((rr-r0),2) - r0 * pow(lambda,2) + exp(4((rr-r0)/(pow(lambda,2)))));
 
-// double piece1 = 48*A*(-2*rr*pow(rr + r0,2));
-// double piece2 = r0*pow(lambda,2);
-// double piece3 = pow(E,(4*rr*r0)/pow(lambda,2))*(-2*rr*pow(rr - r0,2));
-// double piece4 = (pow(E,pow(rr + r0,2)/pow(lambda,2))*pow(rr,3));
-// double B2 =(16*A*(2*pow(rr + r0,3) - 3*(rr + r0)*pow(lambda,2) + pow(E,(4*rr*r0)/pow(lambda,2))*(rr - r0)*(2*pow(rr - r0,2) - 3*pow(lambda,2))))/
-//    (pow(E,pow(rr + r0,2)/pow(lambda,2))*rr*pow(lambda,2));
-
-// double C2 = (-4*A*(pow(E,pow(rr - r0,2)/pow(lambda,2))*(8*pow(rr,3)*pow(rr + r0,4) - 8*pow(rr,2)*pow(rr + r0,2)*(4*rr + r0)*pow(lambda,2) + 6*rr*(2*pow(rr,2) - pow(r0,2))*pow(lambda,4) - 
-//           3*r0*pow(lambda,6)) + pow(E,pow(rr + r0,2)/pow(lambda,2))*(8*pow(rr,3)*pow(rr - r0,4) - 8*pow(rr,2)*pow(rr - r0,2)*(4*rr - r0)*pow(lambda,2) + 
-//           6*rr*(2*pow(rr,2) - pow(r0,2))*pow(lambda,4) + 3*r0*pow(lambda,6))))/(pow(E,(2*(pow(rr,2) + pow(r0,2)))/pow(lambda,2))*pow(rr,3)*pow(lambda,4));
-	
-// 	if (piece4 == 0) {
-//     std::cout << "divide by 0!!!!" << std::endl;
-// }
-//     // if (isnan(A2)) printf("Error: A2 is NaN\n");
-//     // if (isnan(B2)) printf("Error: B2 is NaN\n");
-//     // if (isnan(C2)) printf("Error: C2 is NaN\n");
-//     // if (isnan(lambda)) printf("Error: lambda is NaN\n");
-//     // if (isnan(E)) printf("Error: E is NaN\n");
-// 	if (isnan(piece1)) printf("Error: piece1 is NaN\n");
-//     if (isnan(piece2)) printf("Error: piece2 is NaN\n");
-//     if (isnan(piece3)) printf("Error: piece3 is NaN\n");
-//     if (isnan(piece4)) printf("Error: piece4 is NaN\n");
-//     if (isnan(E)) printf("Error: E is NaN\n");
-//Defining the Spherical harmonics that we will need:
 double Y20= 2- 3* sin_theta*sin_theta;
 double Y20theta =-6*cos_theta*sin_theta;
 double Y20_thetatheta = 3* sin_theta*sin_theta;
@@ -349,12 +470,6 @@ if (rho > 1.0e-7) {  // everywhere but the axis ...
 	std::cout << " something strange happened ... ";
 }
 
-
-// Checking to see if the determinant is negative
-detg = (g_xx * g_yy * g_zz) + (g_xy * g_yz * g_xz) + (g_xz * g_xy * g_yz) -
-       ((g_xz * g_yy * g_xz) + (g_yz * g_yz * g_xx) + (g_zz * g_xy * g_xy));
-
-Chi = pow(detg, -1.0 / 3.0);
 // //Check if any variable is NaN and report which one
 //     if (isnan(A2)) printf("Error: A2 is NaN\n");
 //     if (isnan(B2)) printf("Error: B2 is NaN\n");
@@ -364,23 +479,23 @@ Chi = pow(detg, -1.0 / 3.0);
 //     if (isnan(g_xz)) printf("Error: g_xz is NaN\n");
 //     if (isnan(detg)) printf("Error: detg is NaN\n");
 
-if (detg < 0) {
-    std::cout << "The determinant = " << detg << std::endl;
-    std::cout << " rr = " << rr << std::endl;
-    std::cout << " x = " << xbar << std::endl;
-    std::cout << " y = " << ybar << std::endl;
-    std::cout << " z = " << zbar << std::endl;
-	std::cout << " g_xx = " << g_xx << std::endl;
-    std::cout << " g_xy = " << g_xy << std::endl;
-    std::cout << " g_xz = " << g_xz << std::endl;
-    std::cout << " g_yy = " << g_yy << std::endl;
-    std::cout << " g_yz = " << g_yz << std::endl;
-    std::cout << " g_zz = " << g_zz<< std::endl;
+// if (detg < 0) {
+//     std::cout << "The determinant = " << detg << std::endl;
+//     std::cout << " rr = " << rr << std::endl;
+//     std::cout << " x = " << xbar << std::endl;
+//     std::cout << " y = " << ybar << std::endl;
+//     std::cout << " z = " << zbar << std::endl;
+// 	std::cout << " g_xx = " << g_xx << std::endl;
+//     std::cout << " g_xy = " << g_xy << std::endl;
+//     std::cout << " g_xz = " << g_xz << std::endl;
+//     std::cout << " g_yy = " << g_yy << std::endl;
+//     std::cout << " g_yz = " << g_yz << std::endl;
+//     std::cout << " g_zz = " << g_zz<< std::endl;
 
 
 
 
-}
+// }
 
     // Other debugging options
 var[VAR::U_ALPHA]  = 1.0;
@@ -396,12 +511,12 @@ var[VAR::U_GT0]    = 0.0;
 var[VAR::U_GT1]    = 0.0;
 var[VAR::U_GT2]    = 0.0;
 
-var[VAR::U_SYMGT0] = Chi * g_xx;
-var[VAR::U_SYMGT1] = Chi * g_xy;
-var[VAR::U_SYMGT2] = Chi * g_xz;
-var[VAR::U_SYMGT3] = Chi * g_yy;
-var[VAR::U_SYMGT4] = Chi * g_yz;
-var[VAR::U_SYMGT5] = Chi * g_zz;
+var[VAR::U_SYMGT0] = g_xx;
+var[VAR::U_SYMGT1] = g_xy;
+var[VAR::U_SYMGT2] = g_xz;
+var[VAR::U_SYMGT3] = g_yy;
+var[VAR::U_SYMGT4] = g_yz;
+var[VAR::U_SYMGT5] = g_zz;
 var[VAR::U_SYMAT0] = 0.0;
 var[VAR::U_SYMAT1] = 0.0;
 var[VAR::U_SYMAT2] = 0.0;
@@ -409,5 +524,5 @@ var[VAR::U_SYMAT3] = 0.0;
 var[VAR::U_SYMAT4] = 0.0;
 var[VAR::U_SYMAT5] = 0.0;
 
-var[VAR::U_CHI]    = Chi;
+var[VAR::U_CHI]    = 1.0;
 var[VAR::U_K]      = 0.0;
