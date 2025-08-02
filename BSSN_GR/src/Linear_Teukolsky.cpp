@@ -13,11 +13,12 @@ void LinearTeuk(const double xx1, const double yy1, const double zz1,
         yy = yy1;
         zz = zz1;
     }
-   //This is an initial data file design to match the one used by Baumgarte: https://arxiv.org/abs/2303.05530
+//This is an initial data file design to match the one used by Baumgarte: https://arxiv.org/abs/2303.05530
 //reading in data from par file...
 double A = bssn::TEUK_AMP;
 double lambda = bssn::TEUK_WIDTH; //half width really; width is twice this
 double r0 = bssn::TEUK_R_0;
+//These are given in a mathematica script and converted into C code:
 //Defining some of the general coordinates and trig functions:
 // double xbar   = xx;
 // double ybar   = yy;
@@ -33,9 +34,217 @@ double r0 = bssn::TEUK_R_0;
 
 double pi = 3.1415926535;
 double E = 2.7182818284590;
+int teukolsky_wave_gauge;
+int multipole_l;
+int multipole_m;
+int multipole_parity;
+int id_dynamics_type;
+int id_functional_form;
+int kk;
 double sin_theta;
 double cos_theta;
-
+double sin_2theta;
+double cos_2theta;
+double sin_3theta;
+double cos_3theta;
+double sin_4theta;
+double cos_4theta;
+double sin_phi;
+double cos_phi;
+double sin_2phi;
+double cos_2phi;
+double sin_3phi;
+double cos_3phi;
+double sin_4phi;
+double cos_4phi;
+//double rho_sqrd;
+//double rho;
+//double rho_axis;
+//double rr;
+//double r_origin;
+//double r_sqrd;
+double a_0;
+double b_0;
+double r_0;
+double r_0_sqrd;
+double width_teuk;
+double aa;
+double bb;
+double amp_teuk;
+double f0;
+double df0;
+double ddf0;
+double d3f0;
+double d4f0;
+double d5f0;
+double d6f0;
+double f1;
+double f2;
+double df1;
+double df2;
+double ddf1;
+double ddf2;
+double d3f1;
+double d3f2;
+double d4f1;
+double d4f2;
+double d5f1;
+double d5f2;
+double d6f1;
+double d6f2;
+double A_lm;
+double B_lm;
+double C_lm;
+double K_lm;
+double L_lm;
+// double drdx;
+// double drdy;
+// double drdz;
+// double dthdx;
+// double dthdy;
+// double dthdz;
+// double dphdx;
+// double dphdy;
+// double dphdz;
+// double g_xx;
+// double g_xy;
+// double g_xz;
+// double g_yy;
+// double g_yz;
+// double g_zz;
+//double epsilon_sq;
+double Ylm;
+double Ylm_theta;
+double Ylm_phi;
+double Ylm_thth;
+double Ylm_thphi;
+double Y20;
+double Y21;
+double Y2n1;
+double Y22;
+double Y2n2;
+double Y20_theta;
+double Y21_theta;
+double Y2n1_theta;
+double Y22_theta;
+double Y2n2_theta;
+double Y20_phi;
+double Y21_phi;
+double Y2n1_phi;
+double Y22_phi;
+double Y2n2_phi;
+double Y20_thth;
+double Y21_thth;
+double Y2n1_thth;
+double Y22_thth;
+double Y2n2_thth;
+double Y20_thphi;
+double Y21_thphi;
+double Y2n1_thphi;
+double Y22_thphi;
+double Y2n2_thphi;
+double Y30;
+double Y31;
+double Y3n1;
+double Y32;
+double Y3n2;
+double Y33;
+double Y3n3;
+double Y30_theta;
+double Y31_theta;
+double Y3n1_theta;
+double Y32_theta;
+double Y3n2_theta;
+double Y33_theta;
+double Y3n3_theta;
+double Y30_phi;
+double Y31_phi;
+double Y3n1_phi;
+double Y32_phi;
+double Y3n2_phi;
+double Y33_phi;
+double Y3n3_phi;
+double Y30_thth;
+double Y31_thth;
+double Y3n1_thth;
+double Y32_thth;
+double Y3n2_thth;
+double Y33_thth;
+double Y3n3_thth;
+double Y30_thphi;
+double Y31_thphi;
+double Y3n1_thphi;
+double Y32_thphi;
+double Y3n2_thphi;
+double Y33_thphi;
+double Y3n3_thphi;
+double Y40;
+double Y41;
+double Y4n1;
+double Y42;
+double Y4n2;
+double Y43;
+double Y4n3;
+double Y44;
+double Y4n4;
+double Y40_theta;
+double Y41_theta;
+double Y4n1_theta;
+double Y42_theta;
+double Y4n2_theta;
+double Y43_theta;
+double Y4n3_theta;
+double Y44_theta;
+double Y4n4_theta;
+double Y40_phi;
+double Y41_phi;
+double Y4n1_phi;
+double Y42_phi;
+double Y4n2_phi;
+double Y43_phi;
+double Y4n3_phi;
+double Y44_phi;
+double Y4n4_phi;
+double Y40_thth;
+double Y41_thth;
+double Y4n1_thth;
+double Y42_thth;
+double Y4n2_thth;
+double Y43_thth;
+double Y4n3_thth;
+double Y44_thth;
+double Y4n4_thth;
+double Y40_thphi;
+double Y41_thphi;
+double Y4n1_thphi;
+double Y42_thphi;
+double Y4n2_thphi;
+double Y43_thphi;
+double Y4n3_thphi;
+double Y44_thphi;
+double Y4n4_thphi;
+double h_bare_rr;
+double h_bare_rth;
+double h_bare_rph;
+double h_bare_thth;
+double h_bare_thph;
+double h_bare_phph;
+double g_bare_rr;
+double g_bare_rth;
+double g_bare_rph;
+double g_bare_thth;
+double g_bare_thph;
+double g_bare_phph;
+double g_rr;
+double g_rth;
+double g_rph;
+double g_thth;
+double g_thph;
+double g_phph;
+//double detg;
+//double pi;
+double chi;
+double fr0;
 
 // std::cout << "starting the loop in initial data ... /n";
 //double offset = 0.01627605 / 7.0;
@@ -51,33 +260,98 @@ double rr            = sqrt(r_sqrd);
 
 double epsilon_sq    = 1.0e-5;  // maybe we can read in grid info later?
 double r_origin      = sqrt(r_sqrd + epsilon_sq);
-
-if(rr<1e-5){
+if(rr<1e-6){
     rr=r_origin;
 }
 // Away from the axis of symmetry
 if (abs(xbar) > 1.0e-7 || abs(ybar) > 1.0e-7) {
     sin_theta  = rho / rr;
     cos_theta  = zbar / rr;
+    sin_2theta = 2.0 * sin_theta * cos_theta;
+    cos_2theta = pow(cos_theta, 2) - pow(sin_theta, 2);
+    sin_3theta = (3.0 * sin_theta) - (4.0 * pow(sin_theta, 3));
+    cos_3theta = (4.0 * pow(cos_theta, 3)) - (3.0 * cos_theta);
+    sin_4theta = cos_theta * (4.0 * sin_theta - 8.0 * pow(sin_theta, 3));
+    cos_4theta = 8.0 * pow(cos_theta, 4) - 8.0 * pow(cos_theta, 2) + 1.0;
+    sin_phi    = ybar / rho;
+    cos_phi    = xbar / rho;
+    sin_2phi   = 2.0 * sin_phi * cos_phi;
+    cos_2phi   = pow(cos_phi, 2) - pow(sin_phi, 2);
+    sin_3phi   = (3.0 * sin_phi) - (4.0 * pow(sin_phi, 3));
+    cos_3phi   = (4.0 * pow(cos_phi, 3)) - (3.0 * cos_phi);
+    sin_4phi   = cos_phi * (4.0 * sin_phi - 8.0 * pow(sin_phi, 3));
+    cos_4phi   = 8.0 * pow(cos_phi, 4) - 8.0 * pow(cos_phi, 2) + 1.0;
 }
 // On the axis of symmetry but away from the origin
 else if ((abs(xbar) < 1.0e-7 && abs(ybar) < 1.0e-7) && abs(zbar) > 1.0e-7) {
     sin_theta  = rho / rr;
     cos_theta  = zbar / rr;
+    sin_2theta = 2.0 * sin_theta * cos_theta;
+    cos_2theta = pow(cos_theta, 2) - pow(sin_theta, 2);
+    sin_3theta = (3.0 * sin_theta) - (4.0 * pow(sin_theta, 3));
+    cos_3theta = (4.0 * pow(cos_theta, 3)) - (3.0 * cos_theta);
+    sin_4theta = cos_theta * (4.0 * sin_theta - 8.0 * pow(sin_theta, 3));
+    cos_4theta = 8.0 * pow(cos_theta, 4) - 8.0 * pow(cos_theta, 2) + 1.0;
+    sin_phi    = 0.0;
+    cos_phi    = 0.0;
+    sin_2phi   = 2.0 * sin_phi * cos_phi;
+    cos_2phi   = pow(cos_phi, 2) - pow(sin_phi, 2);
+    sin_3phi   = (3.0 * sin_phi) - (4.0 * pow(sin_phi, 3));
+    cos_3phi   = (4.0 * pow(cos_phi, 3)) - (3.0 * cos_phi);
+    sin_4phi   = cos_phi * (4.0 * sin_phi - 8.0 * pow(sin_phi, 3));
+    cos_4phi   = 8.0 * pow(cos_phi, 4) - 8.0 * pow(cos_phi, 2) + 1.0;
 }
 // At the origin
 else if ((abs(xbar) < 1.0e-7 && abs(ybar) < 1.0e-7) && abs(zbar) < 1.0e-7) {
     sin_theta  = 0.0;
     cos_theta  = 0.0;
+    sin_2theta = 2.0 * sin_theta * cos_theta;
+    cos_2theta = pow(cos_theta, 2) - pow(sin_theta, 2);
+    sin_3theta = (3.0 * sin_theta) - (4.0 * pow(sin_theta, 3));
+    cos_3theta = (4.0 * pow(cos_theta, 3)) - (3.0 * cos_theta);
+    sin_4theta = cos_theta * (4.0 * sin_theta - 8.0 * pow(sin_theta, 3));
+    cos_4theta = 8.0 * pow(cos_theta, 4) - 8.0 * pow(cos_theta, 2) + 1.0;
+    sin_phi    = 0.0;
+    cos_phi    = 0.0;
+    sin_2phi   = 2.0 * sin_phi * cos_phi;
+    cos_2phi   = pow(cos_phi, 2) - pow(sin_phi, 2);
+    sin_3phi   = (3.0 * sin_phi) - (4.0 * pow(sin_phi, 3));
+    cos_3phi   = (4.0 * pow(cos_phi, 3)) - (3.0 * cos_phi);
+    sin_4phi   = cos_phi * (4.0 * sin_phi - 8.0 * pow(sin_phi, 3));
+    cos_4phi   = 8.0 * pow(cos_phi, 4) - 8.0 * pow(cos_phi, 2) + 1.0;
 } else {
     std::cout << " problem in initial data /n";
     std::cout << " x = " << xbar;
     std::cout << " y = " << ybar;
     std::cout << " z = " << zbar;
-    std::cout << " rr = " << rr;
+    std::cout << " r = " << rr;
     std::cout << " rho = " << rho;
 }
 
+// // Away from the axis of symmetry
+// if ( abs(xbar) > 1.0e-7  ||  abs(ybar) > 1.0e-7 ) {
+// 	sin_theta = rho / rr;
+// 	cos_theta = zbar / rr;
+// } 
+// // On the axis of symmetry but away from the origin
+// else if ( ( abs(xbar) < 1.0e-7 && abs(ybar) < 1.0e-7 ) && abs(zbar) > 1.0e-7  ) {
+// 	sin_theta = rho / rr;
+// 	cos_theta = zbar / rr;
+// }
+// // At the origin
+// else if ( ( abs(xbar) < 1.0e-7 && abs(ybar) < 1.0e-7 ) && abs(zbar) < 1.0e-7 ) {
+// 	sin_theta = 0.0;
+// 	cos_theta = 0.0;
+// } else {
+// 	std::cout <<" problem in initial data /n";
+// 	std::cout << " x = " << xbar ;
+// 	std::cout <<" y = "<< ybar ;
+// 	std::cout <<" z = "<< zbar;
+// 	std::cout << " rr = "<< rr;
+// 	std::cout << " rho = "<< rho;
+// }
+//std::cout << "starting the loop in initial data ... /n";
+//Defining the variables we will need later:
 double g_xx;
 double g_xy;
 double g_xz;
@@ -95,13 +369,14 @@ double dphdy;
 double dphdz;
 double detg;
 double rho_axis;
+//The Seed function is given by F = 
 //These are given in a mathematica script and converted into C code:
-
 
 double A2;
 double B2;
 double C2;
 //we will here make use of a taylor expanded expression of these functions as to avoid singularities arising from imperfect cancelations at the origin  We do this out to order 6. 
+//At some point if I or some other unfortunate soul has to work on this I will note here that if r0 or t get too large then this will fail at the origin as we will have exp(-big number) so this will then fail. There is probably an intelligent wway to drop these terms but I haven't taken the time to figure it out. 
 if (rr < 0.75 ) {
 A2 = (72*A*(-1 + lambda)*(-2*pow(t,2) - 2*r0*t*lambda + pow(lambda,4) + pow(E,(4*r0*t)/pow(lambda,3))*(-2*pow(t,2) + 2*r0*t*lambda + pow(lambda,4))))/(pow(E,pow(t + r0*lambda,2)/pow(lambda,4))*pow(rr,4)) + 
    (24*A*(-1 + lambda)*(-1 + 2*lambda)*(pow(E,pow(t - r0*lambda,2)/pow(lambda,4))*(4*pow(t,4) + 12*r0*pow(t,3)*lambda - 6*pow(r0,2)*pow(lambda,6) + 3*pow(lambda,8) + 12*pow(t,2)*(r0 - lambda)*pow(lambda,2)*(r0 + lambda) + 
@@ -262,7 +537,12 @@ C2 = (6*A*(-1 + lambda)*(-2*pow(t,2) - 2*r0*t*lambda + pow(lambda,4) + pow(E,(4*
            11*pow(lambda,14)*(-32*pow(r0,10) + 720*pow(r0,8)*pow(lambda,2) - 5040*pow(r0,6)*pow(lambda,4) + 12600*pow(r0,4)*pow(lambda,6) - 9450*pow(r0,2)*pow(lambda,8) + 945*pow(lambda,10)) + 
            2*r0*t*pow(lambda,11)*(-32*pow(r0,10) + 2640*pow(r0,8)*pow(lambda,2) - 39600*pow(r0,6)*pow(lambda,4) + 194040*pow(r0,4)*pow(lambda,6) - 311850*pow(r0,2)*pow(lambda,8) + 114345*pow(lambda,10))))*
       (1 + 11*lambda*(-1 + 10*lambda*(1 + 6*lambda*(-1 + 4*lambda)))))/(207900.*pow(E,(2*(pow(t,2) + pow(r0,2)*pow(lambda,2)))/pow(lambda,4))*pow(lambda,40));
-}
+//This is here to safeguard when t gets high at the origin we have exp (-400) These terms just go to 0
+// After computing A2, B2, C2
+if (std::isnan(A2) || std::isinf(A2)) A2 = 0.0;
+if (std::isnan(B2) || std::isinf(B2)) B2 = 0.0;
+if (std::isnan(C2) || std::isinf(C2)) C2 = 0.0;
+    }
 //else we continue with the numerical formulation:
 else{
 
@@ -296,9 +576,9 @@ C2 =-((A*((3*pow(lambda,12)*(rr + t - rr*lambda) + 16*pow(rr,4)*(rr + t)*pow(rr 
             12*pow(rr,2)*pow(lambda,6)*((rr + t)*pow(rr + t + r0*lambda,2) - 2*rr*lambda*(rr + t + r0*lambda)*(2*(rr + t) + r0*lambda) + pow(rr,2)*pow(lambda,2)*(5*(rr + t) + 4*r0*lambda)))/pow(E,pow(rr + t + r0*lambda,2)/pow(lambda,4))))/(pow(rr,5)*pow(lambda,8)));
 }
 
-double Y20= 2- 3* sin_theta*sin_theta;
-double Y20theta =-6*cos_theta*sin_theta;
-double Y20_thetatheta = 3* sin_theta*sin_theta;
+// double Y20= 2- 3* sin_theta*sin_theta;
+// double Y20theta =-6*cos_theta*sin_theta;
+// double Y20_thetatheta = 3* sin_theta*sin_theta;
 
 // //defining  metric elements in radial coordinates see equation A1
 // double g_rr = (1.0+ A2*Y20 );
@@ -319,26 +599,109 @@ double Y20_thetatheta = 3* sin_theta*sin_theta;
 // double g_bare_thth = g_thth -rr*rr;
 // double g_bare_phph = g_phph  - pow(rr,2)*pow(sin_theta,2);
 
-double h_bare_rr   = A2* Y20;
-double h_bare_rth  = (2*B2*Y20theta);
-double h_bare_rph  = 0.0;
-double h_bare_thth = A2*Y20/2.0 + C2*Y20_thetatheta;
-double h_bare_thph = 0.0;
-double h_bare_phph = A2*Y20/2.0 +  C2*Y20_thetatheta;
+// Now for the angular functions for l=2
+///////////////////////////////////////////////////////////////////////////
+// Starting with Y_20
+//
+Y20        = (1.0 / 4.0) * sqrt(5.0 / pi) * (3.0 * pow(cos_theta, 2) - 1.0);
+Y21        = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * cos_phi;
+Y2n1       = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * sin_phi;
+Y22        = (1.0 / 4.0) * sqrt(15.0 / pi) * pow(sin_theta, 2) * cos_2phi;
+Y2n2       = (1.0 / 4.0) * sqrt(15.0 / pi) * pow(sin_theta, 2) * sin_2phi;
 
-double g_bare_rr   = 1.0 + h_bare_rr;
-double g_bare_rth  = h_bare_rth;
-double g_bare_rph  = h_bare_rph;
-double g_bare_thth = 1.0 - h_bare_thth;
-double g_bare_thph = h_bare_thph;
-double g_bare_phph = 1.0 - h_bare_phph;
+// Y_2m,theta
+//
+Y20_theta  = -(3.0 / 2.0) * sqrt(5.0 / pi) * sin_theta * cos_theta;
+Y21_theta  = (1.0 / 2.0) * sqrt(15.0 / pi) * cos_2theta * cos_phi;
+Y2n1_theta = (1.0 / 2.0) * sqrt(15.0 / pi) * cos_2theta * sin_phi;
+Y22_theta  = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * cos_2phi;
+Y2n2_theta = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * sin_2phi;
 
-double g_rr        = g_bare_rr;
-double g_rth       = rr * g_bare_rth;
-double g_rph       = rr * sin_theta * g_bare_rph;
-double g_thth      = rr * rr * g_bare_thth;
-double g_thph      = rr * rr * sin_theta * g_bare_thph;
-double g_phph      = rr * rr * sin_theta * sin_theta * g_bare_phph;
+// Y_2m,phi
+//
+Y20_phi    = 0.0;
+Y21_phi    = -(1.0 / 2.0) * sqrt(15.0 / pi) * cos_theta * sin_phi;
+Y2n1_phi   = (1.0 / 2.0) * sqrt(15.0 / pi) * cos_theta * cos_phi;
+Y22_phi    = -(1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * sin_2phi;
+Y2n2_phi   = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_2phi;
+
+// Y_2m,theta,theta + .5 l ( l + 1 ) Y_2m
+//
+Y20_thth   = (3.0 / 4.0) * sqrt(5.0 / pi) * pow(sin_theta, 2);
+Y21_thth   = -(1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * cos_phi;
+Y2n1_thth  = -(1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_theta * sin_phi;
+Y22_thth   = (1.0 / 8.0) * sqrt(15.0 / pi) * (3.0 + cos_2theta) * cos_2phi;
+Y2n2_thth  = (1.0 / 8.0) * sqrt(15.0 / pi) * (3.0 + cos_2theta) * sin_2phi;
+
+// Y_2m,theta,phi - cot_theta Y-2m,phi
+//
+Y20_thphi  = 0.0;
+Y21_thphi  = (1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * sin_phi;
+Y2n1_thphi = -(1.0 / 2.0) * sqrt(15.0 / pi) * sin_theta * cos_phi;
+Y22_thphi  = -(1.0 / 2.0) * sqrt(15.0 / pi) * cos_theta * sin_2phi;
+Y2n2_thphi = (1.0 / 2.0) * sqrt(15.0 / pi) * cos_theta * cos_2phi;
+
+        Ylm       = Y20;
+        Ylm_theta = Y20_theta;
+        Ylm_thth  = Y20_thth;
+        Ylm_thphi = Y20_thphi;
+        Ylm_phi   = Y20_phi;
+
+//converting into cartesian coordinates.....
+
+//defining some things for the conversion://
+// double g_bare_rr   = g_rr-1.0;
+// double g_bare_thth = g_thth -rr*rr;
+// double g_bare_phph = g_phph  - pow(rr,2)*pow(sin_theta,2);
+
+// double h_bare_rr   = A2* Y20;
+// double h_bare_rth  = (2*B2*Y20theta);
+// double h_bare_rph  = 0.0;
+// double h_bare_thth = A2*Y20/2.0 + C2*Y20_thetatheta;
+// double h_bare_thph = 0.0;
+// double h_bare_phph = A2*Y20/2.0 +  C2*Y20_thetatheta;
+
+// double g_bare_rr   = 1.0 + h_bare_rr;
+// double g_bare_rth  = h_bare_rth;
+// double g_bare_rph  = h_bare_rph;
+// double g_bare_thth = 1.0 - h_bare_thth;
+// double g_bare_thph = h_bare_thph;
+// double g_bare_phph = 1.0 - h_bare_phph;
+
+// double g_rr        = g_bare_rr;
+// double g_rth       = rr * g_bare_rth;
+// double g_rph       = rr * sin_theta * g_bare_rph;
+// double g_thth      = rr * rr * g_bare_thth;
+// double g_thph      = rr * rr * sin_theta * g_bare_thph;
+// double g_phph      = rr * rr * sin_theta * sin_theta * g_bare_phph;
+////////////////////////////////////////////////////////////////////////////////
+// Now put it all together to get the perturbed metric
+
+A_lm= A2;
+B_lm= B2;
+C_lm= C2;
+
+h_bare_rr   = A_lm * Ylm;
+h_bare_rth  = B_lm * Ylm_theta - K_lm * Ylm_phi;
+h_bare_rph  = B_lm * Ylm_phi + K_lm * Ylm_theta;
+h_bare_thth = -0.5 * A_lm * Ylm + C_lm * Ylm_thth - L_lm * Ylm_thphi;
+h_bare_thph = C_lm * Ylm_thphi + L_lm * Ylm_thth;
+h_bare_phph = -(0.5 * A_lm * Ylm + C_lm * Ylm_thth - L_lm * Ylm_thphi);
+
+g_bare_rr   = 1.0 + h_bare_rr;
+g_bare_rth  = h_bare_rth;
+g_bare_rph  = h_bare_rph;
+g_bare_thth = 1.0 + h_bare_thth;
+g_bare_thph = h_bare_thph;
+g_bare_phph = 1.0 + h_bare_phph;
+
+g_rr        = g_bare_rr;
+g_rth       = rr * g_bare_rth;
+g_rph       = rr * sin_theta * g_bare_rph;
+g_thth      = rr * rr * g_bare_thth;
+g_thph      = rr * rr * sin_theta * g_bare_thph;
+g_phph      = rr * rr * sin_theta * sin_theta * g_bare_phph;
+
 
 if (rho > 1.0e-7) {  // everywhere but the axis ...
     drdx  = xbar / rr;
