@@ -509,6 +509,9 @@ bssn:
                 bssnCtx->terminal_output();
             }
 
+            // update BH locations always
+            bssnCtx->evolve_bh_loc();
+
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
@@ -516,7 +519,6 @@ bssn:
 
                 // evolving the black holes always stores the updated
                 // information
-                bssnCtx->evolve_bh_loc();
                 bssnCtx->extract_constraints();
                 bssnCtx->extract_gravitational_waves();
             }
