@@ -1045,9 +1045,13 @@ int BSSNCtx::restore_checkpt() {
                 if (checkPoint.find("DENDRO_BSSN_BH_MERGE") !=
                     checkPoint.end()) {
                     // restore bh merge and merge time information
-                    m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                    m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                    m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                    m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                    double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                    unsigned int mergeStep =
+                        checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                    // make sure they're set internally and externally
+                    set_bh_merge_time(mergeTime, mergeStep);
                 }
 
                 // OLD: DEPRECIATED
@@ -1159,9 +1163,13 @@ int BSSNCtx::restore_checkpt() {
             // if this key is in, then all three keys should be
             if (checkPoint.find("DENDRO_BSSN_BH_MERGE") != checkPoint.end()) {
                 // restore bh merge and merge time information
-                m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                unsigned int mergeStep =
+                    checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                // make sure they're set internally and externally
+                set_bh_merge_time(mergeTime, mergeStep);
             }
 
             if (checkPoint.find("DENDRO_BSSN_BH_LOC_TIMES") !=

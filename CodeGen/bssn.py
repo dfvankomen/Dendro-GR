@@ -66,8 +66,11 @@ dx_min = symbols("dx_min")  # spatial resolution of finest grid
 dendro.set_metric(gt)
 igt = dendro.get_inverse_metric()
 
-if True:
-    # default eta function
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# set up the shift-damping eta function
+
+if False:
     eta_func = (
         R0
         * sqrt(sum([igt[i, j] * d(i, chi) * d(j, chi) for i, j in dendro.e_ij]))
@@ -130,27 +133,75 @@ def bssn_puncture_gauge(
 
             h = symbols("h_ssl")
             sig = symbols("sig_ssl")
+            # set up auxiliary Bona--Masso function; f = (2/a) * g
+            if True:  # default: f = 2/a
+                g = 1
+            elif False:  # first-order shock-avoiding throughout
+                g = 1 - 1 / 2 * a + 1 / 3 * a**2
+            elif False:  # transition from 0th to 1st post-merger
+                # read in symbols
+                (
+                    bhMass1,
+                    bhMass2,
+                    bh1x,
+                    bh1y,
+                    bh1z,
+                    bh2x,
+                    bh2y,
+                    bh2z,
+                    x_grid,
+                    y_grid,
+                    z_grid,
+                ) = symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
+                # define distance btw the BHs
+                dr = sqrt(
+                    (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
+                )  # distance between BHs
+                # set up parameters
+                T = 1 / (1 + dr**2)
+                a0f = 5 / 6
+                a0 = 1 - T * (1 - a0f)
+                a1 = 1 - a0
+                a2 = T * (a0 - 1 / 2)
+                eps = 1 - a  # epsilon
+                g = a0 + a1 * eps + a2 * eps**2
+            # calculate lapse evolution
             a_rhs = (
                 l1 * dendro.lie(b, a)
-                - 2 * a * K
+                - 2 * a * g * K  # g=1 returns default behavior
                 - W * (h * exp(-(t**2) / (2 * sig**2))) * (a - W)
             )
         else:
             a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
 
-        b_rhs = [
-            (Rational(3, 4) * (lf0 + lf1 * a) * B[i] + l2 * dendro.vec_j_ad_j(b, b[i]))
-            for i in dendro.e_i
-        ]
+        # shift RHS equation
+        if True:  # use auxiliary field B to evolve shift
+            b_rhs = [
+                (
+                    Rational(3, 4) * (lf0 + lf1 * a) * B[i]
+                    + l2 * dendro.vec_j_ad_j(b, b[i])
+                )
+                for i in dendro.e_i
+            ]
+        else:
+            print("// skipping auxiliary field")
+            # literally as in LH23: 
+            # b_rhs = [Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
+            # adding in advective derivative: 
+            b_rhs = [dendro.vec_j_ad_j(b, b[i]) + Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
 
         gt_rhs = dendro.lie(b, gt, weight) - 2 * a * At
 
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
 
         if enableCAHD:
-            # turn on curvature-adjusted Hamiltonian-constraint damping
-            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation # Etienne's method
-            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
+            # turn on coarse-grid-adjusted Hamiltonian-constraint damping
+            if True:  # WKB method
+                # dxsq = dx_i**2 # default; blows up for dx > 1
+                dxsq = dx_i**2 / (1 + 10 * dx_i**2)  # to soften large dx
+                chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else:  # Etienne method
+                chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
@@ -235,15 +286,19 @@ def bssn_puncture_gauge(
 
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
-        B_rhs = [
-            (
-                Gt_rhs[i]
-                - eta_damp * B[i]
-                + l3 * dendro.vec_j_ad_j(b, B[i])
-                - l4 * dendro.vec_j_ad_j(b, Gt[i])
-            )
-            for i in dendro.e_i
-        ]
+        # set up auxiliary field to the shift
+        if True:  # evolve B
+            B_rhs = [
+                (
+                    Gt_rhs[i]
+                    - eta_damp * B[i]
+                    + l3 * dendro.vec_j_ad_j(b, B[i])
+                    - l4 * dendro.vec_j_ad_j(b, Gt[i])
+                )
+                for i in dendro.e_i
+            ]
+        else:  # keep it static
+            B_rhs = [Rational(0, 1) for i in dendro.e_i]
 
         ###################################################################
         # generate code
@@ -321,9 +376,13 @@ def bssn_puncture_gauge(
         chi_rhs = dendro.lie(b, chi, weight) + Rational(2, 3) * (chi * a * K)
 
         if enableCAHD:
-            # turn on curvature-adjusted Hamiltonian-constraint damping
-            # chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation # Etienne's method
-            chi_rhs += C_CAHD * chi * (dx_i**2 / dt) * ham_computation  # WKB's method
+            # turn on coarse-grid-adjusted Hamiltonian-constraint damping
+            if True:  # WKB method
+                # dxsq = dx_i**2 # default; blows up for dx > 1
+                dxsq = dx_i**2 / (1 + 10 * dx_i**2)  # to soften large dx
+                chi_rhs += C_CAHD * chi * (dxsq / dt) * ham_computation
+            else:  # Etienne method
+                chi_rhs += C_CAHD * chi * (dt * dx_i / dx_min) * ham_computation
 
         AikAkj = Matrix(
             [
@@ -766,50 +825,28 @@ def bssn_rochester_puncture_gauge(
 
 def main(staged_type, gauge, eta_damp, prefix, enable_ssl, enable_cahd):
     if enable_ssl:
-        print("// CODEGEN: SSL was enabled, adding term to gauge condition!")
+        print("// CodeGen: SSL was enabled, adding term to gauge condition!")
 
     if enable_cahd:
-        print("// CODEGEN: CAHD was enabled, adding damping term to chi!")
+        print("// CodeGen: CAHD was enabled, adding damping term to chi!")
 
-    if staged_type == "staged":
-        print("//Codgen: generating staged version ")
-        if gauge == "rochester":
-            print("//Codgen: using rochester gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, True, prefix, enable_ssl)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, True, prefix, enable_ssl)
-
-        else:
-            print("//Codgen: using standard gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, True, prefix, enable_ssl, enable_cahd)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, True, prefix, enable_ssl, enable_cahd)
-
+    if eta_damp == "func":
+        print("// CodeGen: using eta func damping")
+        eta_in = eta_func
     else:
-        print("//Codgen: generating unstage version ")
-        if gauge == "rochester":
-            print("//Codgen: using rochester gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_rochester_puncture_gauge(eta_func, False, prefix, enable_ssl)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_rochester_puncture_gauge(eta, False, prefix, enable_ssl)
+        print("// CodeGen: using eta const damping")
+        eta_in = eta
 
-        else:
-            print("//Codgen: using standard gauge")
-            if eta_damp == "func":
-                print("//Codgen: using eta func damping")
-                bssn_puncture_gauge(eta_func, False, prefix, enable_ssl, enable_cahd)
-            else:
-                print("//Codgen: using eta const damping")
-                bssn_puncture_gauge(eta, False, prefix, enable_ssl, enable_cahd)
+    isStaged = staged_type == "staged"
+    if isStaged:
+        print("// CodeGen: generating staged version ")
+
+    if gauge == "rochester":
+        print("// CodeGen: using rochester gauge")
+        bssn_rochester_puncture_gauge(eta_in, isStaged, prefix, enable_ssl)
+    else:
+        print("// CodeGen: using standard gauge")
+        bssn_puncture_gauge(eta_in, isStaged, prefix, enable_ssl, enable_cahd)
 
 
 if __name__ == "__main__":

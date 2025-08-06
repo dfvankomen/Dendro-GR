@@ -470,11 +470,11 @@ bssn:
                         // REMEMBER: the true max depth of the array is two
                         // minus m_uiMaxDepth
                         bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
-                            bssn::BSSN_IO_OUTPUT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax);
+                            std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >>
+                            (m_uiMaxDepth - 2 - lmax));
                         bssn::BSSN_GW_EXTRACT_FREQ_TRUE =
-                            bssn::BSSN_GW_EXTRACT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax);
+                            std::max(1u, bssn::BSSN_GW_EXTRACT_FREQ >>
+                            (m_uiMaxDepth - 2 - lmax));
                         if (!rank_global)
                             std::cout << "    IO Output Freq updated to: "
                                       << bssn::BSSN_IO_OUTPUT_FREQ_TRUE
