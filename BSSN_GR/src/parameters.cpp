@@ -294,6 +294,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     std::vector<ParameterInformation> parsList = {
         {"BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ, true},
         {"BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ, true},
+        {"BSSN_REMESH_TEST_FREQ_AFTER_MERGER",
+         bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER, false},
         {"BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ, true},
         // {"BSSN_IO_OUTPUT_GAP", bssn::BSSN_IO_OUTPUT_GAP, true}, // this is
         // actually unused!
