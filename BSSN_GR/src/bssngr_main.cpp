@@ -454,6 +454,7 @@ bssn:
                           ((double)bssn::BSSN_ELE_ORDER)) /
                          ((double)(1u << (m_uiMaxDepth))));
 
+                    // calculate time step size
                     bssn::BSSN_RK45_TIME_STEP_SIZE =
                         bssn::BSSN_CFL_FACTOR *
                         ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
@@ -464,11 +465,9 @@ bssn:
                     ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
                     bssnCtx->set_ts_info(ts_in);
 
-                    // REMEMBER: the true max depth of the array is two minus
-                    // m_uiMaxDepth
+                    // REMEMBER: true max depth of array = 2 - m_uiMaxDepth
                     if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
-                        // REMEMBER: the true max depth of the array is two
-                        // minus m_uiMaxDepth
+                        // bar null output frequencies 
                         bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
                             std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >>
                             (m_uiMaxDepth - 2 - lmax));
@@ -488,16 +487,16 @@ bssn:
                                   << NRM << std::endl;
                     }
 
-                    // compute the constraint variables to "refresh" them on the
-                    // grid for potential RHS updates
+                    // compute the constraint variables to "refresh" 
+                    // them on the grid for potential RHS updates
                     bssnCtx->compute_constraint_variables();
                 }
 
-                // write the grid summary data whether or not the remesh
-                // happened
+                // write grid summary data whether the remesh happened
                 bssnCtx->write_grid_summary_data();
             }
 
+            // print terminal output
             if ((step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
@@ -509,7 +508,7 @@ bssn:
                 bssnCtx->terminal_output();
             }
 
-            // update BH locations always
+            // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
 
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
@@ -523,6 +522,7 @@ bssn:
                 bssnCtx->extract_gravitational_waves();
             }
 
+            // Write VTU and BHLocation files 
             if ((step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
@@ -532,6 +532,7 @@ bssn:
                 bssnCtx->write_bh_coords();
             }
 
+            // Run AH solver
             if ((AEH::AEH_SOLVER_FREQ > 0) &&
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
                 bssnaeh::perform_aeh_step(bssnCtx, rank);
@@ -539,6 +540,7 @@ bssn:
 
             ets->evolve();
 
+            // Write checkpoint  data
             if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {
                 bssnCtx->write_checkpt();
                 bssnCtx->get_mesh()->waitAll();
