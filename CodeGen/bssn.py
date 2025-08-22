@@ -107,6 +107,10 @@ else:
     )
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# define BSSN puncture gauge
+
+
 def bssn_puncture_gauge(
     eta_damp, isStaged=False, prefix="", sslGaugeCondition=False, enableCAHD=False
 ):
@@ -175,7 +179,7 @@ def bssn_puncture_gauge(
             a_rhs = l1 * dendro.lie(b, a) - 2 * a * K
 
         # shift RHS equation
-        if True:  # use auxiliary field B to evolve shift
+        if False: # use auxiliary field B to evolve shift
             b_rhs = [
                 (
                     Rational(3, 4) * (lf0 + lf1 * a) * B[i]
@@ -183,7 +187,7 @@ def bssn_puncture_gauge(
                 )
                 for i in dendro.e_i
             ]
-        else:
+        else: # skip auxiliary field; evolve directly
             print("// skipping auxiliary field")
             # literally as in LH23: 
             # b_rhs = [Rational(3, 4) * Gt[i] - eta_damp * b[i] for i in dendro.e_i]
@@ -287,7 +291,7 @@ def bssn_puncture_gauge(
         Gt_rhs = [item for sublist in Gt_rhs.tolist() for item in sublist]
 
         # set up auxiliary field to the shift
-        if True:  # evolve B
+        if False:  # evolve B
             B_rhs = [
                 (
                     Gt_rhs[i]
@@ -299,6 +303,7 @@ def bssn_puncture_gauge(
             ]
         else:  # keep it static
             B_rhs = [Rational(0, 1) for i in dendro.e_i]
+
 
         ###################################################################
         # generate code
