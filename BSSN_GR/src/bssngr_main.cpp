@@ -14,6 +14,7 @@
 #include "bssnCtx.h"
 #include "gr.h"
 #include "grUtils.h"
+#include "logger.h"
 #include "mesh.h"
 #include "meshUtils.h"
 #include "mpi.h"
@@ -163,6 +164,19 @@ bssn:
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
+
+    // initialize the logger
+    dendro::logger::initialize(
+        "dendro", bssn::DENDRO_LOG_FILE, 0, bssn::DENDRO_LOG_FILE_LEVEL,
+        bssn::DENDRO_LOG_CONSOLE_LEVEL, bssn::DENDRO_LOG_FORCE_FILE_FLUSH);
+    // this call sets up the ability for the dendro logger to force a flush when
+    // a signal is received. If, for some reason, this appears to be "not
+    // enough" for serious debugging, make sure to set FORCE_FILE_FLUSH which
+    // will force writing to file each time we make a debug log
+    dendro::logger::setup_crash_handler();
+    dendro::logger::info(
+        "Logger initialized, now initializing the rest of the data structures");
+    dendro::logger::info("All parameters are also read!");
 
     int root = std::min(1, npes - 1);
     bssn::dumpParamFile(std::cout, root, comm);
@@ -351,6 +365,7 @@ bssn:
         // capture the curr step
         const DendroIntL start_step = ets->curr_step();
 
+        dendro::logger::info("Now beginning ETS time stepper");
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
             const DendroIntL step            = ets->curr_step();
             const DendroScalar time          = ets->curr_time();
@@ -467,13 +482,13 @@ bssn:
 
                     // REMEMBER: true max depth of array = 2 - m_uiMaxDepth
                     if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
-                        // bar null output frequencies 
+                        // bar null output frequencies
                         bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
                             std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax));
+                                             (m_uiMaxDepth - 2 - lmax));
                         bssn::BSSN_GW_EXTRACT_FREQ_TRUE =
                             std::max(1u, bssn::BSSN_GW_EXTRACT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax));
+                                             (m_uiMaxDepth - 2 - lmax));
                         if (!rank_global)
                             std::cout << "    IO Output Freq updated to: "
                                       << bssn::BSSN_IO_OUTPUT_FREQ_TRUE
@@ -487,7 +502,7 @@ bssn:
                                   << NRM << std::endl;
                     }
 
-                    // compute the constraint variables to "refresh" 
+                    // compute the constraint variables to "refresh"
                     // them on the grid for potential RHS updates
                     bssnCtx->compute_constraint_variables();
                 }
@@ -522,7 +537,7 @@ bssn:
                 bssnCtx->extract_gravitational_waves();
             }
 
-            // Write VTU and BHLocation files 
+            // Write VTU and BHLocation files
             if ((step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
@@ -543,7 +558,6 @@ bssn:
             // Write checkpoint  data
             if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {
                 bssnCtx->write_checkpt();
-                bssnCtx->get_mesh()->waitAll();
             }
 
             bssnCtx->prepare_for_next_iter();

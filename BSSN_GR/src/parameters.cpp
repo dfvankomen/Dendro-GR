@@ -11,6 +11,8 @@
 
 #include <limits>
 
+#include "logger.h"
+
 namespace bssn {
 
 mem::memory_pool<double> BSSN_MEM_POOL  = mem::memory_pool<double>(0, 16);
@@ -71,10 +73,10 @@ std::string BSSN_PROFILE_FILE_PREFIX      = "bssn_prof";
 double BSSN_BH1_AMR_R                     = 2.0;
 double BSSN_BH2_AMR_R                     = 2.0;
 // ratio for the near to far portion, was originally 2.5
-double BSSN_AMR_R_RATIO = 2.0;
+double BSSN_AMR_R_RATIO                   = 2.0;
 
-double BSSN_BH1_CONSTRAINT_R = 5.0;
-double BSSN_BH2_CONSTRAINT_R = 5.0;
+double BSSN_BH1_CONSTRAINT_R              = 5.0;
+double BSSN_BH2_CONSTRAINT_R              = 5.0;
 
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
@@ -145,7 +147,7 @@ unsigned int DISSIPATION_TYPE                            = 0;
 unsigned int BSSN_DENDRO_GRAIN_SZ                        = 1000;
 
 double BSSN_DENDRO_AMR_FAC                               = 0.1;
-double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0; 
+double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0;
 
 unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
@@ -196,6 +198,13 @@ double BSSN_SSL_H                               = 0.6;
 
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
+
+std::string DENDRO_LOG_FILE                     = "logfile";
+// DEBUG is 1
+int DENDRO_LOG_FILE_LEVEL                       = 1;
+// INFO is 2
+int DENDRO_LOG_CONSOLE_LEVEL                    = 2;
+bool DENDRO_LOG_FORCE_FILE_FLUSH                = false;
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
@@ -402,7 +411,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     }
 
     if (parFile.contains("BSSN_DENDRO_AMR_FAC_POST_MERGER")) {
-        bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER = parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"].as_floating();
+        bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
+            parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"].as_floating();
     }
 
     if (parFile.contains("BSSN_BH1_MAX_LEV"))
@@ -454,6 +464,30 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
     if (parFile.contains("BSSN_SSL_H")) {
         bssn::BSSN_SSL_H = parFile["BSSN_SSL_H"].as_floating();
+    }
+
+    if (parFile.contains("DENDRO_LOG_FILE")) {
+        bssn::DENDRO_LOG_FILE = parFile["DENDRO_LOG_FILE"].as_string();
+    }
+    // append .log and a time stamp
+    const auto now       = std::chrono::system_clock::now();
+    const auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d_%H-%M-%S");
+    const std::string timestamp = ss.str();
+    bssn::DENDRO_LOG_FILE = bssn::DENDRO_LOG_FILE + "_" + timestamp + ".log";
+
+    if (parFile.contains("DENDRO_LOG_CONSOLE_LEVEL")) {
+        bssn::DENDRO_LOG_CONSOLE_LEVEL =
+            parFile["DENDRO_LOG_CONSOLE_LEVEL"].as_integer();
+    }
+    if (parFile.contains("DENDRO_LOG_FILE_LEVEL")) {
+        bssn::DENDRO_LOG_FILE_LEVEL =
+            parFile["DENDRO_LOG_FILE_LEVEL"].as_integer();
+    }
+    if (parFile.contains("DENDRO_LOG_FORCE_FILE_FLUSH")) {
+        bssn::DENDRO_LOG_FORCE_FILE_FLUSH =
+            parFile["DENDRO_LOG_FORCE_FILE_FLUSH"].as_boolean();
     }
 
     /* Parameters for TPID */
