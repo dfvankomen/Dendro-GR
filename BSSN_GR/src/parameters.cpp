@@ -216,7 +216,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_IO_OUTPUT_FREQ   = parFile["BSSN_IO_OUTPUT_FREQ"].as_integer();
     bssn::BSSN_REMESH_TEST_FREQ = parFile["BSSN_REMESH_TEST_FREQ"].as_integer();
     bssn::BSSN_CHECKPT_FREQ     = parFile["BSSN_CHECKPT_FREQ"].as_integer();
-    bssn::BSSN_IO_OUTPUT_GAP    = parFile["BSSN_IO_OUTPUT_GAP"].as_integer();
     bssn::BSSN_VTU_FILE_PREFIX  = parFile["BSSN_VTU_FILE_PREFIX"].as_string();
     bssn::BSSN_CHKPT_FILE_PREFIX =
         parFile["BSSN_CHKPT_FILE_PREFIX"].as_string();
