@@ -87,17 +87,18 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
 
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
         parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"];
-    bssn::BSSN_BLK_MIN_X           = parFile["BSSN_BLK_MIN_X"];
-    bssn::BSSN_BLK_MIN_Y           = parFile["BSSN_BLK_MIN_Y"];
-    bssn::BSSN_BLK_MIN_Z           = parFile["BSSN_BLK_MIN_Z"];
-    bssn::BSSN_BLK_MAX_X           = parFile["BSSN_BLK_MAX_X"];
-    bssn::BSSN_BLK_MAX_Y           = parFile["BSSN_BLK_MAX_Y"];
-    bssn::BSSN_BLK_MAX_Z           = parFile["BSSN_BLK_MAX_Z"];
+    bssn::BSSN_BLK_MIN_X       = parFile["BSSN_BLK_MIN_X"];
+    bssn::BSSN_BLK_MIN_Y       = parFile["BSSN_BLK_MIN_Y"];
+    bssn::BSSN_BLK_MIN_Z       = parFile["BSSN_BLK_MIN_Z"];
+    bssn::BSSN_BLK_MAX_X       = parFile["BSSN_BLK_MAX_X"];
+    bssn::BSSN_BLK_MAX_Y       = parFile["BSSN_BLK_MAX_Y"];
+    bssn::BSSN_BLK_MAX_Z       = parFile["BSSN_BLK_MAX_Z"];
 
-    bssn::BSSN_DENDRO_GRAIN_SZ     = parFile["BSSN_DENDRO_GRAIN_SZ"];
-    bssn::BSSN_ASYNC_COMM_K        = parFile["BSSN_ASYNC_COMM_K"];
-    bssn::BSSN_DENDRO_AMR_FAC      = parFile["BSSN_DENDRO_AMR_FAC"];
-    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER = parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
+    bssn::BSSN_DENDRO_GRAIN_SZ = parFile["BSSN_DENDRO_GRAIN_SZ"];
+    bssn::BSSN_ASYNC_COMM_K    = parFile["BSSN_ASYNC_COMM_K"];
+    bssn::BSSN_DENDRO_AMR_FAC  = parFile["BSSN_DENDRO_AMR_FAC"];
+    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
+        parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
     bssn::BSSN_LOAD_IMB_TOL        = parFile["BSSN_LOAD_IMB_TOL"];
     bssn::BSSN_RK_TIME_BEGIN       = parFile["BSSN_RK_TIME_BEGIN"];
     bssn::BSSN_RK_TIME_END         = parFile["BSSN_RK_TIME_END"];
@@ -513,9 +514,9 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tBSSN_DENDRO_AMR_FAC :" << bssn::BSSN_DENDRO_AMR_FAC
              << NRM << std::endl;
-        
-        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: " << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM
-             << std::endl;
+
+        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: "
+             << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM << std::endl;
 
         sout << YLW << "\tBSSN_USE_WAVELET_TOL_FUNCTION :"
              << bssn::BSSN_USE_WAVELET_TOL_FUNCTION << NRM << std::endl;
@@ -2055,16 +2056,16 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up constants used in this function
 
         // (max) orbital radius; use strictest refinement here
-        const double R_orbit     = 8;
+        const double R_orbit = 8;
         // outermost GW extraction radius
-        const double R_min       = GW::BSSN_GW_RADAII[0];
-        const double R_max       = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        const double R_min   = GW::BSSN_GW_RADAII[0];
+        const double R_max   = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
         // expected lapse wave tail length (M) + backreflections
-        const double L           = 120;
+        const double L       = 120;
         // calculate the time after which a given radius's relationship
         // with the grid center is both time-like & clean of lapse noise
-        const double t_lim       = std::max(r, (r + L) / std::sqrt(2));
+        const double t_lim   = std::max(r, (r + L) / std::sqrt(2));
 
         // wavelet tolerance in acausal (or dirty or unneeded) regions.
         const double eps_disable = bssn::BSSN_WAVELET_TOL_MAX;
@@ -2075,7 +2076,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up goal resolution to hit in causal clean regions
         // linearly interpolate log tolerances vs log radii
 
-        double eps_goal = eps_disable; // default value in outer regions
+        double eps_goal = eps_disable;  // default value in outer regions
         if (r <= R_orbit) {
             eps_goal = bssn::BSSN_WAVELET_TOL;
         } else if (r <= R_min) {  // log falloff
@@ -2087,7 +2088,7 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
                 bssn::BSSN_WAVELET_TOL *
                 std::pow(bssn::BSSN_GW_REFINE_WTOL / bssn::BSSN_WAVELET_TOL,
                          pwr);
-        } else if (r <= R_max) { // plateau
+        } else if (r <= R_max) {  // plateau
             eps_goal = bssn::BSSN_GW_REFINE_WTOL;
         }
 
@@ -2188,6 +2189,7 @@ unsigned int getOctantWeight(const ot::TreeNode* pNode) {
 
 void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
                         double** zipVars, double dt) {
+    dendro::logger::debug("[BH] Computing BH locations");
     MPI_Comm commActive = pMesh->getMPICommunicator();
 
     Point grid_limits[2];
@@ -2222,6 +2224,9 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
     bh_pts[4]          = in[1].y();
     bh_pts[5]          = in[1].z();
 
+    dendro::logger::debug(
+        "[BH] Active processes will now call interpolateToCoords");
+
     if (pMesh->isActive()) {
         unsigned int activeRank = pMesh->getMPIRank();
 
@@ -2238,6 +2243,9 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
         assert(validIndex_beta0.size() == validIndex_beta1.size());
         assert(validIndex_beta1.size() == validIndex_beta2.size());
     }
+
+    dendro::logger::debug(
+        "[BH] interpolateToCoords finished, now identifying red ranks");
 
     unsigned int red_ranks[2]   = {0, 0};
     unsigned int red_ranks_g[2] = {0, 0};
@@ -2258,12 +2266,21 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
         red_ranks[validIndex_beta2[ind]]        = gRank;
     }
 
+    dendro::logger::debug("[BH] identified red ranks as [{}, {}]", red_ranks_g);
     par::Mpi_Allreduce(red_ranks, red_ranks_g, 2, MPI_MAX,
                        pMesh->getMPIGlobalCommunicator());
+    dendro::logger::debug("[BH] Communicated red ranks, should be: [{}, {}]",
+                          red_ranks_g[0], red_ranks_g[1]);
     MPI_Bcast(&beta3vec[0], 3, MPI_DOUBLE, red_ranks_g[0],
               pMesh->getMPIGlobalCommunicator());
+    dendro::logger::debug(
+        "[BH] Communicated beta3vec[0-2] from rank {}, vals are: [{}, {}, {}]",
+        red_ranks_g[0], beta3vec[0], beta3vec[1], beta3vec[2]);
     MPI_Bcast(&beta3vec[3], 3, MPI_DOUBLE, red_ranks_g[1],
               pMesh->getMPIGlobalCommunicator());
+    dendro::logger::debug(
+        "[BH] Communicated beta3vec[3-5] from rank {}, vals are: [{}, {}, {}]",
+        red_ranks_g[1], beta3vec[3], beta3vec[4], beta3vec[5]);
 
     // if(!pMesh->getMPIRankGlobal())
     //     std::cout<<"beta bh0: ( "<<beta3vec[0]<<", "<<beta3vec[1]<<",
@@ -2277,7 +2294,12 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
         z[bh]   = in[bh].z() - beta3vec[bh * 3 + 2] * dt;
 
         out[bh] = Point(x[bh], y[bh], z[bh]);
+        dendro::logger::debug(
+            "[BH] Black Hole {} position calculated as: [{}, {}, {}]", bh,
+            x[bh], y[bh], z[bh]);
     }
+
+    dendro::logger::debug("[BH] Finished the compute BH locations");
 
     return;
 }
