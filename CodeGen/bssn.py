@@ -55,9 +55,11 @@ ad = dendro.ad
 kod = dendro.kod
 d2 = dendro.d2
 
-t = symbols("t")  # time; needed for SSL
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# add symbols used for SSL, CAHD
 
-# add symbols used for CAHD
+t = symbols("t")  # time
+
 C_CAHD = symbols("BSSN_CAHD_C")  # coefficient for CAHD strength
 dt = symbols("dt")  # simulation time step
 dx_i = symbols("dx_i")  # spatial resolution of current grid
@@ -66,35 +68,43 @@ dx_min = symbols("dx_min")  # spatial resolution of finest grid
 dendro.set_metric(gt)
 igt = dendro.get_inverse_metric()
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# add symbols used for BH locations and distances
+(
+    bhMass1, bhMass2,
+    bh1x, bh1y, bh1z,
+    bh2x, bh2y, bh2z,
+    x_grid, y_grid, z_grid,
+) = symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
+
+# define useful constants
+r1 = sqrt(bh1x**2 + bh1y**2 + bh1z**2)  # distance from BH1 to grid center
+r2 = sqrt(bh2x**2 + bh2y**2 + bh2z**2)  # distance from BH2 to grid center
+dr = sqrt(
+    (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
+)  # distance between BHs
+dr1 = sqrt(
+    (x_grid - bh1x) ** 2 + (y_grid - bh1y) ** 2 + (z_grid - bh1z) ** 2
+)  # distance to BH1
+dr2 = sqrt(
+    (x_grid - bh2x) ** 2 + (y_grid - bh2y) ** 2 + (z_grid - bh2z) ** 2
+)  # distance to BH2
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # set up the shift-damping eta function
 
 if False:
+    print("// eta function: MGB-like formulation")
     eta_func = (
         R0
         * sqrt(sum([igt[i, j] * d(i, chi) * d(j, chi) for i, j in dendro.e_ij]))
         / ((1 - chi**ep1) ** ep2)
     )
-else:
+elif True:
+    print("// eta function: LH23 formulation")
     # implement extreme mass ratio shift damper eta_G from
     # [Lousto & Healy '23](https://arxiv.org/abs/2203.08831)
-    # add raw symbols used for eta_G
-    bhMass1, bhMass2, bh1x, bh1y, bh1z, bh2x, bh2y, bh2z, x_grid, y_grid, z_grid = (
-        symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
-    )
-    # define useful constants
-    r1 = sqrt(bh1x**2 + bh1y**2 + bh1z**2)  # distance from BH1 to grid center
-    r2 = sqrt(bh2x**2 + bh2y**2 + bh2z**2)  # distance from BH2 to grid center
-    dr = sqrt(
-        (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
-    )  # distance between BHs
-    dr1 = sqrt(
-        (x_grid - bh1x) ** 2 + (y_grid - bh1y) ** 2 + (z_grid - bh1z) ** 2
-    )  # distance to BH1
-    dr2 = sqrt(
-        (x_grid - bh2x) ** 2 + (y_grid - bh2y) ** 2 + (z_grid - bh2z) ** 2
-    )  # distance to BH2
     # define relevant constants
     s1 = 2 * bhMass1
     s2 = 2 * bhMass2
@@ -105,6 +115,9 @@ else:
         + (1 / bhMass1) * (r1**2 / (r1**2 + s2**2)) ** 2 * exp(-(dr1**2) / s1**2)
         + (1 / bhMass2) * (r2**2 / (r2**2 + s1**2)) ** 2 * exp(-(dr2**2) / s2**2)
     )
+else:
+    print("// eta function: other options")
+    print("//               NOT CODED YET")
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -138,25 +151,11 @@ def bssn_puncture_gauge(
             h = symbols("h_ssl")
             sig = symbols("sig_ssl")
             # set up auxiliary Bona--Masso function; f = (2/a) * g
-            if True:  # default: f = 2/a
+            if False:  # default: f = 2/a
                 g = 1
             elif False:  # first-order shock-avoiding throughout
                 g = 1 - 1 / 2 * a + 1 / 3 * a**2
-            elif False:  # transition from 0th to 1st post-merger
-                # read in symbols
-                (
-                    bhMass1,
-                    bhMass2,
-                    bh1x,
-                    bh1y,
-                    bh1z,
-                    bh2x,
-                    bh2y,
-                    bh2z,
-                    x_grid,
-                    y_grid,
-                    z_grid,
-                ) = symbols("bhMass1 bhMass2 bh1x bh1y bh1z bh2x bh2y bh2z x y z")
+            elif True:  # transition from 0th to 1st post-merger
                 # define distance btw the BHs
                 dr = sqrt(
                     (bh2x - bh1x) ** 2 + (bh2y - bh1y) ** 2 + (bh2z - bh1z) ** 2
