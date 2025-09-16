@@ -219,13 +219,13 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     
             for (unsigned int i = PW; i < nx - PW; i++) {
                 const double x = pmin[0] + i * hx;
-                ;
                 const double y = pmin[1] + j * hy;
                 const double z = pmin[2] + k * hz;
                 ;
                 const unsigned int pp = i + nx * (j + ny * k);
                 const double r_coord  = sqrt(x * x + y * y + z * z);
 
+                // RIT constant eta formulation
                 const double w        = r_coord / bssn::RIT_ETA_WIDTH;
                 const double arg      = -w * w * w * w;
                 const double eta =
@@ -238,6 +238,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
   // #include "bssn_eqns_SSL_HD.cpp"
   // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
   #include "bssneqs_SSL_HD_dxsq.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  // #include "test_bssn_shock_56.inc.cpp" // shock-avoiding lapse: use 5/6 post-merger? 
   // #include "test_bssn_etaG.inc.cpp" // use eta_G exactly as LH23
   // #include "test_bssn_etaG_SSL_CAHD.inc.cpp" // use eta_G, evolve w/ B
   // #include "test_bssn_etaG_LH23_SSL_CAHD.inc.cpp" // LH23 formulation
