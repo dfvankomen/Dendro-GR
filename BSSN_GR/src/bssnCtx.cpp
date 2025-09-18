@@ -524,6 +524,8 @@ int BSSNCtx::initialize() {
                   << std::endl;
     }
 
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
+
     return 0;
 }
 
