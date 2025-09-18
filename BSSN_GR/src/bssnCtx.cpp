@@ -17,6 +17,7 @@
 
 #include <cstdint>
 
+#include "derivs.h"
 #include "grDef.h"
 #include "grUtils.h"
 #include "parUtils.h"
@@ -533,6 +534,8 @@ int BSSNCtx::initialize() {
                      "======================================================"
                   << std::endl;
     }
+
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
     return 0;
 }
