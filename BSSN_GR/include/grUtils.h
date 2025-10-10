@@ -31,24 +31,6 @@
 using json = nlohmann::json;
 namespace bssn {
 
-#ifdef USE_NEW_COMMUNICATION_FOR_BH_COMMS
-struct RankAndVector {
-    double vec[3];
-    int rank;
-};
-
-static void max_rank_op_function(void* in_void, void* inout_void, int* len,
-                                 MPI_Datatype* type) {
-    auto* in    = static_cast<RankAndVector*>(in_void);
-    auto* inout = static_cast<RankAndVector*>(inout_void);
-    for (int i = 0; i < *len; ++i) {
-        if (in[i].rank > inout[i].rank) {
-            inout[i] = in[i];  // copy the struct
-        }
-    }
-}
-#endif
-
 /**
  * @brief: Prints compile information, including Git Hash and Compile Date
  *

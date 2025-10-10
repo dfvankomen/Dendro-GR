@@ -2191,34 +2191,11 @@ unsigned int getOctantWeight(const ot::TreeNode* pNode) {
 
 void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
                         double** zipVars, double dt) {
-#ifdef USE_NEW_COMMUNICATION_FOR_BH_COMMS
-
-    // static creates this only once
-    static MPI_Op MPI_MAX_RANK_OP = MPI_OP_NULL;
-
-    if (MPI_MAX_RANK_OP == MPI_OP_NULL) {
-        // create the operation, note that true signifies operation is
-        // commutative
-        MPI_Op_create(max_rank_op_function, true, &MPI_MAX_RANK_OP);
-    }
-    // same thing for the rank and vector
-    static MPI_Datatype MPI_RANK_AND_VECTOR = MPI_DATATYPE_NULL;
-
-    if (MPI_RANK_AND_VECTOR == MPI_DATATYPE_NULL) {
-        const int num_blocks           = 2;
-        const int block_lengths[]      = {3, 1};
-        const MPI_Aint displacements[] = {offsetof(RankAndVector, vec),
-                                          offsetof(RankAndVector, rank)};
-        MPI_Datatype types[]           = {MPI_DOUBLE, MPI_INT};
-
-        MPI_Type_create_struct(num_blocks, block_lengths, displacements, types,
-                               &MPI_RANK_AND_VECTOR);
-        MPI_Type_commit(&MPI_RANK_AND_VECTOR);
-    }
-
-    RankAndVector local_bh_data[2];
-    for (unsigned int i = 0; i < 2; ++i) local_bh_data[i].rank = -1;
-#endif
+    // TODO: this should be easy to adjust based on how many bh's we actually
+    // have at some point
+    const unsigned int num_bhs              = 2;
+    const unsigned int num_data_per_bh      = 3;
+    const unsigned int total_points_to_comm = num_bhs * num_data_per_bh;
 
     dendro::logger::debug("[BH] Computing BH locations");
     MPI_Comm commActive = pMesh->getMPICommunicator();
@@ -2236,24 +2213,27 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
     domain_limits[1] = Point(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
                              bssn::BSSN_COMPD_MAX[2]);
 
-    double beta0[2];
-    double beta1[2];
-    double beta2[2];
+    // gather the points for betas
+    std::vector<double> beta0(num_bhs, 0.0);
+    std::vector<double> beta1(num_bhs, 0.0);
+    std::vector<double> beta2(num_bhs, 0.0);
 
     std::vector<unsigned int> validIndex_beta0;
     std::vector<unsigned int> validIndex_beta1;
     std::vector<unsigned int> validIndex_beta2;
 
-    double beta3vec[6] = {0, 0, 0, 0, 0, 0};
-    double bh_pts[6]   = {0, 0, 0, 0, 0, 0};
+    // IN is always the number of black holes
+    std::vector<double> beta_interleaved(total_points_to_comm, 0.0);
+    std::vector<double> bh_pts(total_points_to_comm, 0.0);
 
-    bh_pts[0]          = in[0].x();
-    bh_pts[1]          = in[0].y();
-    bh_pts[2]          = in[0].z();
-
-    bh_pts[3]          = in[1].x();
-    bh_pts[4]          = in[1].y();
-    bh_pts[5]          = in[1].z();
+    for (unsigned int bhidx = 0; bhidx < num_bhs; ++bhidx) {
+        // the points is the xyz direction, and fortunately beta also
+        // cooresponds to xyz
+        const unsigned int offset = bhidx * 3;
+        bh_pts[offset]            = in[bhidx].x();
+        bh_pts[offset + 1]        = in[bhidx].y();
+        bh_pts[offset + 2]        = in[bhidx].z();
+    }
 
     dendro::logger::debug(
         "[BH] Active processes will now call interpolateToCoords");
@@ -2261,115 +2241,56 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
     if (pMesh->isActive()) {
         unsigned int activeRank = pMesh->getMPIRank();
 
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA0], bh_pts, 6,
-                                    grid_limits, domain_limits, beta0,
-                                    validIndex_beta0);
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA1], bh_pts, 6,
-                                    grid_limits, domain_limits, beta1,
-                                    validIndex_beta1);
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA2], bh_pts, 6,
-                                    grid_limits, domain_limits, beta2,
-                                    validIndex_beta2);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA0], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta0.data(), validIndex_beta0);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA1], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta1.data(), validIndex_beta1);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA2], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta2.data(), validIndex_beta2);
 
         assert(validIndex_beta0.size() == validIndex_beta1.size());
         assert(validIndex_beta1.size() == validIndex_beta2.size());
 
-#ifdef USE_NEW_COMMUNICATION_FOR_BH_COMMS
-        for (unsigned int bh_index : validIndex_beta0) {
-            const unsigned int gRank       = pMesh->getMPIRankGlobal();
-
-            local_bh_data[bh_index].rank   = gRank;
-            local_bh_data[bh_index].vec[0] = beta0[bh_index];
-            local_bh_data[bh_index].vec[1] = beta1[bh_index];
-            local_bh_data[bh_index].vec[2] = beta2[bh_index];
+        for (unsigned int bhidx : validIndex_beta0) {
+            // based on the bhidx we get the offset to fix it all up
+            const unsigned int offset    = bhidx * 3;
+            beta_interleaved[offset]     = beta0[bhidx];
+            beta_interleaved[offset + 1] = beta1[bhidx];
+            beta_interleaved[offset + 2] = beta2[bhidx];
         }
-#endif
     }
 
     dendro::logger::debug(
-        "[BH] interpolateToCoords finished, now identifying red ranks");
+        "[BH] interpolateToCoords finished, now prepping communication");
 
-#ifdef USE_NEW_COMMUNICATION_FOR_BH_COMMS
-    RankAndVector global_bh_data[2];
+    std::vector<double> global_beta_interleaved(total_points_to_comm, 0.0);
 
-    dendro::logger::debug("[BH] performing full allreduce communication...");
-
-    MPI_Allreduce(local_bh_data, global_bh_data, 2, MPI_RANK_AND_VECTOR,
-                  MPI_MAX_RANK_OP, pMesh->getMPIGlobalCommunicator());
-
-    dendro::logger::debug("[BH] Allreduce complete. Owner ranks: [{}, {}]",
-                          global_bh_data[0].rank, global_bh_data[1].rank);
+    dendro::logger::debug(
+        "[BH] performing full sum for shift vector allreduce communication "
+        "(MPI_Allreduce)...");
+    MPI_Allreduce(beta_interleaved.data(), global_beta_interleaved.data(),
+                  total_points_to_comm, MPI_DOUBLE, MPI_SUM,
+                  pMesh->getMPIGlobalCommunicator());
+    dendro::logger::debug("[BH] Allreduce sum of BH shift vectors complete.");
 
     // now final data is available to all processes
-    for (unsigned int bh = 0; bh < 2; bh++) {
-        const double shift_x = global_bh_data[bh].vec[0] * dt;
-        const double shift_y = global_bh_data[bh].vec[1] * dt;
-        const double shift_z = global_bh_data[bh].vec[2] * dt;
+    for (unsigned int bh = 0; bh < num_bhs; bh++) {
+        const unsigned int offset = bh * 3;
+        const double shift_x      = global_beta_interleaved[offset + 0] * dt;
+        const double shift_y      = global_beta_interleaved[offset + 1] * dt;
+        const double shift_z      = global_beta_interleaved[offset + 2] * dt;
 
-        out[bh]              = Point(in[bh].x() - shift_x, in[bh].y() - shift_y,
-                                     in[bh].z() - shift_z);
+        out[bh] = Point(in[bh].x() - shift_x, in[bh].y() - shift_y,
+                        in[bh].z() - shift_z);
 
-        dendro::logger::debug("[BH] Black Hole {} new position: [{}, {}, {}]",
-                              bh, out[bh].x(), out[bh].y(), out[bh].z());
+        dendro::logger::info("[BH] Black Hole {} new position: [{}, {}, {}]",
+                             bh, out[bh].x(), out[bh].y(), out[bh].z());
     }
 
-#else
-
-    unsigned int red_ranks[2]   = {0, 0};
-    unsigned int red_ranks_g[2] = {0, 0};
-    // global bcast
-    for (unsigned int ind = 0; ind < validIndex_beta0.size(); ind++) {
-        assert(validIndex_beta0[ind] == validIndex_beta1[ind]);
-        assert(validIndex_beta0[ind] == validIndex_beta2[ind]);
-        const unsigned int gRank                = pMesh->getMPIRankGlobal();
-
-        beta3vec[validIndex_beta0[ind] * 3 + 0] = beta0[validIndex_beta0[ind]];
-        beta3vec[validIndex_beta1[ind] * 3 + 1] = beta1[validIndex_beta1[ind]];
-        beta3vec[validIndex_beta2[ind] * 3 + 2] = beta2[validIndex_beta2[ind]];
-
-        // std::cout<<"rank: "<<gRank<<"beta["<<(validIndex_beta0[ind]*3)<<"]: (
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 0]<<",
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 1]<<",
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 2]<<")"<<std::endl;
-        red_ranks[validIndex_beta2[ind]]        = gRank;
-    }
-
-    dendro::logger::debug("[BH] identified red ranks as [{}, {}]",
-                          red_ranks_g[0], red_ranks_g[1]);
-    par::Mpi_Allreduce(red_ranks, red_ranks_g, 2, MPI_MAX,
-                       pMesh->getMPIGlobalCommunicator());
-    dendro::logger::debug("[BH] Communicated red ranks, should be: [{}, {}]",
-                          red_ranks_g[0], red_ranks_g[1]);
-    MPI_Bcast(&beta3vec[0], 3, MPI_DOUBLE, red_ranks_g[0],
-              pMesh->getMPIGlobalCommunicator());
-    dendro::logger::debug(
-        "[BH] Communicated beta3vec[0-2] from rank {}, vals are: [{}, {}, {}]",
-        red_ranks_g[0], beta3vec[0], beta3vec[1], beta3vec[2]);
-    MPI_Bcast(&beta3vec[3], 3, MPI_DOUBLE, red_ranks_g[1],
-              pMesh->getMPIGlobalCommunicator());
-    dendro::logger::debug(
-        "[BH] Communicated beta3vec[3-5] from rank {}, vals are: [{}, {}, {}]",
-        red_ranks_g[1], beta3vec[3], beta3vec[4], beta3vec[5]);
-
-    // if(!pMesh->getMPIRankGlobal())
-    //     std::cout<<"beta bh0: ( "<<beta3vec[0]<<", "<<beta3vec[1]<<",
-    //     "<<beta3vec[2]<<") :  beta 1 ( "<<beta3vec[3]<<", "<<beta3vec[4]<<",
-    //     "<<beta3vec[5]<<") "<<std::endl;
-
-    double x[2], y[2], z[2];
-    for (unsigned int bh = 0; bh < 2; bh++) {
-        x[bh]   = in[bh].x() - beta3vec[bh * 3 + 0] * dt;
-        y[bh]   = in[bh].y() - beta3vec[bh * 3 + 1] * dt;
-        z[bh]   = in[bh].z() - beta3vec[bh * 3 + 2] * dt;
-
-        out[bh] = Point(x[bh], y[bh], z[bh]);
-        dendro::logger::debug(
-            "[BH] Black Hole {} position calculated as: [{}, {}, {}]", bh,
-            x[bh], y[bh], z[bh]);
-    }
-#endif
-
-    dendro::logger::debug("[BH] Finished the compute BH locations");
+    dendro::logger::debug("[BH] Finished computing BH locations!");
 
     return;
 }
