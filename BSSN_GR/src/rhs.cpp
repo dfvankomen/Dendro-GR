@@ -224,13 +224,14 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 ;
                 const unsigned int pp = i + nx * (j + ny * k);
                 const double r_coord  = sqrt(x * x + y * y + z * z);
+                
+                // TODO: add distance to each BH here
 
-                // RIT constant eta formulation
-                const double w        = r_coord / bssn::RIT_ETA_WIDTH;
-                const double arg      = -w * w * w * w;
-                const double eta =
-                    (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
-                    bssn::RIT_ETA_OUTER;
+                // eta formulation
+                // clang-format off
+                #include "eta_RIT.inc.cpp" // RIT's prescription
+                // #include "eta_linear_inverse.inc.cpp"
+                // clang-format on
 
 // clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
