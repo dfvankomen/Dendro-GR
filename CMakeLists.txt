@@ -8,7 +8,7 @@
 # Note that all options and compiler flags set here will propagate to other
 # directories such as src/ and dendro/
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 project(Dendro-5.0 C CXX Fortran)
 
 # the standard we're using is c++11 -- NOTE: this might change to C++17 or newer
@@ -18,6 +18,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
 set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined -fno-sanitize-recover")
+
+include(FetchContent)
 
 # OpenMP, MPI, and GSL are required packages for all aspects of the project
 find_package(OpenMP REQUIRED)
@@ -44,7 +46,9 @@ if(MPI_LINK_FLAGS)
 endif()
 
 # settable option for the user on where dendrolib is available
-set(DENDRO_dendrolib_DIR "dendrolib" CACHE PATH "Where the dendrolib library is on the system, (default is submodule), requires absolute path")
+set(DENDRO_dendrolib_DIR "" CACHE PATH "Path to the local dendrolib source directory (optional)")
+set(DENDRO_dendrolib_GIT_TAG "aeh-bhahaha" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
+
 
 # options for dendro -- not sure if these need to be declared here, but they
 # might be due to header definitions...
@@ -225,20 +229,39 @@ message(
 )
 checkgitsetup()
 
+# now we include toml11, required by the solvers
+FetchContent_Declare(
+    toml11
+    GIT_REPOSITORY "https://github.com/ToruNiina/toml11"
+    GIT_TAG        "v4.4.0"
+)
+FetchContent_MakeAvailable(toml11)
+
 # === END REQUIRED CONFIGURATIONS FOR DENDRO ===
 
 # === BEGIN SUBDIRECTORY INCLUSION FOR BUILDING ===
-
 # now include the dendro repository for compiling the library
-add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
+if (IS_DIRECTORY ${DENDRO_dendrolib_DIR})
+  message(STATUS "Using user-provided dendrolib from: ${DENDRO_dendrolib_DIR}")
+  add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
+  set(DENDRO_FETCHED FALSE)
+  add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
+else()
+  message(STATUS "Dendrolib not found locally, fetching from repository...")
+  FetchContent_Declare(
+    dendrolib
+    GIT_REPOSITORY "https://github.com/dfvankomen/Dendro-5.01"
+    GIT_TAG ${DENDRO_dendrolib_GIT_TAG}
+  )
+
+  FetchContent_MakeAvailable(dendrolib)
+
+  set(DENDRO_dendrolib_DIR ${dendrolib_SOURCE_DIR} CACHE INTERNAL "Path to the fetched dendrolib source")
+
+endif()
 
 
 # additional subdirectories that are their own "solvers"
 add_subdirectory(BSSN_GR)
 # add_subdirectory(CCZ4_GR)
-add_subdirectory(NLSigma)
 add_subdirectory(Fluid)
-add_subdirectory(EM1)
-add_subdirectory(EM2)
-add_subdirectory(EM3)
-add_subdirectory(EM4)
