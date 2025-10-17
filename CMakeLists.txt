@@ -245,7 +245,6 @@ if (IS_DIRECTORY ${DENDRO_dendrolib_DIR})
   message(STATUS "Using user-provided dendrolib from: ${DENDRO_dendrolib_DIR}")
   add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
   set(DENDRO_FETCHED FALSE)
-  add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
 else()
   message(STATUS "Dendrolib not found locally, fetching from repository...")
   FetchContent_Declare(
