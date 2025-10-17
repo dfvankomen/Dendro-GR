@@ -3,6 +3,18 @@
 ### =================================================
 # 
 
+DENDRO_LOG_FILE = "log_file_test"
+# what minimum severity level to record:
+# 0 - trace (all!)
+# 1 - debug (all debug ones)
+# 2 - info
+# 3 - warn
+# 4 - error
+DENDRO_LOG_FILE_LEVEL = 1
+DENDRO_LOG_CONSOLE_LEVEL = 2
+# try not to use this, but it's a "last resort" to make sure the log file is flushed/saved to disc
+DENDRO_LOG_FORCE_FILE_FLUSH = false
+
 # Set 1 to restore the BSSN Solver
 BSSN_RESTORE_SOLVER = 0
 

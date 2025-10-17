@@ -402,6 +402,14 @@ const unsigned int BSSN_NUM_DERIVS = 138 + 74;
 const unsigned int BSSN_NUM_DERIVS = 138;
 #endif
 
+extern std::string DENDRO_LOG_FILE;
+// DEBUG is 1
+extern int DENDRO_LOG_FILE_LEVEL;
+// INFO is 2
+extern int DENDRO_LOG_CONSOLE_LEVEL;
+
+extern bool DENDRO_LOG_FORCE_FILE_FLUSH;
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
 
 }  // namespace bssn

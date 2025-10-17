@@ -167,12 +167,12 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // data needed for the black hole location
     const double bhMass1                 = bssn::BH1.getBHMass();
     const double bhMass2                 = bssn::BH2.getBHMass();
-    const double bh1x                    = bssn::BH1.getBHCoordX();
-    const double bh1y                    = bssn::BH1.getBHCoordY();
-    const double bh1z                    = bssn::BH1.getBHCoordZ();
-    const double bh2x                    = bssn::BH2.getBHCoordX();
-    const double bh2y                    = bssn::BH2.getBHCoordY();
-    const double bh2z                    = bssn::BH2.getBHCoordZ();
+    const double bh1x                    = bssn::BSSN_BH_LOC[0].x();
+    const double bh1y                    = bssn::BSSN_BH_LOC[0].y();
+    const double bh1z                    = bssn::BSSN_BH_LOC[0].z();
+    const double bh2x                    = bssn::BSSN_BH_LOC[1].x();
+    const double bh2y                    = bssn::BSSN_BH_LOC[1].y();
+    const double bh2z                    = bssn::BSSN_BH_LOC[1].z();
 
     const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
     const unsigned int n                 = sz[0] * sz[1] * sz[2];
@@ -219,18 +219,19 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     
             for (unsigned int i = PW; i < nx - PW; i++) {
                 const double x = pmin[0] + i * hx;
-                ;
                 const double y = pmin[1] + j * hy;
                 const double z = pmin[2] + k * hz;
                 ;
                 const unsigned int pp = i + nx * (j + ny * k);
                 const double r_coord  = sqrt(x * x + y * y + z * z);
+                
+                // TODO: add distance to each BH here
 
-                const double w        = r_coord / bssn::RIT_ETA_WIDTH;
-                const double arg      = -w * w * w * w;
-                const double eta =
-                    (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
-                    bssn::RIT_ETA_OUTER;
+                // eta formulation
+                // clang-format off
+                #include "eta_RIT.inc.cpp" // RIT's prescription
+                // #include "eta_linear_inverse.inc.cpp"
+                // clang-format on
 
 // clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
@@ -238,8 +239,11 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
   // #include "bssn_eqns_SSL_HD.cpp"
   // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
   #include "bssneqs_SSL_HD_dxsq.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  // #include "test_bssn_shock_56.inc.cpp" // shock-avoiding lapse: use 5/6 post-merger? 
   // #include "test_bssn_etaG.inc.cpp" // use eta_G exactly as LH23
-  // #include "test_bssn_etaG_adv.inc.cpp" // use eta_G w/ advective term
+  // #include "test_bssn_etaG_SSL_CAHD.inc.cpp" // use eta_G, evolve w/ B
+  // #include "test_bssn_etaG_LH23_SSL_CAHD.inc.cpp" // LH23 formulation
+  // #include "test_bssn_eta_G_adv_new.inc.cpp" // eta_G w/ advect
 #else
   #pragma message( \
     "BSSN: SSL and HD is **NOT** enabled! Using original formalism!")

@@ -406,7 +406,7 @@ void TPStore(double *mp, double *mm, double *mp_adm, double *mm_adm, double *E,
             do {
                 printf("Bare masses: mp=%.15g, mm=%.15g\n", (double)*mp,
                        (double)*mm);
-                Newton(nvar, n1, n2, n3, v, TPID::Newton_tol, 1);
+                Newton(nvar, n1, n2, n3, v, TPID::Newton_tol, 2);
 
                 F_of_v(nvar, n1, n2, n3, v, F, u);
 

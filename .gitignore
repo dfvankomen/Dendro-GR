@@ -33,6 +33,7 @@
 
 # additional excludes
 build/
+intel_build/
 __pycache__
 kde
 .kdev4

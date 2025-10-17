@@ -325,6 +325,8 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         if (m_bIsBHMerged) {
             return;
         }
+        dendro::logger::info(
+            "Black holes are merged, setting is merged inside BSSNCtx");
 
         m_bIsBHMerged = true;
         set_bh_merge_time(time_merged, step_merged);
