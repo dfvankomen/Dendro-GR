@@ -191,6 +191,7 @@ bool BSSN_MERGED_CHKPT_WRITTEN                  = false;
 double BSSN_CURRENT_RK_COORD_TIME               = 0;
 unsigned int BSSN_CURRENT_RK_STEP               = 0;
 
+// which spherical harmonic m-mode to aim to resolve
 unsigned int BSSN_NYQUIST_M                     = 0;
 
 bool BSSN_SCALE_VTU_AND_GW_EXTRACTION           = false;
@@ -199,20 +200,37 @@ unsigned int BSSN_GW_EXTRACT_FREQ_TRUE          = 0;
 
 unsigned int BSSN_IO_OUTPUT_FREQ_TRUE           = 0;
 
-double BSSN_SSL_SIGMA                           = 20.0;
+// SSL strength (Gaussian height) units [1/M]
 double BSSN_SSL_H                               = 0.6;
+// SSL duration (Gaussian width) units [M]
+double BSSN_SSL_SIGMA                           = 20.0;
 
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 
+////    log file parameters    /////////////////////////////////////////
+// dendro log file output filename base
 std::string DENDRO_LOG_FILE                     = "logfile";
-// DEBUG is 1
-int DENDRO_LOG_FILE_LEVEL                       = 1;
-// INFO is 2
-int DENDRO_LOG_CONSOLE_LEVEL                    = 2;
+
+// logging levels: 
+//  0 - trace (all steps)
+//  1 - debug
+//  2 - info
+//  3 - warnings
+//  4 - errors
+//  5 - (none)
+
+// output to dendro output log file
+int DENDRO_LOG_FILE_LEVEL                       = 2;
+
+// output to console (slurm log)
+int DENDRO_LOG_CONSOLE_LEVEL                    = 3;
+
+// "last resort" to flush/save log file to disc on each write (avoid!)
 bool DENDRO_LOG_FORCE_FILE_FLUSH                = false;
 
-// empty struct to signify that the parameter should just use it's intiail value
+////////////////////////////////////////////////////////////////////////
+// empty struct to signify that the parameter should just use its intiail value
 // on optional parameters
 struct UseInitialValue_t {};
 constexpr UseInitialValue_t UseInitialValue;
