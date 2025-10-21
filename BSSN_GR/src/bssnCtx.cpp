@@ -1418,6 +1418,10 @@ int BSSNCtx::restore_checkpt() {
     m_uiIsETSSynced = false;
 
     dendro::logger::info("Finished restoring checkpoint!");
+
+    // make sure derivatives are set
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
+
     return 0;
 }
 
