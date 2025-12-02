@@ -2312,6 +2312,7 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
 
     std::vector<double> global_beta_interleaved(total_points_to_comm, 0.0);
 
+#if 0
     dendro::logger::debug(
         "[BH] performing full sum for shift vector allreduce communication "
         "(MPI_Allreduce)...");
@@ -2319,6 +2320,25 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
                   total_points_to_comm, MPI_DOUBLE, MPI_SUM,
                   pMesh->getMPIGlobalCommunicator());
     dendro::logger::debug("[BH] Allreduce sum of BH shift vectors complete.");
+#else
+    const int root_rank = 0;
+    dendro::logger::debug(
+        "[BH] performing full shift vector reduce communication "
+        "(MPI_Reduce)...");
+    //
+    MPI_Reduce(beta_interleaved.data(), global_beta_interleaved.data(),
+               total_points_to_comm, MPI_DOUBLE, MPI_SUM, root_rank,
+               pMesh->getMPIGlobalCommunicator());
+
+    dendro::logger::debug(
+        "[BH] performing broadcast "
+        "(MPI_Bcast)...");
+
+    MPI_Bcast(global_beta_interleaved.data(), total_points_to_comm, MPI_DOUBLE,
+              root_rank, pMesh->getMPIGlobalCommunicator());
+
+    dendro::logger::debug("[BH] Reduce+Bcast of BH shift vectors complete.");
+#endif
 
     // now final data is available to all processes
     for (unsigned int bh = 0; bh < num_bhs; bh++) {
