@@ -17,6 +17,8 @@
 #include "git_version_and_date.h"
 #include "parameters.h"
 
+#define BH_FULL_DEBUG_STATEMENTS
+
 namespace bssn {
 
 template <typename T>
@@ -2322,22 +2324,44 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
     dendro::logger::debug("[BH] Allreduce sum of BH shift vectors complete.");
 #else
     const int root_rank = 0;
-    dendro::logger::debug(
-        "[BH] performing full shift vector reduce communication "
-        "(MPI_Reduce)...");
-    //
-    MPI_Reduce(beta_interleaved.data(), global_beta_interleaved.data(),
-               total_points_to_comm, MPI_DOUBLE, MPI_SUM, root_rank,
-               pMesh->getMPIGlobalCommunicator());
 
+    double* send_data   = new double[total_points_to_comm];
+
+    // properly initialize send data for safety
+    for (unsigned int i = 0; i < total_points_to_comm; ++i) {
+        send_data[i] = beta_interleaved[i];
+    }
+
+// perform MPI_Barrier
+#ifdef BH_FULL_DEBUG_STATEMENTS
+    std::cout << pMesh->getMPIRank() << ": reached first barrier" << std::endl;
+#endif
+    MPI_Barrier(pMesh->getMPIGlobalCommunicator());
+
+#ifdef BH_FULL_DEBUG_STATEMENTS
+    std::cout << pMesh->getMPIRank() << ": crossed first barrier" << std::endl;
+#endif
     dendro::logger::debug(
-        "[BH] performing broadcast "
-        "(MPI_Bcast)...");
+        "[BH] performing full shift vector reduce (MPI_Reduce)");
+    MPI_Reduce(send_data, global_beta_interleaved.data(), total_points_to_comm,
+               MPI_DOUBLE, MPI_SUM, root_rank,
+               pMesh->getMPIGlobalCommunicator());
+#ifdef BH_FULL_DEBUG_STATEMENTS
+    std::cout << pMesh->getMPIRank() << ": finished reduce" << std::endl;
+#endif
+
+    dendro::logger::debug("[BH] performing broadcast (MPI_Bcast)");
 
     MPI_Bcast(global_beta_interleaved.data(), total_points_to_comm, MPI_DOUBLE,
               root_rank, pMesh->getMPIGlobalCommunicator());
+#ifdef BH_FULL_DEBUG_STATEMENTS
+    std::cout << pMesh->getMPIRank() << ": finished broadcast" << std::endl;
+#endif
 
     dendro::logger::debug("[BH] Reduce+Bcast of BH shift vectors complete.");
+
+    // delete send data
+    delete[] send_data;
 #endif
 
     // now final data is available to all processes
