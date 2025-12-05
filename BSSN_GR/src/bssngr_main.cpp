@@ -413,6 +413,9 @@ bssn:
                 // there's no guarantee that the constraints will be computed
                 // right on restore, due to the timing. we still need them
                 // populated with "good" data
+                std::cout << "COMP_CONSTS_OUTER : " << rank_global
+                          << " barrier reached" << std::endl;
+                MPI_Barrier(mesh->getMPIGlobalCommunicator());
                 bssnCtx->compute_constraint_variables();
             }
 
@@ -445,6 +448,9 @@ bssn:
             }
 
             if ((step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
+                std::cout << "REMESH_OUTER : " << rank_global
+                          << " barrier reached" << std::endl;
+                MPI_Barrier(comm);
                 bool isRemesh = bssnCtx->is_remesh();
                 if (isRemesh) {
                     if (!rank_global)
@@ -508,6 +514,9 @@ bssn:
 
                     // compute the constraint variables to "refresh"
                     // them on the grid for potential RHS updates
+                    std::cout << "REMESH_CONST : " << rank_global
+                              << " barrier reached" << std::endl;
+                    MPI_Barrier(comm);
                     bssnCtx->compute_constraint_variables();
                 }
 
@@ -524,10 +533,16 @@ bssn:
                               << "\tdt: " << ets->ts_size() << "\t"
                               << std::endl;
 
+                std::cout << "TERMINAL_OUTPUT : " << rank_global
+                          << " barrier reached" << std::endl;
+                MPI_Barrier(comm);
                 bssnCtx->terminal_output();
             }
 
             // wkb: update BH locations always
+            std::cout << "BHLOC_OUTER : " << rank_global << " barrier reached"
+                      << std::endl;
+            MPI_Barrier(comm);
             bssnCtx->evolve_bh_loc();
 
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
@@ -537,6 +552,9 @@ bssn:
 
                 // evolving the black holes always stores the updated
                 // information
+                std::cout << "EXTRACT_CONSTS_GW : " << rank_global
+                          << " barrier reached" << std::endl;
+                MPI_Barrier(comm);
                 bssnCtx->extract_constraints();
                 bssnCtx->extract_gravitational_waves();
             }
@@ -547,6 +565,8 @@ bssn:
                 // which are "independent"
 
                 // write to vtu, which includes writing the BH location data
+                std::cout << "WRITE_VTU : " << rank_global << " barrier reached"
+                          << std::endl;
                 bssnCtx->write_vtu();
                 bssnCtx->write_bh_coords();
             }
@@ -559,10 +579,14 @@ bssn:
                 bssnCtx->findAH();
             }
 
+            std::cout << "EVOLVE : " << rank_global << " barrier reached"
+                      << std::endl;
             ets->evolve();
 
             // Write checkpoint  data
             if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {
+                std::cout << "CHECKPT : " << rank_global << " barrier reached"
+                          << std::endl;
                 bssnCtx->write_checkpt();
             }
 
