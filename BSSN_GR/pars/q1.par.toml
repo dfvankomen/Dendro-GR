@@ -145,7 +145,7 @@ BSSN_CFL_FACTOR = 0.25
 # The starting time of the simulation
 BSSN_RK_TIME_BEGIN = 0.0
 # The ending time of the simulation
-BSSN_RK_TIME_END = 750.0
+BSSN_RK_TIME_END = 700.0
 
 # RK Method to use (0 -> RK3, 1 -> RK4, 2 -> RK45)
 BSSN_RK_TYPE = 1
@@ -317,7 +317,7 @@ BSSN_CAHD_C = 0.06
 # LOGGING
 
 # output log file name
-DENDRO_LOG_FILE = "log_file"
+DENDRO_LOG_FILE = "logfile"
 
 # minimum severity levels to record:
 # 0 - trace (all steps!)
@@ -351,8 +351,8 @@ AEH_SAVE_DIR = "bah"
 VERBOSITY_LEVEL = 1
 
 # Input spherical grid's maximum radius to search, for all time. 
-# These need to be rescaled to each BH's mass! ~1.25*m_i or more.
-MAX_SEARCH_RADIUS = [0.55, 0.55, 1.25]
+# These need to be rescaled to each BH's mass! ~1.5*m_i or more.
+MAX_SEARCH_RADIUS = [0.55, 0.55, 1.4]
 
 # Maximum number of radial points for the grids. 
 # Recommended 48-63 for speed. Increasing this value increases interpolation and communication costs!
@@ -366,4 +366,4 @@ THETA_LINF_M_TOL = [1.0e-3, 1.0e-3, 1.0e-3]
 
 # Courant-Friedrichs-Lewy factor within hyperbolic relaxation. 
 # Etienne's team uses .95 by default but lowers it if a solve fails.
-CFL_FACTOR = [0.95, 0.75, 0.95]
+CFL_FACTOR = [0.95, 0.95, 0.95]
