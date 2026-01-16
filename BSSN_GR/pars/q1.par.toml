@@ -2,13 +2,15 @@
 ### ============== BSSN PARAMETER FILE ==============
 ### =================================================
 
-# Evolution variable indices = U_ALPHA=0, U_CHI=1, U_K=2, U_GT0=3, 
-#  U_GT1=4, U_GT2=5, U_BETA0=6, U_BETA1=7, U_BETA2=8, U_B0=9, U_B1=10, U_B2=11, 
+# Evolution variable indices:
+#  U_ALPHA=0, U_CHI=1, U_K=2, U_GT0=3, U_GT1=4, U_GT2=5, 
+#  U_BETA0=6, U_BETA1=7, U_BETA2=8, U_B0=9, U_B1=10, U_B2=11, 
 #  U_SYMGT0=12, U_SYMGT1=13, U_SYMGT2=14, U_SYMGT3=15, U_SYMGT4=16, U_SYMGT5=17, 
 #  U_SYMAT0=18, U_SYMAT1=19, U_SYMAT2=20, U_SYMAT3=21, U_SYMAT4=22, U_SYMAT5=23
 
-# Constraint variable indices = C_HAM=0, C_MOM0=1, C_MOM1=2, C_MOM2=3, 
-#                               C_PSI4_REAL=4, C_PSI4_IMG=5
+# Constraint variable indices:
+#  C_HAM=0, C_MOM0=1, C_MOM1=2, C_MOM2=3, 
+#  C_PSI4_REAL=4, C_PSI4_IMG=5
 
 
 ########################################################################
@@ -27,7 +29,7 @@ BSSN_REMESH_TEST_FREQ = 50
 # Extraction frequency for gravitational waves
 BSSN_GW_EXTRACT_FREQ = 25
 
-# Frequency for outputting a full checkpoint (recommended a few thousand, it takes time and saves a lot)
+# Frequency for outputting a full checkpoint
 BSSN_CHECKPT_FREQ = 100
 
 # VTU File Prefix, can be absolute or relative paths
@@ -60,13 +62,15 @@ BSSN_VTU_Z_SLICE_ONLY = true
 # LOAD BALANCING & MESH
 
 # grain size N/p = (total number of octants) / (number of active cores). Helps with partitioning
-BSSN_DENDRO_GRAIN_SZ = 25
+BSSN_DENDRO_GRAIN_SZ = 50
 
 # Asynchronous Communication constant. This is the variable group size for the unzipping (communication) operation
 BSSN_ASYNC_COMM_K = 1
 
-# The Coarsening factor, it will coarsen if wavelet tol < BSSN_DENDRO_AMR_FAC*BSSN_WAVELET_TOL
-BSSN_DENDRO_AMR_FAC = 0.1
+# AMR coarsening factor: grid de-refines only if wavelet tol < BSSN_DENDRO_AMR_FAC * BSSN_WAVELET_TOL
+# q=1 optimum: 1/4 before merger, 1/32=.03125 after merger. 
+BSSN_DENDRO_AMR_FAC = 0.20
+BSSN_DENDRO_AMR_FAC_POST_MERGER = 0.03125
 
 # Load imbalance tolerance for partitioning. 0.1 is a good value.
 BSSN_LOAD_IMB_TOL = 0.1
@@ -115,8 +119,8 @@ BSSN_GW_REFINE_WTOL = 0.0001
 # Maximum Wavelet Tolerence
 BSSN_WAVELET_TOL_MAX = 0.001
 
-# Nyquist-based refinement: goal spherical harmonic order m to resolve
-# (=0 to disable)
+# ORBIT: Nyquist-based refinement
+# goal spherical harmonic order m to resolve (=0 to disable)
 BSSN_NYQUIST_M = 7
 
 # Wavelet Tolerence Radii (for setting "shell" based tolerance)
@@ -188,6 +192,7 @@ KO_DISS_SIGMA = 0.4
 BSSN_ETA_R0 = 1.31
 BSSN_ETA_POWER = [ 2.0, 2.0 ]
 
+
 ########################################################################
 # Select initial data type
 # 0 - TwoPuncture Elliptic solution
@@ -221,7 +226,7 @@ BSSN_BH1 = { MASS = 0.5, X = 4.0, Y = 0.0, Z = 0.0, V_X = -0.002284343811437988,
 BSSN_BH2_AMR_R = 1.0
 BSSN_BH2_CONSTRAINT_R = 1.0
 BSSN_BH2_MAX_LEV = 15
-BSSN_BH2 = {MASS = 0.5, X = -4.0, Y = 0.0, Z = 0.0, V_X = 0.002284343811437988, V_Y = -0.11284523509709575, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0,SPIN_PHI = 0.0 }
+BSSN_BH2 = {MASS = 0.5, X = -4.0, Y = 0.0, Z = 0.0, V_X = 0.002284343811437988, V_Y = -0.11284523509709575, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
 
 ########################################################################
@@ -299,16 +304,20 @@ BSSN_GW_L_MODES = [ 2, 3, 4, 5, 6, 7, 8 ]
 ########################################################################
 # Etienne '24 improvements 
 
-# SSL: use necessary initial lapse of alpha = W
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+# SSL parameters
+# use necessary initial lapse of alpha = W
 TPID_REPLACE_LAPSE_WITH_SQRT_CHI = true
 # Gaussian height h [1/M] (strength of SSL)
 BSSN_SSL_H = 0.6
 # Gaussian width sigma [M] (duration of SSL)
 BSSN_SSL_SIGMA = 20.0
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 # CAKO: scale KO-diss by conformal factor
 BSSN_KO_SIGMA_SCALE_BY_CONFORMAL = false
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 # CAHD: Hamiltonian damping strength
 BSSN_CAHD_C = 0.06
 
@@ -337,9 +346,9 @@ DENDRO_LOG_FORCE_FILE_FLUSH = false
 
 
 ########################################################################
-# APPARANT EVENT HORIZON PARAMETERS
+# APPARANT HORIZON SOLVER PARAMETERS
 
-# time step frequency with which to run AEH solver
+# Time steps between AH solves
 AEH_SOLVER_FREQ = 50
 
 [AEH_PARAMS]
