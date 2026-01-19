@@ -75,20 +75,13 @@ BSSNCtx::~BSSNCtx() {
                                       BSSN_ASYNC_COMM_K);
 }
 
-int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time,
-                 unsigned int stage) {
+int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     // all the variables should be packed together.
     // assert(sz==1);
     // DendroScalar * sVar[BSSN_NUM_VARS];
     // in->to_2d(sVar);
 
-    // calculate a special tag for the unzip operation based on the stage
-    // NOTE: we'll modify the unzip step here
-
-    const unsigned int customCommTag = compute_tag(
-        this->m_uiTinfo._m_uiStep, bssnUnzipStage::RHS_STAGE, stage);
-    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K,
-                customCommTag);
+    this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K);
 
     // AT THIS POINT THE CONSTRAINT VARIABLES SHOULD BE CALCULATED.
     // Just need to set up the proper variable representation.
@@ -406,18 +399,12 @@ int BSSNCtx::initialize() {
     // calculate the initial size of the grid
     this->calculate_full_grid_size();
 
-    unsigned int customCommTag = 2048;
-
     do {
         // hold on to the "old numbers" for final check
         oldElements_g   = m_uiGlobalMeshElements;
         oldGridPoints_g = m_uiGlobalGridPoints;
 
-        // use the customCommTag for unzipping to ensure we don't have
-        // colissions
-        this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K, customCommTag);
-        customCommTag++;
-
+        this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
         m_evar_unz.to_2d(unzipVar);
         // isRefine=this->is_remesh();
         // NOTE: use a parameter to determine if initial grid covergence should
@@ -648,14 +635,12 @@ void BSSNCtx::compute_constraint_variables() {
         "Constraint variables not previously computed this time step, "
         "continuing");
 
-    DVec& m_evar                     = m_var[VL::CPU_EV];
-    DVec& m_evar_unz                 = m_var[VL::CPU_EV_UZ_IN];
-    DVec& m_cvar                     = m_var[VL::CPU_CV];
-    DVec& m_cvar_unz                 = m_var[VL::CPU_CV_UZ_IN];
+    DVec& m_evar     = m_var[VL::CPU_EV];
+    DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
+    DVec& m_cvar     = m_var[VL::CPU_CV];
+    DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
 
-    const unsigned int customCommTag = compute_tag(
-        this->m_uiTinfo._m_uiStep, bssnUnzipStage::COMPUTE_CONSTRAINTS);
-    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K, customCommTag);
+    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
 
     DendroScalar* consUnzipVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
     DendroScalar* consVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
@@ -792,11 +777,7 @@ int BSSNCtx::write_vtu() {
     DVec& m_cvar     = m_var[VL::CPU_CV];
     DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
 
-    // calculate custom tag
-
-    const unsigned int customCommTag =
-        compute_tag(this->m_uiTinfo._m_uiStep, bssnUnzipStage::WRITE_VTU);
-    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K, customCommTag);
+    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
 
     DendroScalar* consUnzipVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
     DendroScalar* consVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
@@ -1475,7 +1456,6 @@ bool BSSNCtx::is_remesh() {
     DVec& m_evar     = m_var[VL::CPU_EV];
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
 
-    // TODO: custom tag here?
     this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
 
     DendroScalar* unzipVar[BSSN_NUM_VARS];
