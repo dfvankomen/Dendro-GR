@@ -31,30 +31,6 @@
 using json = nlohmann::json;
 namespace bssn {
 
-enum bssnUnzipStage {
-    COMPUTE_CONSTRAINTS = 0,
-    WRITE_VTU,
-    // IS_REMESH,
-    RHS_STAGE
-};
-// @brief: small function that handles computing custom tags for MPI
-// communication
-inline unsigned int compute_tag(const unsigned int timeStep,
-                                const bssnUnzipStage unzipStage,
-                                const unsigned int rkStage = 100) {
-    // safety factor for the tag offset, make sure any other internal unzips are
-    // set properly
-    const unsigned int tag_offset = 4096;
-    unsigned int unzipBase        = static_cast<unsigned int>(unzipStage);
-    if (rkStage != 100) {
-        unzipBase += rkStage;
-    }
-
-    // NOTE: any larger RK and we'll need to adjust this
-
-    return tag_offset + ((timeStep << 4) | unzipBase);
-}
-
 /**
  * @brief: Prints compile information, including Git Hash and Compile Date
  *
