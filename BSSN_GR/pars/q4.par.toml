@@ -20,14 +20,14 @@
 BSSN_RESTORE_SOLVER = 1
 
 # Frequency for the VTU Output
-BSSN_IO_OUTPUT_FREQ = 1600
+BSSN_IO_OUTPUT_FREQ = 800
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = true
 
 # Frequency to use for triggering the remeshing
 BSSN_REMESH_TEST_FREQ = 50
 
 # Extraction frequency for gravitational waves
-BSSN_GW_EXTRACT_FREQ = 100
+BSSN_GW_EXTRACT_FREQ = 50
 
 # Frequency for outputting a full checkpoint
 BSSN_CHECKPT_FREQ = 100
@@ -250,13 +250,13 @@ TPID_TARGET_M_PLUS = 0.18805875565856064
 TPID_TARGET_M_MINUS = 0.78937789039671058
 
 # Grid points for spectral grid
-TPID_NPOINTS_A = 80
-TPID_NPOINTS_B = 80
-TPID_NPOINTS_PHI = 80
+TPID_NPOINTS_A = 90
+TPID_NPOINTS_B = 103
+TPID_NPOINTS_PHI = 12
 
 # Convergence tolerances
-TPID_NEWTON_TOL = 1e-10
-TPID_ADM_TOL = 1e-10
+TPID_NEWTON_TOL = 1e-13
+TPID_ADM_TOL = 1e-15
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
@@ -365,14 +365,14 @@ MAX_SEARCH_RADIUS = [0.25, 1.25, 1.25]
 
 # Maximum number of radial points for the grids. 
 # Recommended 48-63 for speed. Increasing this value increases interpolation and communication costs!
-NR_INTERP_MAX = [63, 63, 63]
+NR_INTERP_MAX = [63, 127, 63]
 
 # Converge is reached if BOTH of these theta tolerances are met! 
 # Recommended 1.0e-5 for L2, for balance of speed and accuracy
-THETA_L2_M_TOL = [1.0e-5, 1.0e-5, 1.0e-5]
+THETA_L2_M_TOL = [1.0e-5, 1.0e-4, 1.0e-5]
 # Recommended 1.0e-2 for Linf (effectively disabling it)
-THETA_LINF_M_TOL = [1.0e-3, 1.0e-3, 1.0e-3]
+THETA_LINF_M_TOL = [1.0e-3, 1.0e-2, 1.0e-3]
 
 # Courant-Friedrichs-Lewy factor within hyperbolic relaxation. 
 # Etienne's team uses .95 by default but lowers it if a solve fails.
-CFL_FACTOR = [0.95, 0.95, 0.95]
+CFL_FACTOR = [0.90, 0.50, 0.90]
