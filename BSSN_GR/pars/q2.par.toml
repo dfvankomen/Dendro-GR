@@ -19,14 +19,14 @@
 # 1: restore the BSSN solver from most recent checkpoint
 BSSN_RESTORE_SOLVER = 1
 
-# Frequency for the VTU Output
+# Frequency for the VTU Output (scales with q)
 BSSN_IO_OUTPUT_FREQ = 800
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = true
 
 # Frequency to use for triggering the remeshing
 BSSN_REMESH_TEST_FREQ = 50
 
-# Extraction frequency for gravitational waves
+# Extraction frequency for gravitational waves (scales with q)
 BSSN_GW_EXTRACT_FREQ = 50
 
 # Frequency for outputting a full checkpoint
