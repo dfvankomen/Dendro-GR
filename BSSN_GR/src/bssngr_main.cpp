@@ -546,6 +546,7 @@ bssn:
                 bssnCtx->evolve_bh_loc();
                 bssnCtx->extract_constraints();
                 bssnCtx->extract_gravitational_waves();
+                bssnCtx->write_bh_coords();
             }
 
             if ((step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
@@ -554,7 +555,7 @@ bssn:
 
                 // write to vtu, which includes writing the BH location data
                 bssnCtx->write_vtu();
-                bssnCtx->write_bh_coords();
+         
             }
 
             if ((AEH::AEH_SOLVER_FREQ > 0) &&
