@@ -244,19 +244,20 @@ TPID_CENTER_OFFSET = { X = 3.1006184869893736, Y = 0.0, Z = 0.0 }
 # TPID_GIVE_BARE_MASS = 0
 # TPID_TARGET_M_PLUS = 0.11111111111111111
 # TPID_TARGET_M_MINUS = 0.99999999999999999
+# results in mp=0.10298948186548 and mm=0.99288148243400309
 
 TPID_GIVE_BARE_MASS = 1
 TPID_TARGET_M_PLUS = 0.10362076785204424
 TPID_TARGET_M_MINUS = 0.88245544731253067
 
 # Grid points for spectral grid
-TPID_NPOINTS_A = 126 # TODO: make more careful analysis here; over-cautious at the moment
-TPID_NPOINTS_B = 140
-TPID_NPOINTS_PHI = 20
+TPID_NPOINTS_A = 102
+TPID_NPOINTS_B = 114
+TPID_NPOINTS_PHI = 12
 
 # Convergence tolerances
-TPID_NEWTON_TOL = 1e-10 # TODO: update these! 
-TPID_ADM_TOL = 1e-10
+TPID_NEWTON_TOL = 2e-13
+TPID_ADM_TOL = 1e-15
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
