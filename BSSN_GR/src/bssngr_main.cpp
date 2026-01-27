@@ -165,6 +165,11 @@ bssn:
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
 
+    // then write it right back out:
+    std::string outputFileName =
+        bssn::BSSN_PROFILE_FILE_PREFIX + "__PARAM_DUMP__.toml";
+    bssn::writeParamTOMLFile(outputFileName.c_str(), comm);
+
     // initialize the logger
     dendro::logger::initialize(
         "dendro", bssn::DENDRO_LOG_FILE, 0, bssn::DENDRO_LOG_FILE_LEVEL,
