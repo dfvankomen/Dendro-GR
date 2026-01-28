@@ -411,6 +411,7 @@ extern int DENDRO_LOG_CONSOLE_LEVEL;
 extern bool DENDRO_LOG_FORCE_FILE_FLUSH;
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
+void writeParamTOMLFile(const char* fName, MPI_Comm comm);
 
 }  // namespace bssn
 
