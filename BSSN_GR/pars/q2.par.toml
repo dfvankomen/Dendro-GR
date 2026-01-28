@@ -241,6 +241,7 @@ TPID_CENTER_OFFSET = { X = 1.323826943609176, Y = 0.0, Z = 0.0 }
 # 0 - Use ADM mass and iteratively solve for bare mass
 # 1 - Use bare mass
 
+# ADM target masses
 # TPID_GIVE_BARE_MASS = 0
 # TPID_TARGET_M_PLUS = 0.33333333333333333
 # TPID_TARGET_M_MINUS = 0.66666666666666666

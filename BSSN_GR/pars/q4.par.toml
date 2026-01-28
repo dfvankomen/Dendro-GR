@@ -241,6 +241,7 @@ TPID_CENTER_OFFSET = { X = 2.387283272139298, Y = 0.0, Z = 0.0 }
 # 0 - Use ADM mass and iteratively solve for bare mass
 # 1 - Use bare mass
 
+# ADM target masses
 # TPID_GIVE_BARE_MASS = 0
 # TPID_TARGET_M_PLUS = 0.2
 # TPID_TARGET_M_MINUS = 0.8
@@ -369,10 +370,10 @@ NR_INTERP_MAX = [63, 127, 63]
 
 # Converge is reached if BOTH of these theta tolerances are met! 
 # Recommended 1.0e-5 for L2, for balance of speed and accuracy
-THETA_L2_M_TOL = [1.0e-5, 1.0e-4, 1.0e-5]
+THETA_L2_M_TOL = [1.0e-5, 1.0e-4, 1.0e-4]
 # Recommended 1.0e-2 for Linf (effectively disabling it)
-THETA_LINF_M_TOL = [1.0e-3, 1.0e-2, 1.0e-3]
+THETA_LINF_M_TOL = [1.0e-3, 1.0e-2, 1.0e-2]
 
 # Courant-Friedrichs-Lewy factor within hyperbolic relaxation. 
 # Etienne's team uses .95 by default but lowers it if a solve fails.
-CFL_FACTOR = [0.90, 0.50, 0.90]
+CFL_FACTOR = [0.90, 0.50, 0.50]
