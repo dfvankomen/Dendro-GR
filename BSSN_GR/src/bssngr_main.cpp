@@ -5,7 +5,9 @@
  * @date 2021-02-12
  *
  */
+#include <chrono>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "TreeNode.h"
@@ -165,9 +167,18 @@ bssn:
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
 
+    // get the current time
+    auto now    = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::ostringstream tmp_stringstream;
+    tmp_stringstream << std::put_time(std::localtime(&time_t),
+                                      "%Y-%m-%d-%H-%M-%S");
+    std::string timestamp = tmp_stringstream.str();
+
     // then write it right back out:
     std::string outputFileName =
-        bssn::BSSN_PROFILE_FILE_PREFIX + "__PARAM_DUMP__.toml";
+        bssn::BSSN_PROFILE_FILE_PREFIX + "__PARAM_DUMP__" + timestamp + ".toml";
     bssn::writeParamTOMLFile(outputFileName.c_str(), comm);
 
     // initialize the logger
