@@ -20,7 +20,7 @@
 BSSN_RESTORE_SOLVER = 1
 
 # Frequency for the VTU Output (scales with q)
-BSSN_IO_OUTPUT_FREQ = 800
+BSSN_IO_OUTPUT_FREQ = 400
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = true
 
 # Frequency to use for triggering the remeshing
@@ -362,11 +362,11 @@ VERBOSITY_LEVEL = 1
 
 # Input spherical grid's maximum radius to search, for all time. 
 # These need to be rescaled to each BH's mass! ~1.5*m_i or more.
-MAX_SEARCH_RADIUS = [0.25, 1.25, 1.25]
+MAX_SEARCH_RADIUS = [0.25, 1.55, 1.55]
 
 # Maximum number of radial points for the grids. 
 # Recommended 48-63 for speed. Increasing this value increases interpolation and communication costs!
-NR_INTERP_MAX = [63, 127, 63]
+NR_INTERP_MAX = [63, 127, 127]
 
 # Converge is reached if BOTH of these theta tolerances are met! 
 # Recommended 1.0e-5 for L2, for balance of speed and accuracy

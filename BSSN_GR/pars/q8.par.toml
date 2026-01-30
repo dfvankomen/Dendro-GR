@@ -20,7 +20,7 @@
 BSSN_RESTORE_SOLVER = 1
 
 # Frequency for the VTU Output (scales with q)
-BSSN_IO_OUTPUT_FREQ = 1600
+BSSN_IO_OUTPUT_FREQ = 800
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = true
 
 # Frequency to use for triggering the remeshing
@@ -366,14 +366,14 @@ MAX_SEARCH_RADIUS = [0.14, 1.38, 1.38]
 
 # Maximum number of radial points for the grids. 
 # Recommended 48-63 for speed. Increasing this value increases interpolation and communication costs!
-NR_INTERP_MAX = [63, 127, 63]
+NR_INTERP_MAX = [63, 127, 127]
 
 # Converge is reached if BOTH of these theta tolerances are met! 
 # Recommended 1.0e-5 for L2, for balance of speed and accuracy
-THETA_L2_M_TOL = [1.0e-5, 1.0e-4, 1.0e-5]
+THETA_L2_M_TOL = [1.0e-5, 1.0e-4, 1.0e-4]
 # Recommended 1.0e-2 for Linf (effectively disabling it)
-THETA_LINF_M_TOL = [1.0e-3, 1.0e-2, 1.0e-3]
+THETA_LINF_M_TOL = [1.0e-3, 1.0e-2, 1.0e-2]
 
 # Courant-Friedrichs-Lewy factor within hyperbolic relaxation. 
 # Etienne's team uses .95 by default but lowers it if a solve fails.
-CFL_FACTOR = [0.90, 0.50, 0.90]
+CFL_FACTOR = [0.90, 0.50, 0.50]
