@@ -218,19 +218,35 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 // clang-format on
     
             for (unsigned int i = PW; i < nx - PW; i++) {
+                // pull current coordinates
                 const double x = pmin[0] + i * hx;
                 const double y = pmin[1] + j * hy;
                 const double z = pmin[2] + k * hz;
-                ;
-                const unsigned int pp = i + nx * (j + ny * k);
-                const double r_coord  = sqrt(x * x + y * y + z * z);
                 
-                // TODO: add distance to each BH here
-
+                // index for variables at current location
+                const unsigned int pp = i + nx * (j + ny * k);
+                
+                // set up some commonly used distances for the eta fxn
+                const double r_coord  = sqrt(x * x + y * y + z * z);
+                const double dr1 = sqrt((x - bh1x)*(x - bh1x)
+                                      + (y - bh1y)*(y - bh1y)
+                                      + (z - bh1z)*(z - bh1z));
+                const double dr2 = sqrt((x - bh2x)*(x - bh2x)
+                                      + (y - bh2y)*(y - bh2y)
+                                      + (z - bh2z)*(z - bh2z));
                 // eta formulation
                 // clang-format off
+                // const double eta = bssn::ETA_CONST; // constant damping
                 #include "eta_RIT.inc.cpp" // RIT's prescription
                 // #include "eta_linear_inverse.inc.cpp"
+                // #include "eta_tophat.inc.cpp"
+                // #include "eta_outerfloor.inc.cpp"
+                // #include "eta_G.inc.cpp"
+                // #include "eta_tophat_grow.inc.cpp"
+                // #include "eta_outerfloor_inpand.inc.cpp"
+                // #include "eta_single.inc.cpp"
+                // #include "eta_tophat_wide.inc.cpp"
+                // #include "eta_causal_grow.inc.cpp"
                 // clang-format on
 
 // clang-format off
