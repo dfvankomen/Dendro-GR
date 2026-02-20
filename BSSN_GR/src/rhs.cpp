@@ -247,6 +247,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 // #include "eta_single.inc.cpp"
                 // #include "eta_tophat_wide.inc.cpp"
                 // #include "eta_causal_grow.inc.cpp"
+                // #include "eta_causal_fade.inc.cpp"
                 // clang-format on
 
 // clang-format off
