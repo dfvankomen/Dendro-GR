@@ -7,12 +7,12 @@ const double r_min = std::min(dr1, dr2);
 // eta damps shift vector oscillations; we want: 
 // - small value in timelike regions, for freer motion
 // - large value in spacelike regions, to damp the initial gauge wave
-constexpr double ETA_TIMELIKE  = 0.25; // free/fast motion regime
-constexpr double ETA_SPACELIKE = 2.50; // strong damping on gauge waves
+constexpr double ETA_TIMELIKE  = 1.00; // free/fast motion regime
+constexpr double ETA_SPACELIKE = 2.00; // strong damping on gauge waves
 
 // time to fade from one to the other
 // should be ok for lower mass ratios
-constexpr double T_FADE = 10.00; 
+constexpr double T_FADE = 20.00; 
 
 // relative time variable, from 0 to 1
 const double t_star = std::clamp((t - r_min) / T_FADE, 0.0, 1.0);
