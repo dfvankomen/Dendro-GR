@@ -181,7 +181,8 @@ BSSN_CFL_FACTOR = 0.25
 # The starting time of the simulation
 BSSN_RK_TIME_BEGIN = 0.0
 # The ending time of the simulation
-BSSN_RK_TIME_END = 20.0
+# PLEASE DO NOT CHANGE THIS FOR COMMITTING, CHANGE IT LOCALLY
+BSSN_RK_TIME_END = 0.5
 
 # RK Method to use (0 -> RK3, 1 -> RK4, 2 -> RK45)
 BSSN_RK_TYPE = 1
