@@ -50,7 +50,9 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
  * @param[in] pMesh : pointer to the mesh.
  * @param[in] bhLoc : BH location
  */
-bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc);
+bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
+                const std::vector<std::pair<Point, Point>>& bh_loc_history,
+                const std::vector<double>& bh_loc_history_t);
 
 /**
  * @brief refine only based on the alpha variable event horizon.
@@ -81,8 +83,6 @@ bool isReMeshWAMR(
     std::function<double(double, double, double, double*)> wavelet_tol,
     double amr_coarse_fac);
 
-
-
 /**
  * @brief add refinement based on wavelets
  * @param pMesh : pointer to the mesh
@@ -90,16 +90,15 @@ bool isReMeshWAMR(
  * @param varIds : refinement variable ids.
  * @param numVars : number of varIds
  * @param wavelet_tol: wavelet tolerance function
- * @param amr_coarsen_fac: AMR coarsening safety factor, 
+ * @param amr_coarsen_fac: AMR coarsening safety factor,
  * coarsen iff w_c < amr_coarsen_fac * wavelet_tol(x,y,z)
- * @param relative_WAMR : toggle using relative wavelet values 
+ * @param relative_WAMR : toggle using relative wavelet values
  */
 bool addRemeshWAMR(
     ot::Mesh* pMesh, const double** unzippedVec, const unsigned int* varIds,
     const unsigned int numVars,
     std::function<double(double, double, double, double*)> wavelet_tol,
     double amr_coarse_fac, bool relative_WAMR = false);
-
 
 /**
  * @brief refine ratially based on the BH locations and AMR_R.
@@ -108,7 +107,5 @@ bool addRemeshWAMR(
 bool isReMeshBHRadial(ot::Mesh* pMesh);
 
 }  // end of namespace bssn
-
-
 
 #endif  // DENDRO_5_0_DATAUTILS_H

@@ -5,7 +5,9 @@
  * @date 2021-02-12
  *
  */
+#include <chrono>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "TreeNode.h"
@@ -14,6 +16,7 @@
 #include "bssnCtx.h"
 #include "gr.h"
 #include "grUtils.h"
+#include "logger.h"
 #include "mesh.h"
 #include "meshUtils.h"
 #include "mpi.h"
@@ -164,8 +167,39 @@ bssn:
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
 
+    // get the current time
+    auto now    = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::ostringstream tmp_stringstream;
+    tmp_stringstream << std::put_time(std::localtime(&time_t),
+                                      "%Y-%m-%d-%H-%M-%S");
+    std::string timestamp = tmp_stringstream.str();
+
+    // then write it right back out:
+    std::string outputFileName =
+        bssn::BSSN_PROFILE_FILE_PREFIX + "__PARAM_DUMP__" + timestamp + ".toml";
+    bssn::writeParamTOMLFile(outputFileName.c_str(), comm);
+
+    // initialize the logger
+    dendro::logger::initialize(
+        "dendro", bssn::DENDRO_LOG_FILE, 0, bssn::DENDRO_LOG_FILE_LEVEL,
+        bssn::DENDRO_LOG_CONSOLE_LEVEL, bssn::DENDRO_LOG_FORCE_FILE_FLUSH);
+    // this call sets up the ability for the dendro logger to force a flush when
+    // a signal is received. If, for some reason, this appears to be "not
+    // enough" for serious debugging, make sure to set FORCE_FILE_FLUSH which
+    // will force writing to file each time we make a debug log
+    dendro::logger::setup_crash_handler();
+    dendro::logger::info(
+        "Logger initialized, now initializing the rest of the data structures");
+    dendro::logger::info("All parameters are also read!");
+
+    // barrier on the dumping of parameter file to avoid gumming up the console
+    // output, it'll take just a second
+    MPI_Barrier(comm);
     int root = std::min(1, npes - 1);
     bssn::dumpParamFile(std::cout, root, comm);
+    MPI_Barrier(comm);
 
     _InitializeHcurve(bssn::BSSN_DIM);
     m_uiMaxDepth = bssn::BSSN_MAXDEPTH;
@@ -351,6 +385,7 @@ bssn:
         // capture the curr step
         const DendroIntL start_step = ets->curr_step();
 
+        dendro::logger::info("Now beginning ETS time stepper");
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
             const DendroIntL step            = ets->curr_step();
             const DendroScalar time          = ets->curr_time();
@@ -454,6 +489,7 @@ bssn:
                           ((double)bssn::BSSN_ELE_ORDER)) /
                          ((double)(1u << (m_uiMaxDepth))));
 
+                    // calculate time step size
                     bssn::BSSN_RK45_TIME_STEP_SIZE =
                         bssn::BSSN_CFL_FACTOR *
                         ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
@@ -464,17 +500,15 @@ bssn:
                     ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
                     bssnCtx->set_ts_info(ts_in);
 
-                    // REMEMBER: the true max depth of the array is two minus
-                    // m_uiMaxDepth
+                    // REMEMBER: true max depth of array = 2 - m_uiMaxDepth
                     if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
-                        // REMEMBER: the true max depth of the array is two
-                        // minus m_uiMaxDepth
+                        // bar null output frequencies
                         bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
-                            bssn::BSSN_IO_OUTPUT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax);
+                            std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >>
+                                             (m_uiMaxDepth - 2 - lmax));
                         bssn::BSSN_GW_EXTRACT_FREQ_TRUE =
-                            bssn::BSSN_GW_EXTRACT_FREQ >>
-                            (m_uiMaxDepth - 2 - lmax);
+                            std::max(1u, bssn::BSSN_GW_EXTRACT_FREQ >>
+                                             (m_uiMaxDepth - 2 - lmax));
                         if (!rank_global)
                             std::cout << "    IO Output Freq updated to: "
                                       << bssn::BSSN_IO_OUTPUT_FREQ_TRUE
@@ -488,16 +522,16 @@ bssn:
                                   << NRM << std::endl;
                     }
 
-                    // compute the constraint variables to "refresh" them on the
-                    // grid for potential RHS updates
+                    // compute the constraint variables to "refresh"
+                    // them on the grid for potential RHS updates
                     bssnCtx->compute_constraint_variables();
                 }
 
-                // write the grid summary data whether or not the remesh
-                // happened
+                // write grid summary data whether the remesh happened
                 bssnCtx->write_grid_summary_data();
             }
 
+            // print terminal output
             if ((step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
@@ -509,6 +543,9 @@ bssn:
                 bssnCtx->terminal_output();
             }
 
+            // wkb: update BH locations always
+            bssnCtx->evolve_bh_loc();
+
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
@@ -516,14 +553,13 @@ bssn:
 
                 // evolving the black holes always stores the updated
                 // information
-                bssnCtx->evolve_bh_loc();
                 bssnCtx->extract_constraints();
                 bssnCtx->extract_gravitational_waves();
-
                 // write bh coordinates at GW extraction time
                 bssnCtx->write_bh_coords();
             }
 
+            // Write VTU and BHLocation files
             if ((step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
@@ -532,16 +568,19 @@ bssn:
                 bssnCtx->write_vtu();
             }
 
+            // Run AH solver
             if ((AEH::AEH_SOLVER_FREQ > 0) &&
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
-                bssnaeh::perform_aeh_step(bssnCtx, rank);
+                // bssnaeh::perform_aeh_step(bssnCtx, rank);
+
+                bssnCtx->findAH();
             }
 
             ets->evolve();
 
+            // Write checkpoint  data
             if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {
                 bssnCtx->write_checkpt();
-                bssnCtx->get_mesh()->waitAll();
             }
 
             bssnCtx->prepare_for_next_iter();

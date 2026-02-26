@@ -9,6 +9,8 @@
 
 #include "grUtils.h"
 
+#include <mpi.h>
+
 #include <tuple>
 
 #include "base.h"
@@ -16,6 +18,16 @@
 #include "parameters.h"
 
 namespace bssn {
+
+template <typename T>
+inline void quickPrintVector(const std::vector<T>& vec, std::ostream& sout,
+                             const std::string& prefix) {
+    sout << prefix << " : ";
+    for (const auto& val : vec) {
+        sout << val << " ";
+    }
+    sout << NRM << std::endl;
+}
 
 void printGitInformation(int rank, std::vector<std::string> arg_s) {
     if (!rank) {
@@ -87,16 +99,18 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
 
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
         parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"];
-    bssn::BSSN_BLK_MIN_X           = parFile["BSSN_BLK_MIN_X"];
-    bssn::BSSN_BLK_MIN_Y           = parFile["BSSN_BLK_MIN_Y"];
-    bssn::BSSN_BLK_MIN_Z           = parFile["BSSN_BLK_MIN_Z"];
-    bssn::BSSN_BLK_MAX_X           = parFile["BSSN_BLK_MAX_X"];
-    bssn::BSSN_BLK_MAX_Y           = parFile["BSSN_BLK_MAX_Y"];
-    bssn::BSSN_BLK_MAX_Z           = parFile["BSSN_BLK_MAX_Z"];
+    bssn::BSSN_BLK_MIN_X       = parFile["BSSN_BLK_MIN_X"];
+    bssn::BSSN_BLK_MIN_Y       = parFile["BSSN_BLK_MIN_Y"];
+    bssn::BSSN_BLK_MIN_Z       = parFile["BSSN_BLK_MIN_Z"];
+    bssn::BSSN_BLK_MAX_X       = parFile["BSSN_BLK_MAX_X"];
+    bssn::BSSN_BLK_MAX_Y       = parFile["BSSN_BLK_MAX_Y"];
+    bssn::BSSN_BLK_MAX_Z       = parFile["BSSN_BLK_MAX_Z"];
 
-    bssn::BSSN_DENDRO_GRAIN_SZ     = parFile["BSSN_DENDRO_GRAIN_SZ"];
-    bssn::BSSN_ASYNC_COMM_K        = parFile["BSSN_ASYNC_COMM_K"];
-    bssn::BSSN_DENDRO_AMR_FAC      = parFile["BSSN_DENDRO_AMR_FAC"];
+    bssn::BSSN_DENDRO_GRAIN_SZ = parFile["BSSN_DENDRO_GRAIN_SZ"];
+    bssn::BSSN_ASYNC_COMM_K    = parFile["BSSN_ASYNC_COMM_K"];
+    bssn::BSSN_DENDRO_AMR_FAC  = parFile["BSSN_DENDRO_AMR_FAC"];
+    bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER =
+        parFile["BSSN_DENDRO_AMR_FAC_POST_MERGER"];
     bssn::BSSN_LOAD_IMB_TOL        = parFile["BSSN_LOAD_IMB_TOL"];
     bssn::BSSN_RK_TIME_BEGIN       = parFile["BSSN_RK_TIME_BEGIN"];
     bssn::BSSN_RK_TIME_END         = parFile["BSSN_RK_TIME_END"];
@@ -144,10 +158,6 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     }
     if (parFile.find("RIT_ETA_WIDTH") != parFile.end()) {
         bssn::RIT_ETA_WIDTH = parFile["RIT_ETA_WIDTH"];
-    }
-
-    if (parFile.find("BSSN_AMR_R_RATIO") != parFile.end()) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"];
     }
 
     bssn::BSSN_LAMBDA[0] =
@@ -516,6 +526,10 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tBSSN_DENDRO_AMR_FAC :" << bssn::BSSN_DENDRO_AMR_FAC
              << NRM << std::endl;
+
+        sout << YLW << "\tBSSN_DENDRO_AMR_FAC_POST_MERGER: "
+             << bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER << NRM << std::endl;
+
         sout << YLW << "\tBSSN_USE_WAVELET_TOL_FUNCTION :"
              << bssn::BSSN_USE_WAVELET_TOL_FUNCTION << NRM << std::endl;
         sout << YLW << "\tBSSN_WAVELET_TOL :" << bssn::BSSN_WAVELET_TOL << NRM
@@ -579,7 +593,7 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tRIT_ETA_OUTER: " << bssn::RIT_ETA_OUTER << NRM
              << std::endl;
         sout << YLW << "\tBSSN_LAMBDA : (" << bssn::BSSN_LAMBDA[0] << " ,"
-             << bssn::BSSN_LAMBDA[1] << "," << bssn::BSSN_LAMBDA[2]
+             << bssn::BSSN_LAMBDA[1] << "," << bssn::BSSN_LAMBDA[2] << " ,"
              << bssn::BSSN_LAMBDA[3] << " )" << NRM << std::endl;
         sout << YLW << "\tBSSN_LAMBDA_F : (" << bssn::BSSN_LAMBDA_F[0] << " ,"
              << bssn::BSSN_LAMBDA_F[1] << " )" << NRM << std::endl;
@@ -746,18 +760,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
             sout << " ," << GW::BSSN_GW_L_MODES[i];
         sout << "}" << NRM << std::endl;
 
-        sout << YLW << "\tAEH_SOLVER_FREQ: " << AEH::AEH_SOLVER_FREQ
-             << std::endl;
-        sout << YLW << "\tAEH_LMAX: " << AEH::AEH_LMAX << std::endl;
-        sout << YLW << "\tAEH_Q_THETA: " << AEH::AEH_Q_THETA << std::endl;
-        sout << YLW << "\tAEH_Q_PHI: " << AEH::AEH_Q_PHI << std::endl;
-        sout << YLW << "\tAEH_MAXITER: " << AEH::AEH_MAXITER << std::endl;
-        sout << YLW << "\tAEH_ATOL: " << AEH::AEH_ATOL << std::endl;
-        sout << YLW << "\tAEH_RTOL: " << AEH::AEH_RTOL << NRM << std::endl;
-
-        sout << YLW << "\tAEH_ALPHA: " << AEH::AEH_ALPHA << std::endl;
-        sout << YLW << "\tAEH_BETA: " << AEH::AEH_BETA << NRM << std::endl;
-
         sout << YLW << "\tBSSN_KO_SIGMA_SCALE_BY_CONFORMAL: "
              << (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL ? "true" : "false")
              << NRM << std::endl;
@@ -772,6 +774,52 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
 
         sout << YLW << "\tBSSN_SSL_H: " << bssn::BSSN_SSL_H << NRM << std::endl;
         sout << YLW << "\tBSSN_SSL_SIGMA: " << bssn::BSSN_SSL_SIGMA << NRM
+             << std::endl;
+
+        sout << GRN << "\t----- AEH PARAMETERS -----" << NRM << std::endl;
+        sout << YLW << "\t\tAEH_SOLVER_FREQ: " << AEH::AEH_SOLVER_FREQ << NRM
+             << std::endl;
+        sout << YLW << "\t\tN_HORIZONS: " << AEH::N_HORIZONS << NRM
+             << std::endl;
+        sout << YLW
+             << "\t\tN_RESOLUTIONS_MULTIGRID: " << AEH::N_RESOLUTIONS_MULTIGRID
+             << NRM << std::endl;
+        quickPrintVector(AEH::INITIAL_X_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_X_CENTER");
+        quickPrintVector(AEH::INITIAL_Y_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_Y_CENTER");
+        quickPrintVector(AEH::INITIAL_Z_CENTER, sout,
+                         std::string(YLW) + "\t\tINITIAL_Z_CENTER");
+        quickPrintVector(AEH::M_SCALE, sout, std::string(YLW) + "\t\tM_SCALE");
+        quickPrintVector(AEH::CFL_FACTOR, sout,
+                         std::string(YLW) + "\t\tCFL_FACTOR");
+        quickPrintVector(AEH::THETA_L2_M_TOL, sout,
+                         std::string(YLW) + "\t\tTHETA_L2_M_TOL");
+        quickPrintVector(AEH::THETA_LINF_M_TOL, sout,
+                         std::string(YLW) + "\t\tTHETA_LINF_M_TOL");
+        quickPrintVector(AEH::ETA_DAMP_M, sout,
+                         std::string(YLW) + "\t\tETA_DAMP_M");
+        quickPrintVector(AEH::KO_STRENGTH, sout,
+                         std::string(YLW) + "\t\tKO_STRENGTH");
+        quickPrintVector(AEH::MAX_SEARCH_RADIUS, sout,
+                         std::string(YLW) + "\t\tMAX_SEARCH_RADIUS");
+        quickPrintVector(AEH::NR_INTERP_MAX, sout,
+                         std::string(YLW) + "\t\tNR_INTERP_MAX");
+        sout << YLW << "\t\tNTHETA_MAX: " << AEH::NTHETA_MAX << NRM
+             << std::endl;
+        quickPrintVector(AEH::NTHETA_ARRAY, sout,
+                         std::string(YLW) + "\t\tNTHETA_ARRAY");
+        sout << YLW << "\t\tNPHI_MAX: " << AEH::NTHETA_MAX << NRM << std::endl;
+        quickPrintVector(AEH::NPHI_ARRAY, sout,
+                         std::string(YLW) + "\t\tNPHI_ARRAY");
+        sout << YLW << "\t\tAEH_SAVE_DIR: " << AEH::AEH_SAVE_DIR << NRM
+             << std::endl;
+        sout << YLW << "\t\tNUM_RESOLUTIONS_AFTER_FIND: "
+             << AEH::NUM_RESOLUTIONS_AFTER_FIND << NRM << std::endl;
+        sout << YLW
+             << "\t\tENABLE_ETA_VARYING_ALG: " << AEH::ENABLE_ETA_VARYING_ALG
+             << NRM << std::endl;
+        sout << YLW << "\t\tVERBOSITY_LEVEL: " << AEH::VERBOSITY_LEVEL << NRM
              << std::endl;
     }
 }
@@ -2054,18 +2102,19 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up constants used in this function
 
         // (max) orbital radius; use strictest refinement here
-        const double R_orbit     = 8;
-        // outer radius of simulation
-        const double R_max       = 400;
+        const double R_orbit = 8;
+        // outermost GW extraction radius
+        const double R_min   = GW::BSSN_GW_RADAII[0];
+        const double R_max   = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
         // expected lapse wave tail length (M) + backreflections
-        const double L           = 120;
+        const double L       = 120;
         // calculate the time after which a given radius's relationship
         // with the grid center is both time-like & clean of lapse noise
-        const double t_lim       = std::max(r, (r + L) / std::sqrt(2));
+        const double t_lim   = std::max(r, (r + L) / std::sqrt(2));
 
-        // wavelet tolerance in acausal (or dirty) regions.
-        const double eps_disable = .001;
+        // wavelet tolerance in acausal (or dirty or unneeded) regions.
+        const double eps_disable = bssn::BSSN_WAVELET_TOL_MAX;
         // time to fade from eps_disable to eps_goal
         const double t_fade      = 100;
 
@@ -2073,18 +2122,20 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         // set up goal resolution to hit in causal clean regions
         // linearly interpolate log tolerances vs log radii
 
-        double eps_goal;
+        double eps_goal = eps_disable;  // default value in outer regions
         if (r <= R_orbit) {
             eps_goal = bssn::BSSN_WAVELET_TOL;
-        } else {  // log falloff
+        } else if (r <= R_min) {  // log falloff
             // power we're raising the next expression to, scaling out radius
             const double pwr =
-                std::log(r / R_orbit) / std::log(R_max / R_orbit);
+                std::log(r / R_orbit) / std::log(R_min / R_orbit);
             // goal wavelet tolerance at end times
             eps_goal =
                 bssn::BSSN_WAVELET_TOL *
-                std::pow(bssn::BSSN_WAVELET_TOL_MAX / bssn::BSSN_WAVELET_TOL,
+                std::pow(bssn::BSSN_GW_REFINE_WTOL / bssn::BSSN_WAVELET_TOL,
                          pwr);
+        } else if (r <= R_max) {  // plateau
+            eps_goal = bssn::BSSN_GW_REFINE_WTOL;
         }
 
         ////////////////////////////////////////////////////////////////
@@ -2184,6 +2235,13 @@ unsigned int getOctantWeight(const ot::TreeNode* pNode) {
 
 void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
                         double** zipVars, double dt) {
+    // TODO: this should be easy to adjust based on how many bh's we actually
+    // have at some point
+    const unsigned int num_bhs              = 2;
+    const unsigned int num_data_per_bh      = 3;
+    const unsigned int total_points_to_comm = num_bhs * num_data_per_bh;
+
+    dendro::logger::debug("[BH] Computing BH locations");
     MPI_Comm commActive = pMesh->getMPICommunicator();
 
     Point grid_limits[2];
@@ -2199,81 +2257,104 @@ void computeBHLocations(const ot::Mesh* pMesh, const Point* in, Point* out,
     domain_limits[1] = Point(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
                              bssn::BSSN_COMPD_MAX[2]);
 
-    double beta0[2];
-    double beta1[2];
-    double beta2[2];
+    // gather the points for betas
+    std::vector<double> beta0(num_bhs, 0.0);
+    std::vector<double> beta1(num_bhs, 0.0);
+    std::vector<double> beta2(num_bhs, 0.0);
 
     std::vector<unsigned int> validIndex_beta0;
     std::vector<unsigned int> validIndex_beta1;
     std::vector<unsigned int> validIndex_beta2;
 
-    double beta3vec[6] = {0, 0, 0, 0, 0, 0};
-    double bh_pts[6]   = {0, 0, 0, 0, 0, 0};
+    // IN is always the number of black holes
+    std::vector<double> beta_interleaved(total_points_to_comm, 0.0);
+    std::vector<double> bh_pts(total_points_to_comm, 0.0);
 
-    bh_pts[0]          = in[0].x();
-    bh_pts[1]          = in[0].y();
-    bh_pts[2]          = in[0].z();
+    for (unsigned int bhidx = 0; bhidx < num_bhs; ++bhidx) {
+        // the points is the xyz direction, and fortunately beta also
+        // cooresponds to xyz
+        const unsigned int offset = bhidx * 3;
+        bh_pts[offset]            = in[bhidx].x();
+        bh_pts[offset + 1]        = in[bhidx].y();
+        bh_pts[offset + 2]        = in[bhidx].z();
+    }
 
-    bh_pts[3]          = in[1].x();
-    bh_pts[4]          = in[1].y();
-    bh_pts[5]          = in[1].z();
+    dendro::logger::debug(
+        "[BH] Active processes will now call interpolateToCoords");
 
     if (pMesh->isActive()) {
         unsigned int activeRank = pMesh->getMPIRank();
 
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA0], bh_pts, 6,
-                                    grid_limits, domain_limits, beta0,
-                                    validIndex_beta0);
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA1], bh_pts, 6,
-                                    grid_limits, domain_limits, beta1,
-                                    validIndex_beta1);
-        ot::da::interpolateToCoords(pMesh, zipVars[VAR::U_BETA2], bh_pts, 6,
-                                    grid_limits, domain_limits, beta2,
-                                    validIndex_beta2);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA0], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta0.data(), validIndex_beta0);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA1], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta1.data(), validIndex_beta1);
+        ot::da::interpolateToCoords(
+            pMesh, zipVars[VAR::U_BETA2], bh_pts.data(), total_points_to_comm,
+            grid_limits, domain_limits, beta2.data(), validIndex_beta2);
 
         assert(validIndex_beta0.size() == validIndex_beta1.size());
         assert(validIndex_beta1.size() == validIndex_beta2.size());
+
+        for (unsigned int bhidx : validIndex_beta0) {
+            // based on the bhidx we get the offset to fix it all up
+            const unsigned int offset    = bhidx * 3;
+            beta_interleaved[offset]     = beta0[bhidx];
+            beta_interleaved[offset + 1] = beta1[bhidx];
+            beta_interleaved[offset + 2] = beta2[bhidx];
+        }
     }
 
-    unsigned int red_ranks[2]   = {0, 0};
-    unsigned int red_ranks_g[2] = {0, 0};
-    // global bcast
-    for (unsigned int ind = 0; ind < validIndex_beta0.size(); ind++) {
-        assert(validIndex_beta0[ind] == validIndex_beta1[ind]);
-        assert(validIndex_beta0[ind] == validIndex_beta2[ind]);
-        const unsigned int gRank                = pMesh->getMPIRankGlobal();
+    dendro::logger::debug(
+        "[BH] interpolateToCoords finished, now prepping communication");
 
-        beta3vec[validIndex_beta0[ind] * 3 + 0] = beta0[validIndex_beta0[ind]];
-        beta3vec[validIndex_beta1[ind] * 3 + 1] = beta1[validIndex_beta1[ind]];
-        beta3vec[validIndex_beta2[ind] * 3 + 2] = beta2[validIndex_beta2[ind]];
+    std::vector<double> global_beta_interleaved(total_points_to_comm, 0.0);
 
-        // std::cout<<"rank: "<<gRank<<"beta["<<(validIndex_beta0[ind]*3)<<"]: (
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 0]<<",
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 1]<<",
-        // "<<beta3vec[validIndex_beta0[ind]*3 + 2]<<")"<<std::endl;
-        red_ranks[validIndex_beta2[ind]]        = gRank;
+#if 0
+    dendro::logger::debug(
+        "[BH] performing full sum for shift vector allreduce communication "
+        "(MPI_Allreduce)...");
+    MPI_Allreduce(beta_interleaved.data(), global_beta_interleaved.data(),
+                  total_points_to_comm, MPI_DOUBLE, MPI_SUM,
+                  pMesh->getMPIGlobalCommunicator());
+    dendro::logger::debug("[BH] Allreduce sum of BH shift vectors complete.");
+#else
+    const int root_rank = 0;
+    dendro::logger::debug(
+        "[BH] performing full shift vector reduce communication "
+        "(MPI_Reduce)...");
+    //
+    MPI_Reduce(beta_interleaved.data(), global_beta_interleaved.data(),
+               total_points_to_comm, MPI_DOUBLE, MPI_SUM, root_rank,
+               pMesh->getMPIGlobalCommunicator());
+
+    dendro::logger::debug(
+        "[BH] performing broadcast "
+        "(MPI_Bcast)...");
+
+    MPI_Bcast(global_beta_interleaved.data(), total_points_to_comm, MPI_DOUBLE,
+              root_rank, pMesh->getMPIGlobalCommunicator());
+
+    dendro::logger::debug("[BH] Reduce+Bcast of BH shift vectors complete.");
+#endif
+
+    // now final data is available to all processes
+    for (unsigned int bh = 0; bh < num_bhs; bh++) {
+        const unsigned int offset = bh * 3;
+        const double shift_x      = global_beta_interleaved[offset + 0] * dt;
+        const double shift_y      = global_beta_interleaved[offset + 1] * dt;
+        const double shift_z      = global_beta_interleaved[offset + 2] * dt;
+
+        out[bh] = Point(in[bh].x() - shift_x, in[bh].y() - shift_y,
+                        in[bh].z() - shift_z);
+
+        dendro::logger::info("[BH] Black Hole {} new position: [{}, {}, {}]",
+                             bh, out[bh].x(), out[bh].y(), out[bh].z());
     }
 
-    par::Mpi_Allreduce(red_ranks, red_ranks_g, 2, MPI_MAX,
-                       pMesh->getMPIGlobalCommunicator());
-    MPI_Bcast(&beta3vec[0], 3, MPI_DOUBLE, red_ranks_g[0],
-              pMesh->getMPIGlobalCommunicator());
-    MPI_Bcast(&beta3vec[3], 3, MPI_DOUBLE, red_ranks_g[1],
-              pMesh->getMPIGlobalCommunicator());
-
-    // if(!pMesh->getMPIRankGlobal())
-    //     std::cout<<"beta bh0: ( "<<beta3vec[0]<<", "<<beta3vec[1]<<",
-    //     "<<beta3vec[2]<<") :  beta 1 ( "<<beta3vec[3]<<", "<<beta3vec[4]<<",
-    //     "<<beta3vec[5]<<") "<<std::endl;
-
-    double x[2], y[2], z[2];
-    for (unsigned int bh = 0; bh < 2; bh++) {
-        x[bh]   = in[bh].x() - beta3vec[bh * 3 + 0] * dt;
-        y[bh]   = in[bh].y() - beta3vec[bh * 3 + 1] * dt;
-        z[bh]   = in[bh].z() - beta3vec[bh * 3 + 2] * dt;
-
-        out[bh] = Point(x[bh], y[bh], z[bh]);
-    }
+    dendro::logger::debug("[BH] Finished computing BH locations!");
 
     return;
 }

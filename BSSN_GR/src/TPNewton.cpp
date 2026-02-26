@@ -485,7 +485,7 @@ void Newton(int const nvar, int const n1, int const n2, int const n3, derivs v,
     allocate_derivs(&dv, ntotal);
     allocate_derivs(&u, ntotal);
 
-    /*TestRelax(nvar, n1, n2, n3, v, dv.d0); */
+    // TestRelax(nvar, n1, n2, n3, v, dv.d0);
     it   = 0;
     dmax = 1;
     while (dmax > tol && it < itmax) {
@@ -503,7 +503,7 @@ void Newton(int const nvar, int const n1, int const n2, int const n3, derivs v,
         }
 
         fflush(stdout);
-        ii = bicgstab(nvar, n1, n2, n3, v, dv, TPID::verbose, 100, dmax * 1.e-3,
+        ii = bicgstab(nvar, n1, n2, n3, v, dv, TPID::verbose, 42, dmax * 1.e-2,
                       &normres);
 
 #pragma omp parallel for num_threads(TP_OMP_THREADS)

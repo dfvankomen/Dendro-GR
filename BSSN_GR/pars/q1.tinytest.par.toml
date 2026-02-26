@@ -3,6 +3,18 @@
 ### =================================================
 # 
 
+DENDRO_LOG_FILE = "log_file_test"
+# what minimum severity level to record:
+# 0 - trace (all!)
+# 1 - debug (all debug ones)
+# 2 - info
+# 3 - warn
+# 4 - error
+DENDRO_LOG_FILE_LEVEL = 1
+DENDRO_LOG_CONSOLE_LEVEL = 2
+# try not to use this, but it's a "last resort" to make sure the log file is flushed/saved to disc
+DENDRO_LOG_FORCE_FILE_FLUSH = false
+
 # Set 1 to restore the BSSN Solver
 BSSN_RESTORE_SOLVER = 0
 
@@ -93,7 +105,7 @@ BSSN_LOAD_IMB_TOL = 0.1
 BSSN_DIM = 3
 
 # Maximum Depth of the Mesh/Octree
-BSSN_MAXDEPTH = 9
+BSSN_MAXDEPTH = 11
 # Maximum Depth of the Mesh/Octree
 BSSN_MINDEPTH = 3
 # Element Order, each block gets ELE_ORDER + 1 points it is in charge of, and padding width is ELE_ORDER / 2, should always be **even**
@@ -258,12 +270,72 @@ BSSN_GW_NUM_LMODES = 3
 BSSN_GW_RADAII = [50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
 BSSN_GW_L_MODES = [2, 3, 4]
 
+# How frequently to call the AEH Solver itself (based on simulation steps)
+AEH_SOLVER_FREQ = 5
+
 ## ====================
 ## APPARANT EVENT HORIZON PARAMETERS
-AEH_SOLVER_FREQ = 0
-AEH_LMAX = 6
-AEH_Q_THETA = 32
-AEH_Q_PHI = 32
-AEH_MAXITER = 100
-AEH_ATOL = 1e-8
-AEH_RTOL = 1e-8
+[AEH_PARAMS]
+
+# The number of horizons that need to be found, if the initial data type is 0 or 1 (tpid), this must be 3
+# For all parameters, the 0th entry is for BH1, 1st for BH2, and 2nd for shared. Configure properly!
+N_HORIZONS = 3
+
+# Maximum number of iterations used by the algorithm to find a horizon, must be same size as N_HORIZONS
+MAX_ITERATIONS = [10000, 10000, 10000]
+
+# Input spherical grid's maximum radius to search, for all time. These need to be set properly!
+MAX_SEARCH_RADIUS = [1.5, 1.5, 1.5]
+
+# Initial X,Y,Z guesses for horizon centers. If using BBH data, these will be set, leave as 0's. Must be same size as N_HORIZONS
+INITIAL_X_CENTER = [0.0, 0.0, 0.0]
+INITIAL_Y_CENTER = [0.0, 0.0, 0.0]
+INITIAL_Z_CENTER = [0.0, 0.0, 0.0]
+
+# Mass scale values. If using BBH data, these will be automatically set, leave as 0's. Must be same size as N_HORIZONS.
+M_SCALE = [0.0, 0.0, 0.0]
+
+# Courant-Friedrichs-Lewy factor to set each timestep within hyperbolic relaxation. 1.0 is highly recommended!
+CFL_FACTOR = [1.0, 1.0, 1.0]
+
+# Converge is reached if BOTH of these theta tolerances are met! Setting L2Theta to a larger value makes LInf the limiting factor.
+# Recommended 1.0e-2 for L2, for balance of speed and accuracy
+THETA_L2_M_TOL = [1.0e-2, 1.0e-2, 1.0e-2]
+# Recommended 1.0e-5 for Linf
+THETA_LINF_M_TOL = [1.0e-5, 1.0e-5, 1.0e-5]
+
+# Hyperbolic relaxation exponential damping parameter. Recommended 7.0
+ETA_DAMP_M = [7.0, 7.0, 7.0]
+
+# Hyperbolic relaxation Kreiss-Oliger dissipation. This usually hurts more than it helps, so 0.0 is recommended (disabled)
+KO_STRENGTH = [0.0, 0.0, 0.0]
+
+# Maximum number of radial points for the grids. Recommended 48-63 for speed. Increasing this value increases interpolation and communication costs!
+NR_INTERP_MAX = [48, 48, 48]
+
+# Maximum number of points for sampling the theta direction. Please keep these between 2 and 128. Default of 32 provides good results.
+NTHETA_MAX = 32
+
+# Maximum number of points for sampling the theta direction. Please keep these between 2 and 128. Default of 64 provides good results
+NPHI_MAX = 64
+
+# Save directory for the AEH outputs, make sure it exists!
+AEH_SAVE_DIR = "aeh"
+
+# The number of resolutions provided in the NTHETA and NPHI arrays
+N_RESOLUTIONS_MULTIGRID = 3
+
+# Multigrid Ntheta Array - recommended [8, 16, 32]
+NTHETA_ARRAY = [8, 16, 32]
+
+# Multigrid Nphi Array - recommended [16, 32, 64]
+NPHI_ARRAY = [16, 32, 64]
+
+# Number of resolutions after it's found, can be reduced
+NUM_RESOLUTIONS_AFTER_FIND = 3
+
+# Enables the eta-varying algorithm for high-precision common horizon finding. Generally, this should be disabled
+ENABLE_ETA_VARYING_ALG = 0
+
+# Verbosity level for the BAH Solver
+VERBOSITY_LEVEL = 1
