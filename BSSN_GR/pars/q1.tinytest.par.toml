@@ -271,7 +271,7 @@ BSSN_GW_RADAII = [50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
 BSSN_GW_L_MODES = [2, 3, 4]
 
 # How frequently to call the AEH Solver itself (based on simulation steps)
-AEH_SOLVER_FREQ = 5
+AEH_SOLVER_FREQ = 0
 
 ## ====================
 ## APPARANT EVENT HORIZON PARAMETERS
