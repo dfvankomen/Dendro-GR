@@ -26,6 +26,8 @@
     std::cout << "[Error]: " << __FILE__ << ":" << __LINE__ << " at function " \
               << __FUNCTION__ << " (" << msg << ")" << std::endl
 
+#define USE_NEW_COMMUNICATION_FOR_BH_COMMS
+
 using json = nlohmann::json;
 namespace bssn {
 

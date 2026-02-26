@@ -164,9 +164,18 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // and then the new parameter
     const double BSSN_CAHD_C             = bssn::BSSN_CAHD_C;
 
-    int idx[3];
-    const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
-    const unsigned int n  = sz[0] * sz[1] * sz[2];
+    // data needed for the black hole location
+    const double bhMass1                 = bssn::BH1.getBHMass();
+    const double bhMass2                 = bssn::BH2.getBHMass();
+    const double bh1x                    = bssn::BSSN_BH_LOC[0].x();
+    const double bh1y                    = bssn::BSSN_BH_LOC[0].y();
+    const double bh1z                    = bssn::BSSN_BH_LOC[0].z();
+    const double bh2x                    = bssn::BSSN_BH_LOC[1].x();
+    const double bh2y                    = bssn::BSSN_BH_LOC[1].y();
+    const double bh2z                    = bssn::BSSN_BH_LOC[1].z();
+
+    const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
+    const unsigned int n                 = sz[0] * sz[1] * sz[2];
 
     bssn::timer::t_deriv.start();
 
@@ -198,58 +207,88 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     bssn::timer::t_rhs.start();
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
+   
+// clang-format off
 #ifdef BSSN_ENABLE_AVX
-#ifdef __INTEL_COMPILER
-#pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
-#pragma ivdep
+  #ifdef __INTEL_COMPILER
+    #pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
+    #pragma ivdep
+  #endif
 #endif
-#endif
+// clang-format on
+    
             for (unsigned int i = PW; i < nx - PW; i++) {
+                // pull current coordinates
                 const double x = pmin[0] + i * hx;
-                ;
                 const double y = pmin[1] + j * hy;
                 const double z = pmin[2] + k * hz;
-                ;
+                
+                // index for variables at current location
                 const unsigned int pp = i + nx * (j + ny * k);
+                
+                // set up some commonly used distances for the eta fxn
                 const double r_coord  = sqrt(x * x + y * y + z * z);
+                const double dr1 = sqrt((x - bh1x)*(x - bh1x)
+                                      + (y - bh1y)*(y - bh1y)
+                                      + (z - bh1z)*(z - bh1z));
+                const double dr2 = sqrt((x - bh2x)*(x - bh2x)
+                                      + (y - bh2y)*(y - bh2y)
+                                      + (z - bh2z)*(z - bh2z));
+                // eta formulation
+                // clang-format off
+                // const double eta = bssn::ETA_CONST; // constant damping
+                #include "eta_RIT.inc.cpp" // RIT's prescription
+                // #include "eta_linear_inverse.inc.cpp"
+                // #include "eta_tophat.inc.cpp"
+                // #include "eta_outerfloor.inc.cpp"
+                // #include "eta_G.inc.cpp"
+                // #include "eta_tophat_grow.inc.cpp"
+                // #include "eta_outerfloor_inpand.inc.cpp"
+                // #include "eta_single.inc.cpp"
+                // #include "eta_tophat_wide.inc.cpp"
+                // #include "eta_causal_grow.inc.cpp"
+                // #include "eta_causal_fade.inc.cpp"
+                // #include "eta_global_ramp.inc.cpp"
+                // #include "eta_causal_fade_tuned.inc.cpp"
+                // clang-format on
 
-                const double w        = r_coord / bssn::RIT_ETA_WIDTH;
-                const double arg      = -w * w * w * w;
-                const double eta =
-                    (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
-                    bssn::RIT_ETA_OUTER;
-
+// clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
-#pragma message( \
-    "BSSN: enabling both SSL and CAHD, note that Rochester Gauge and ETA Function are not available currently!")
-// #include "bssn_eqns_SSL_HD.cpp"
-#include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
+  #pragma message("BSSN: enabling both SSL and CAHD")
+  // #include "bssn_eqns_SSL_HD.cpp"
+  // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
+  #include "bssneqs_SSL_HD_dxsq.cpp" // use dx^2/(1+10*dx^2) in H-damping
+  // #include "test_bssn_shock_56.inc.cpp" // shock-avoiding lapse: use 5/6 post-merger? 
+  // #include "test_bssn_etaG.inc.cpp" // use eta_G exactly as LH23
+  // #include "test_bssn_etaG_SSL_CAHD.inc.cpp" // use eta_G, evolve w/ B
+  // #include "test_bssn_etaG_LH23_SSL_CAHD.inc.cpp" // LH23 formulation
+  // #include "test_bssn_eta_G_adv_new.inc.cpp" // eta_G w/ advect
 #else
-
-#pragma message( \
+  #pragma message( \
     "BSSN: SSL and HD is **NOT** enabled! Using original formalism!")
-#ifdef USE_ROCHESTER_GAUGE
-#pragma message("BSSN: using rochester gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_rochester_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_rochester_gauge.cpp"
+  #ifdef USE_ROCHESTER_GAUGE
+    #pragma message("BSSN: using rochester gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_rochester_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      #include "bssneqs_eta_const_rochester_gauge.cpp"
+    #endif
+  // else for USE_ROCHESTER_GAUGE
+  #else
+    #pragma message("BSSN: using standard gauge")
+    #ifdef USE_ETA_FUNC
+      #pragma message("BSSN: using function eta damping")
+      #include "bssneqs_eta_func_standard_gauge.cpp"
+    #else
+      #pragma message("BSSN: using const eta damping")
+      #include "bssneqs_eta_const_standard_gauge.cpp"
+    #endif
+  #endif
 #endif
-// else for USE_ROCHESTER_GAUGE
-#else
-#pragma message("BSSN: using standard gauge")
-#ifdef USE_ETA_FUNC
-#pragma message("BSSN: using function eta damping")
-#include "bssneqs_eta_func_standard_gauge.cpp"
-#else
-#pragma message("BSSN: using const eta damping")
-#include "bssneqs_eta_const_standard_gauge.cpp"
-#endif
-#endif
+// clang-format on
 
-#endif
             }
         }
     }

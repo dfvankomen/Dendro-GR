@@ -9,16 +9,29 @@
 
 #include "parameters.h"
 
+#include <cstdlib>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <type_traits>
+#include <unordered_set>
+
+#include "logger.h"
+
 namespace bssn {
 
-mem::memory_pool<double> BSSN_MEM_POOL  = mem::memory_pool<double>(0, 16);
-unsigned int BSSN_ELE_ORDER             = 6;
-unsigned int BSSN_PADDING_WIDTH         = BSSN_ELE_ORDER >> 1u;
+mem::memory_pool<double> BSSN_MEM_POOL = mem::memory_pool<double>(0, 16);
+unsigned int BSSN_ELE_ORDER            = 6;
+unsigned int BSSN_PADDING_WIDTH        = BSSN_ELE_ORDER >> 1u;
 
-unsigned int BSSN_IO_OUTPUT_FREQ        = 10;
-unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 10;
+unsigned int BSSN_IO_OUTPUT_FREQ       = 10;
+unsigned int BSSN_TIME_STEP_OUTPUT_FREQ =
+    std::numeric_limits<unsigned int>::max();
 
-unsigned int BSSN_GW_EXTRACT_FREQ  = std::max(1u, BSSN_IO_OUTPUT_FREQ >> 1u);
+double BSSN_BH_MERGE_TIME          = std::numeric_limits<double>::max();
+unsigned int BSSN_BH_MERGE_STEP    = std::numeric_limits<unsigned int>::max();
+
+unsigned int BSSN_GW_EXTRACT_FREQ  = std::numeric_limits<unsigned int>::max();
 
 unsigned int BSSN_REMESH_TEST_FREQ = 10;
 
@@ -65,17 +78,17 @@ std::string BSSN_PROFILE_FILE_PREFIX      = "bssn_prof";
 
 double BSSN_BH1_AMR_R                     = 2.0;
 double BSSN_BH2_AMR_R                     = 2.0;
-double BSSN_AMR_R_RATIO =
-    2.5;  // ratio for the near to far portion, was originally 2.5
+// ratio for the near to far portion, was originally 2.5
+double BSSN_AMR_R_RATIO                   = 2.0;
 
-double BSSN_BH1_CONSTRAINT_R = 5.0;
-double BSSN_BH2_CONSTRAINT_R = 5.0;
+double BSSN_BH1_CONSTRAINT_R              = 5.0;
+double BSSN_BH2_CONSTRAINT_R              = 5.0;
 
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
 
-unsigned int BSSN_BH1_MAX_LEV;
-unsigned int BSSN_BH2_MAX_LEV;
+unsigned int BSSN_BH1_MAX_LEV    = std::numeric_limits<unsigned int>::max();
+unsigned int BSSN_BH2_MAX_LEV    = std::numeric_limits<unsigned int>::max();
 
 unsigned int BSSN_INIT_GRID_ITER = 10;
 
@@ -140,6 +153,7 @@ unsigned int DISSIPATION_TYPE                            = 0;
 unsigned int BSSN_DENDRO_GRAIN_SZ                        = 1000;
 
 double BSSN_DENDRO_AMR_FAC                               = 0.1;
+double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0;
 
 unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
@@ -177,6 +191,7 @@ bool BSSN_MERGED_CHKPT_WRITTEN                  = false;
 double BSSN_CURRENT_RK_COORD_TIME               = 0;
 unsigned int BSSN_CURRENT_RK_STEP               = 0;
 
+// which spherical harmonic m-mode to aim to resolve
 unsigned int BSSN_NYQUIST_M                     = 0;
 
 bool BSSN_SCALE_VTU_AND_GW_EXTRACTION           = false;
@@ -185,55 +200,356 @@ unsigned int BSSN_GW_EXTRACT_FREQ_TRUE          = 0;
 
 unsigned int BSSN_IO_OUTPUT_FREQ_TRUE           = 0;
 
-double BSSN_SSL_SIGMA                           = 20.0;
+// SSL strength (Gaussian height) units [1/M]
 double BSSN_SSL_H                               = 0.6;
+// SSL duration (Gaussian width) units [M]
+double BSSN_SSL_SIGMA                           = 20.0;
 
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
+
+////    log file parameters    /////////////////////////////////////////
+// dendro log file output filename base
+std::string DENDRO_LOG_FILE                     = "logfile";
+
+// logging levels:
+//  0 - trace (all steps)
+//  1 - debug
+//  2 - info
+//  3 - warnings
+//  4 - errors
+//  5 - (none)
+
+// output to dendro output log file
+int DENDRO_LOG_FILE_LEVEL                       = 2;
+
+// output to console (slurm log)
+int DENDRO_LOG_CONSOLE_LEVEL                    = 3;
+
+// "last resort" to flush/save log file to disc on each write (avoid!)
+bool DENDRO_LOG_FORCE_FILE_FLUSH                = false;
+
+////////////////////////////////////////////////////////////////////////
+// empty struct to signify that the parameter should just use its intiail value
+// on optional parameters
+struct UseInitialValue_t {};
+constexpr UseInitialValue_t UseInitialValue;
+
+struct ParameterInformation {
+    // simple struct that lets us identify what variables are identified by and
+    // where they should go
+    std::string key;
+    std::any value_reference;
+    std::optional<std::any> default_value;
+
+    template <typename T>
+    ParameterInformation(std::string name, T& var)
+        : key(std::move(name)),
+          value_reference(std::ref(var)),
+          default_value() {}
+
+    // vector type
+    template <typename T, typename U>
+    ParameterInformation(std::string name, T& var, U default_val)
+        : key(std::move(name)),
+          value_reference(std::ref(var)),
+          default_value(default_val) {}
+
+    template <typename T>
+    ParameterInformation(std::string name, T& var, UseInitialValue_t)
+        : key(std::move(name)),
+          value_reference(std::ref(var)),
+          default_value(var) {}
+};
 
 void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
 
-    auto parFile                = toml::parse(fName);
+    auto parFile = toml::parse(fName);
+    std::unordered_set<std::string> used_params;
 
-    bssn::BSSN_IO_OUTPUT_FREQ   = parFile["BSSN_IO_OUTPUT_FREQ"].as_integer();
-    bssn::BSSN_REMESH_TEST_FREQ = parFile["BSSN_REMESH_TEST_FREQ"].as_integer();
-    bssn::BSSN_CHECKPT_FREQ     = parFile["BSSN_CHECKPT_FREQ"].as_integer();
-    bssn::BSSN_IO_OUTPUT_GAP    = parFile["BSSN_IO_OUTPUT_GAP"].as_integer();
-    bssn::BSSN_VTU_FILE_PREFIX  = parFile["BSSN_VTU_FILE_PREFIX"].as_string();
-    bssn::BSSN_CHKPT_FILE_PREFIX =
-        parFile["BSSN_CHKPT_FILE_PREFIX"].as_string();
+    auto set_param = [&](auto& pardata, const ParameterInformation& param) {
+        // so, if it has the key then we set it, if not we print a warning
+        if (pardata.contains(param.key)) {
+            // insert the key as used:
+            used_params.insert(param.key);
+            if (auto* p =
+                    std::any_cast<std::reference_wrapper<std::vector<int>>>(
+                        &param.value_reference)) {
+                p->get() = toml::find<std::vector<int>>(pardata, param.key);
+            } else if (auto* p = std::any_cast<
+                           std::reference_wrapper<std::vector<unsigned int>>>(
+                           &param.value_reference)) {
+                std::vector<int> vals_tmp;
+                vals_tmp = toml::find<std::vector<int>>(pardata, param.key);
+                std::vector<unsigned int> vals_tmp_convert(vals_tmp.begin(),
+                                                           vals_tmp.end());
+                p->get() = vals_tmp_convert;
+            } else if (auto* p = std::any_cast<
+                           std::reference_wrapper<std::vector<double>>>(
+                           &param.value_reference)) {
+                p->get() = toml::find<std::vector<double>>(pardata, param.key);
+            } else if (auto* p = std::any_cast<std::reference_wrapper<int>>(
+                           &param.value_reference)) {
+                p->get() = pardata[param.key].as_integer();
+            } else if (auto* p =
+                           std::any_cast<std::reference_wrapper<unsigned int>>(
+                               &param.value_reference)) {
+                p->get() = pardata[param.key].as_integer();
+            } else if (auto* p =
+                           std::any_cast<std::reference_wrapper<std::string>>(
+                               &param.value_reference)) {
+                p->get() = pardata[param.key].as_string();
+            } else if (auto* p = std::any_cast<std::reference_wrapper<double>>(
+                           &param.value_reference)) {
+                p->get() = pardata[param.key].as_floating();
+            } else if (auto* p = std::any_cast<std::reference_wrapper<float>>(
+                           &param.value_reference)) {
+                p->get() = pardata[param.key].as_floating();
+            } else if (auto* p = std::any_cast<std::reference_wrapper<bool>>(
+                           &param.value_reference)) {
+                p->get() = pardata[param.key].as_boolean();
+            } else {
+                throw std::runtime_error("Unsupported parameter type: " +
+                                         param.key);
+            }
+        } else {
+            // key not found in toml file, apply default value
+            if (param.default_value.has_value()) {
+                const auto& def_val = param.default_value.value();
 
-    bssn::BSSN_PROFILE_FILE_PREFIX =
-        parFile["BSSN_PROFILE_FILE_PREFIX"].as_string();
-    bssn::BSSN_RESTORE_SOLVER = parFile["BSSN_RESTORE_SOLVER"].as_integer();
-    bssn::BSSN_ID_TYPE        = parFile["BSSN_ID_TYPE"].as_integer();
+                // vector types:
+                if (auto* p =
+                        std::any_cast<std::reference_wrapper<std::vector<int>>>(
+                            &param.value_reference)) {
+                    p->get() = std::any_cast<std::vector<int>>(def_val);
+                } else if (auto* p = std::any_cast<std::reference_wrapper<
+                               std::vector<unsigned int>>>(
+                               &param.value_reference)) {
+                    p->get() =
+                        std::any_cast<std::vector<unsigned int>>(def_val);
+                } else if (auto* p = std::any_cast<
+                               std::reference_wrapper<std::vector<double>>>(
+                               &param.value_reference)) {
+                    p->get() = std::any_cast<std::vector<double>>(def_val);
+                }
 
-    bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
-        parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"].as_integer();
+                // scalar types:
+                else if (auto* p = std::any_cast<std::reference_wrapper<int>>(
+                             &param.value_reference)) {
+                    p->get() = std::any_cast<int>(def_val);
+                } else if (auto* p = std::any_cast<
+                               std::reference_wrapper<unsigned int>>(
+                               &param.value_reference)) {
+                    p->get() = std::any_cast<unsigned int>(def_val);
+                } else if (auto* p = std::any_cast<
+                               std::reference_wrapper<std::string>>(
+                               &param.value_reference)) {
+                    p->get() = std::any_cast<std::string>(def_val);
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<double>>(
+                                   &param.value_reference)) {
+                    p->get() = std::any_cast<double>(def_val);
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<float>>(
+                                   &param.value_reference)) {
+                    p->get() = std::any_cast<float>(def_val);
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<bool>>(
+                                   &param.value_reference)) {
+                    p->get() = std::any_cast<bool>(def_val);
 
-    bssn::BSSN_BLK_MIN_X       = parFile["BSSN_BLK_MIN_X"].as_floating();
-    bssn::BSSN_BLK_MIN_Y       = parFile["BSSN_BLK_MIN_Y"].as_floating();
-    bssn::BSSN_BLK_MIN_Z       = parFile["BSSN_BLK_MIN_Z"].as_floating();
-    bssn::BSSN_BLK_MAX_X       = parFile["BSSN_BLK_MAX_X"].as_floating();
-    bssn::BSSN_BLK_MAX_Y       = parFile["BSSN_BLK_MAX_Y"].as_floating();
-    bssn::BSSN_BLK_MAX_Z       = parFile["BSSN_BLK_MAX_Z"].as_floating();
+                } else {
+                    throw std::runtime_error(
+                        "Unsupported parameter type for default values: " +
+                        param.key);
+                }
 
-    bssn::BSSN_DENDRO_GRAIN_SZ = parFile["BSSN_DENDRO_GRAIN_SZ"].as_integer();
-    bssn::BSSN_ASYNC_COMM_K    = parFile["BSSN_ASYNC_COMM_K"].as_integer();
-    bssn::BSSN_DENDRO_AMR_FAC  = parFile["BSSN_DENDRO_AMR_FAC"].as_floating();
-    bssn::BSSN_LOAD_IMB_TOL    = parFile["BSSN_LOAD_IMB_TOL"].as_floating();
-    bssn::BSSN_RK_TIME_BEGIN   = parFile["BSSN_RK_TIME_BEGIN"].as_floating();
-    bssn::BSSN_RK_TIME_END     = parFile["BSSN_RK_TIME_END"].as_floating();
-    bssn::BSSN_RK_TYPE         = parFile["BSSN_RK_TYPE"].as_integer();
-    bssn::BSSN_RK45_TIME_STEP_SIZE =
-        parFile["BSSN_RK45_TIME_STEP_SIZE"].as_floating();
-    bssn::BSSN_RK45_DESIRED_TOL =
-        parFile["BSSN_RK45_DESIRED_TOL"].as_floating();
-    bssn::BSSN_DIM        = parFile["BSSN_DIM"].as_integer();
-    bssn::BSSN_MAXDEPTH   = parFile["BSSN_MAXDEPTH"].as_integer();
+                if (rank == 0) {
+                    std::cout << YLW << "\tOPTIONAL PARAMETER '" << param.key
+                              << "' wasn't found! Using default!" << NRM
+                              << std::endl;
+                }
+            } else {
+                throw std::runtime_error("Missing required parameter: " +
+                                         param.key);
+            }
+        }
+    };
+
+    std::vector<ParameterInformation> requiredParsList = {
+        {"BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ},
+        {"BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ},
+        {"BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ},
+        // {"BSSN_IO_OUTPUT_GAP", bssn::BSSN_IO_OUTPUT_GAP, true}, // this
+        // is actually unused!
+        {"BSSN_VTU_FILE_PREFIX", bssn::BSSN_VTU_FILE_PREFIX},
+        {"BSSN_CHKPT_FILE_PREFIX", bssn::BSSN_CHKPT_FILE_PREFIX},
+        {"BSSN_PROFILE_FILE_PREFIX", bssn::BSSN_PROFILE_FILE_PREFIX},
+        {"BSSN_RESTORE_SOLVER", bssn::BSSN_RESTORE_SOLVER},
+        {"BSSN_ID_TYPE", bssn::BSSN_ID_TYPE},
+        {"BSSN_ENABLE_BLOCK_ADAPTIVITY", bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY},
+        {"BSSN_BLK_MIN_X", bssn::BSSN_BLK_MIN_X},
+        {"BSSN_BLK_MIN_Y", bssn::BSSN_BLK_MIN_Y},
+        {"BSSN_BLK_MIN_Z", bssn::BSSN_BLK_MIN_Z},
+        {"BSSN_BLK_MAX_X", bssn::BSSN_BLK_MAX_X},
+        {"BSSN_BLK_MAX_Y", bssn::BSSN_BLK_MAX_Y},
+        {"BSSN_BLK_MAX_Z", bssn::BSSN_BLK_MAX_Z},
+        {"BSSN_DENDRO_GRAIN_SZ", bssn::BSSN_DENDRO_GRAIN_SZ},
+        {"BSSN_ASYNC_COMM_K", bssn::BSSN_ASYNC_COMM_K},
+        {"BSSN_DENDRO_AMR_FAC", bssn::BSSN_DENDRO_AMR_FAC},
+        {"BSSN_LOAD_IMB_TOL", bssn::BSSN_LOAD_IMB_TOL},
+        {"BSSN_RK_TIME_BEGIN", bssn::BSSN_RK_TIME_BEGIN},
+        {"BSSN_RK_TIME_END", bssn::BSSN_RK_TIME_END},
+        {"BSSN_RK_TYPE", bssn::BSSN_RK_TYPE},
+        {"BSSN_RK45_TIME_STEP_SIZE", bssn::BSSN_RK45_TIME_STEP_SIZE},
+        {"BSSN_RK45_DESIRED_TOL", bssn::BSSN_RK45_DESIRED_TOL},
+        {"BSSN_DIM", bssn::BSSN_DIM},
+        {"BSSN_MAXDEPTH", bssn::BSSN_MAXDEPTH},
+        {"BSSN_GRID_MIN_X", bssn::BSSN_GRID_MIN_X},
+        {"BSSN_GRID_MIN_Y", bssn::BSSN_GRID_MIN_Y},
+        {"BSSN_GRID_MIN_Z", bssn::BSSN_GRID_MIN_Z},
+        {"BSSN_GRID_MAX_X", bssn::BSSN_GRID_MAX_X},
+        {"BSSN_GRID_MAX_Y", bssn::BSSN_GRID_MAX_Y},
+        {"BSSN_GRID_MAX_Z", bssn::BSSN_GRID_MAX_Z},
+        {"ETA_CONST", bssn::ETA_CONST},
+        {"ETA_R0", bssn::ETA_R0},
+        {"ETA_DAMPING", bssn::ETA_DAMPING},
+        {"ETA_DAMPING_EXP", bssn::ETA_DAMPING_EXP},
+        {"CHI_FLOOR", bssn::CHI_FLOOR},
+        {"BSSN_TRK0", bssn::BSSN_TRK0},
+        {"KO_DISS_SIGMA", bssn::KO_DISS_SIGMA},
+        {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
+        // eta power 0 is added later
+        {"BSSN_USE_WAVELET_TOL_FUNCTION", bssn::BSSN_USE_WAVELET_TOL_FUNCTION},
+        {"BSSN_WAVELET_TOL", bssn::BSSN_WAVELET_TOL},
+        {"BSSN_WAVELET_TOL_MAX", bssn::BSSN_WAVELET_TOL_MAX},
+        {
+            "BSSN_WAVELET_TOL_FUNCTION_R0",
+            bssn::BSSN_WAVELET_TOL_FUNCTION_R0,
+        },
+        {"BSSN_WAVELET_TOL_FUNCTION_R1", bssn::BSSN_WAVELET_TOL_FUNCTION_R1},
+        // these arrays are read in below
+        {"BSSN_NUM_REFINE_VARS", bssn::BSSN_NUM_REFINE_VARS},
+        {"BSSN_NUM_EVOL_VARS_VTU_OUTPUT", bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT},
+        {"BSSN_NUM_CONST_VARS_VTU_OUTPUT",
+         bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT},
+        // GW_EXTRACT_FREQ is set later because it's optional and needs to
+        // be set to something different
+
+        // TPID parameters
+        {"TPID_TARGET_M_PLUS", TPID::target_M_plus},
+        {"TPID_TARGET_M_MINUS", TPID::target_M_minus},
+        {"TPID_PAR_B", TPID::par_b},
+        {"TPID_INITIAL_LAPSE_PSI_EXPONENT", TPID::initial_lapse_psi_exponent},
+        {"TPID_NPOINTS_A", TPID::npoints_A},
+        {"TPID_NPOINTS_B", TPID::npoints_B},
+        {"TPID_NPOINTS_PHI", TPID::npoints_phi},
+        {"TPID_GIVE_BARE_MASS", TPID::give_bare_mass},
+        {"INITIAL_LAPSE", TPID::initial_lapse},
+        {"TPID_SOLVE_MOMENTUM_CONSTRAINT", TPID::solve_momentum_constraint},
+        {"TPID_GRID_SETUP_METHOD", TPID::grid_setup_method},
+        {"TPID_VERBOSE", TPID::verbose},
+        {"TPID_ADM_TOL", TPID::adm_tol},
+        {"TPID_NEWTON_TOL", TPID::Newton_tol},
+
+        // wave extraction parameters
+        {"BSSN_GW_NUM_RADAII", GW::BSSN_GW_NUM_RADAII},
+        {"BSSN_GW_NUM_LMODES", GW::BSSN_GW_NUM_LMODES},
+
+        // ONE required AH parameter:
+        {"AEH_SOLVER_FREQ", AEH::AEH_SOLVER_FREQ},
+    };
+
+    // then load the REQUIRED parameters
+    for (const auto& param : requiredParsList) {
+        set_param(parFile, param);
+    }
+
+    std::vector<ParameterInformation> optionalParsList = {
+        {"BSSN_REMESH_TEST_FREQ_AFTER_MERGER",
+         bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER, UseInitialValue},
+        {"RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION, UseInitialValue},
+        {"RIT_ETA_OUTER", bssn::RIT_ETA_OUTER, UseInitialValue},
+        {"RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL, UseInitialValue},
+        {"RIT_ETA_WIDTH", bssn::RIT_ETA_WIDTH, UseInitialValue},
+        {"BSSN_KO_SIGMA_SCALE_BY_CONFORMAL",
+         bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL, UseInitialValue},
+        {"BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY",
+         bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY,
+         UseInitialValue},
+        {"BSSN_EPSILON_CAKO_GAUGE", bssn::BSSN_EPSILON_CAKO_GAUGE,
+         UseInitialValue},
+        {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER,
+         UseInitialValue},
+        {"BSSN_CAHD_C", bssn::BSSN_CAHD_C, UseInitialValue},
+        // lambda and xi are added later
+        {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
+        {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
+        {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, UseInitialValue},
+        {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY, UseInitialValue},
+        {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R, UseInitialValue},
+        {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R, UseInitialValue},
+        {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO, UseInitialValue},
+        {"BSSN_DENDRO_AMR_FAC_POST_MERGER",
+         bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER, UseInitialValue},
+        {"BSSN_INIT_GRID_ITER", bssn::BSSN_INIT_GRID_ITER, UseInitialValue},
+        {"BSSN_GW_REFINE_WTOL", bssn::BSSN_GW_REFINE_WTOL, UseInitialValue},
+        {"BSSN_MINDEPTH", bssn::BSSN_MINDEPTH, UseInitialValue},
+        {"BSSN_BH1_CONSTRAINT_R", bssn::BSSN_BH1_CONSTRAINT_R, UseInitialValue},
+        {"BSSN_BH2_CONSTRAINT_R", bssn::BSSN_BH2_CONSTRAINT_R, UseInitialValue},
+        {"BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE",
+         bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE, UseInitialValue},
+        {"BSSN_NYQUIST_M", bssn::BSSN_NYQUIST_M, UseInitialValue},
+        {"BSSN_SCALE_VTU_AND_GW_EXTRACTION",
+         bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION, UseInitialValue},
+        {"BSSN_SSL_SIGMA", bssn::BSSN_SSL_SIGMA, UseInitialValue},
+        {"BSSN_SSL_H", bssn::BSSN_SSL_H, UseInitialValue},
+        {"BSSN_EH_COARSEN_VAL", bssn::BSSN_EH_COARSEN_VAL, UseInitialValue},
+        {"BSSN_EH_REFINE_VAL", bssn::BSSN_EH_REFINE_VAL, UseInitialValue},
+
+        // TPID optional parameter
+        {"TPID_FILEPREFIX", TPID::FILE_PREFIX, UseInitialValue},
+        {"TPID_REPLACE_LAPSE_WITH_SQRT_CHI", TPID::replace_lapse_with_sqrt_chi,
+         UseInitialValue},
+
+        // wave extraction optional parameter
+        {"EXTRACTION_VAR_ID", BHLOC::EXTRACTION_VAR_ID, UseInitialValue},
+        {"EXTRACTION_TOL", BHLOC::EXTRACTION_TOL, UseInitialValue},
+
+        // dendro logging parameters
+        {"DENDRO_LOG_FILE", bssn::DENDRO_LOG_FILE, UseInitialValue},
+        {"DENDRO_LOG_CONSOLE_LEVEL", bssn::DENDRO_LOG_CONSOLE_LEVEL,
+         UseInitialValue},
+        {"DENDRO_LOG_FILE_LEVEL", bssn::DENDRO_LOG_FILE_LEVEL, UseInitialValue},
+        {"DENDRO_LOG_FORCE_FILE_FLUSH", bssn::DENDRO_LOG_FORCE_FILE_FLUSH,
+         UseInitialValue},
+
+        // calculated defaults (requires non-optional):
+        {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ,
+         std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >> 1u)},
+        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ,
+         bssn::BSSN_GW_EXTRACT_FREQ},
+        {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_MAXDEPTH},
+        {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV, bssn::BSSN_MAXDEPTH},
+    };
+
+    // then load the OPTIONAL parameters
+    for (const auto& param : optionalParsList) {
+        set_param(parFile, param);
+    }
+
+    // append .log and a time stamp to the log file
+    const auto now       = std::chrono::system_clock::now();
+    const auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d_%H-%M-%S");
+    const std::string timestamp = ss.str();
+    bssn::DENDRO_LOG_FILE = bssn::DENDRO_LOG_FILE + "_" + timestamp + ".log";
+
+    // any optionals requiring other optionals need to be processed here
 
     bssn::BH1             = BH(parFile["BSSN_BH1"]["MASS"].as_floating(),
                                parFile["BSSN_BH1"]["X"].as_floating(),
@@ -255,47 +571,10 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
                                parFile["BSSN_BH2"]["SPIN"].as_floating(),
                                parFile["BSSN_BH2"]["SPIN_THETA"].as_floating(),
                                parFile["BSSN_BH2"]["SPIN_PHI"].as_floating());
+    used_params.insert("BSSN_BH1");
+    used_params.insert("BSSN_BH2");
 
-    bssn::BSSN_GRID_MIN_X = parFile["BSSN_GRID_MIN_X"].as_floating();
-    bssn::BSSN_GRID_MAX_X = parFile["BSSN_GRID_MAX_X"].as_floating();
-    bssn::BSSN_GRID_MIN_Y = parFile["BSSN_GRID_MIN_Y"].as_floating();
-    bssn::BSSN_GRID_MAX_Y = parFile["BSSN_GRID_MAX_Y"].as_floating();
-    bssn::BSSN_GRID_MIN_Z = parFile["BSSN_GRID_MIN_Z"].as_floating();
-    bssn::BSSN_GRID_MAX_Z = parFile["BSSN_GRID_MAX_Z"].as_floating();
-
-    bssn::ETA_CONST       = parFile["ETA_CONST"].as_floating();
-    bssn::ETA_R0          = parFile["ETA_R0"].as_floating();
-    bssn::ETA_DAMPING     = parFile["ETA_DAMPING"].as_floating();
-    bssn::ETA_DAMPING_EXP = parFile["ETA_DAMPING_EXP"].as_floating();
-
-    if (parFile.contains("RIT_ETA_FUNCTION")) {
-        bssn::RIT_ETA_FUNCTION = parFile["RIT_ETA_FUNCTION"].as_integer();
-    }
-    if (parFile.contains("RIT_ETA_OUTER")) {
-        bssn::RIT_ETA_OUTER = parFile["RIT_ETA_OUTER"].as_floating();
-    }
-    if (parFile.contains("RIT_ETA_CENTRAL")) {
-        bssn::RIT_ETA_CENTRAL = parFile["RIT_ETA_CENTRAL"].as_floating();
-    }
-    if (parFile.contains("RIT_ETA_WIDTH")) {
-        bssn::RIT_ETA_WIDTH = parFile["RIT_ETA_WIDTH"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_AMR_R_RATIO")) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_KO_SIGMA_SCALE_BY_CONFORMAL")) {
-        bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL =
-            parFile["BSSN_KO_SIGMA_SCALE_BY_CONFORMAL"].as_boolean();
-    }
-
-    if (parFile.contains("BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY")) {
-        bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY =
-            parFile["BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY"]
-                .as_boolean();
-    }
-
+    // update some values based on the ONLY param
     if (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY) {
         bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL = false;
     }
@@ -303,159 +582,47 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CAKO_ENABLED = true;
     }
 
-    if (parFile.contains("BSSN_EPSILON_CAKO_GAUGE")) {
-        bssn::BSSN_EPSILON_CAKO_GAUGE =
-            parFile["BSSN_EPSILON_CAKO_GAUGE"].as_floating();
-    }
-    if (parFile.contains("BSSN_EPSILON_CAKO_OTHER")) {
-        bssn::BSSN_EPSILON_CAKO_OTHER =
-            parFile["BSSN_EPSILON_CAKO_OTHER"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_CAHD_C")) {
-        bssn::BSSN_CAHD_C = parFile["BSSN_CAHD_C"].as_floating();
-    }
-
+    // these ones are a bit trickier than set_param, and require indexing into
+    // required dicts
     bssn::BSSN_LAMBDA[0]   = parFile["BSSN_LAMBDA"][0].as_integer();
     bssn::BSSN_LAMBDA[1]   = parFile["BSSN_LAMBDA"][1].as_integer();
     bssn::BSSN_LAMBDA[2]   = parFile["BSSN_LAMBDA"][2].as_integer();
     bssn::BSSN_LAMBDA[3]   = parFile["BSSN_LAMBDA"][3].as_integer();
     bssn::BSSN_LAMBDA_F[0] = parFile["BSSN_LAMBDA_F"][0].as_floating();
     bssn::BSSN_LAMBDA_F[1] = parFile["BSSN_LAMBDA_F"][1].as_floating();
+    used_params.insert("BSSN_LAMBDA");
+    used_params.insert("BSSN_LAMBDA_F");
 
-    bssn::BSSN_XI[0]       = (unsigned int)parFile["BSSN_XI"][0].as_integer();
-    bssn::BSSN_XI[1]       = (unsigned int)parFile["BSSN_XI"][1].as_integer();
-    bssn::BSSN_XI[2]       = (unsigned int)parFile["BSSN_XI"][2].as_integer();
+    bssn::BSSN_XI[0] = (unsigned int)parFile["BSSN_XI"][0].as_integer();
+    bssn::BSSN_XI[1] = (unsigned int)parFile["BSSN_XI"][1].as_integer();
+    bssn::BSSN_XI[2] = (unsigned int)parFile["BSSN_XI"][2].as_integer();
+    used_params.insert("BSSN_XI");
 
-    if (parFile.contains("BSSN_ELE_ORDER"))
-        bssn::BSSN_ELE_ORDER = parFile["BSSN_ELE_ORDER"].as_integer();
-    bssn::CHI_FLOOR = parFile["CHI_FLOOR"].as_floating();
-    bssn::BSSN_TRK0 = parFile["BSSN_TRK0"].as_floating();
-
-    if (parFile.contains("DISSIPATION_TYPE"))
-        bssn::DISSIPATION_TYPE = parFile["DISSIPATION_TYPE"].as_integer();
-
-    bssn::KO_DISS_SIGMA     = parFile["KO_DISS_SIGMA"].as_floating();
-
-    bssn::BSSN_ETA_R0       = parFile["BSSN_ETA_R0"].as_floating();
     bssn::BSSN_ETA_POWER[0] = parFile["BSSN_ETA_POWER"][0].as_floating();
     bssn::BSSN_ETA_POWER[1] = parFile["BSSN_ETA_POWER"][1].as_floating();
+    used_params.insert("BSSN_ETA_POWER");
 
-    bssn::BSSN_USE_WAVELET_TOL_FUNCTION =
-        parFile["BSSN_USE_WAVELET_TOL_FUNCTION"].as_integer();
-    bssn::BSSN_WAVELET_TOL     = parFile["BSSN_WAVELET_TOL"].as_floating();
-    bssn::BSSN_WAVELET_TOL_MAX = parFile["BSSN_WAVELET_TOL_MAX"].as_floating();
-    bssn::BSSN_WAVELET_TOL_FUNCTION_R0 =
-        parFile["BSSN_WAVELET_TOL_FUNCTION_R0"].as_floating();
-    bssn::BSSN_WAVELET_TOL_FUNCTION_R1 =
-        parFile["BSSN_WAVELET_TOL_FUNCTION_R1"].as_floating();
-
-    bssn::BSSN_NUM_REFINE_VARS = parFile["BSSN_NUM_REFINE_VARS"].as_integer();
     for (unsigned int i = 0; i < bssn::BSSN_NUM_REFINE_VARS; i++)
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i].as_integer();
-
-    bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT =
-        parFile["BSSN_NUM_EVOL_VARS_VTU_OUTPUT"].as_integer();
-    bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT =
-        parFile["BSSN_NUM_CONST_VARS_VTU_OUTPUT"].as_integer();
+    used_params.insert("BSSN_REFINE_VARIABLE_INDICES");
 
     for (unsigned int i = 0; i < bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT; i++)
         bssn::BSSN_VTU_OUTPUT_EVOL_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_EVOL_INDICES"][i].as_integer();
+    used_params.insert("BSSN_VTU_OUTPUT_EVOL_INDICES");
 
     for (unsigned int i = 0; i < bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT; i++)
         bssn::BSSN_VTU_OUTPUT_CONST_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_CONST_INDICES"][i].as_integer();
+    used_params.insert("BSSN_VTU_OUTPUT_CONST_INDICES");
 
-    if (parFile.contains("BSSN_CFL_FACTOR"))
-        bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"].as_floating();
-
-    if (parFile.contains("BSSN_VTU_Z_SLICE_ONLY"))
-        bssn::BSSN_VTU_Z_SLICE_ONLY =
-            parFile["BSSN_VTU_Z_SLICE_ONLY"].as_boolean();
-
-    if (parFile.contains("BSSN_GW_EXTRACT_FREQ"))
-        bssn::BSSN_GW_EXTRACT_FREQ =
-            parFile["BSSN_GW_EXTRACT_FREQ"].as_integer();
-    else
-        bssn::BSSN_GW_EXTRACT_FREQ =
-            std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >> 1u);
-
-    if (parFile.contains("BSSN_TIME_STEP_OUTPUT_FREQ")) {
-        bssn::BSSN_TIME_STEP_OUTPUT_FREQ =
-            parFile["BSSN_TIME_STEP_OUTPUT_FREQ"].as_integer();
-    } else {
-        bssn::BSSN_TIME_STEP_OUTPUT_FREQ = bssn::BSSN_GW_EXTRACT_FREQ;
-    }
-
-    if (parFile.contains("BSSN_BH1_AMR_R"))
-        bssn::BSSN_BH1_AMR_R = parFile["BSSN_BH1_AMR_R"].as_floating();
-
-    if (parFile.contains("BSSN_BH2_AMR_R"))
-        bssn::BSSN_BH2_AMR_R = parFile["BSSN_BH2_AMR_R"].as_floating();
-
-    if (parFile.contains("BSSN_AMR_R_RATIO")) {
-        bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_BH1_MAX_LEV"))
-        bssn::BSSN_BH1_MAX_LEV = parFile["BSSN_BH1_MAX_LEV"].as_integer();
-    else
-        bssn::BSSN_BH1_MAX_LEV = bssn::BSSN_MAXDEPTH;
-
-    if (parFile.contains("BSSN_BH2_MAX_LEV"))
-        bssn::BSSN_BH2_MAX_LEV = parFile["BSSN_BH2_MAX_LEV"].as_integer();
-    else
-        bssn::BSSN_BH2_MAX_LEV = bssn::BSSN_MAXDEPTH;
-
-    if (parFile.contains("BSSN_INIT_GRID_ITER"))
-        bssn::BSSN_INIT_GRID_ITER = parFile["BSSN_INIT_GRID_ITER"].as_integer();
-
-    if (parFile.contains("BSSN_GW_REFINE_WTOL"))
-        bssn::BSSN_GW_REFINE_WTOL =
-            parFile["BSSN_GW_REFINE_WTOL"].as_floating();
-
-    if (parFile.contains("BSSN_MINDEPTH"))
-        bssn::BSSN_MINDEPTH = parFile["BSSN_MINDEPTH"].as_integer();
-
-    if (parFile.contains("BSSN_BH1_CONSTRAINT_R"))
-        bssn::BSSN_BH1_CONSTRAINT_R =
-            parFile["BSSN_BH1_CONSTRAINT_R"].as_floating();
-
-    if (parFile.contains("BSSN_BH2_CONSTRAINT_R"))
-        bssn::BSSN_BH2_CONSTRAINT_R =
-            parFile["BSSN_BH2_CONSTRAINT_R"].as_floating();
-
-    if (parFile.contains("BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE"))
-        bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE =
-            parFile["BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE"].as_boolean();
-
-    if (parFile.contains("BSSN_NYQUIST_M")) {
-        bssn::BSSN_NYQUIST_M = parFile["BSSN_NYQUIST_M"].as_integer();
-    }
-
-    if (parFile.contains("BSSN_SCALE_VTU_AND_GW_EXTRACTION")) {
-        bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION =
-            parFile["BSSN_SCALE_VTU_AND_GW_EXTRACTION"].as_boolean();
-    }
     bssn::BSSN_IO_OUTPUT_FREQ_TRUE  = bssn::BSSN_IO_OUTPUT_FREQ;
     bssn::BSSN_GW_EXTRACT_FREQ_TRUE = bssn::BSSN_GW_EXTRACT_FREQ;
 
-    if (parFile.contains("BSSN_SSL_SIGMA")) {
-        bssn::BSSN_SSL_SIGMA = parFile["BSSN_SSL_SIGMA"].as_floating();
-    }
-
-    if (parFile.contains("BSSN_SSL_H")) {
-        bssn::BSSN_SSL_H = parFile["BSSN_SSL_H"].as_floating();
-    }
-
-    /* Parameters for TPID */
-    TPID::target_M_plus  = parFile["TPID_TARGET_M_PLUS"].as_floating();
-    TPID::target_M_minus = parFile["TPID_TARGET_M_MINUS"].as_floating();
-    TPID::par_m_plus     = TPID::target_M_plus;
-    TPID::par_m_minus    = TPID::target_M_minus;
-    TPID::par_b          = parFile["TPID_PAR_B"].as_floating();
+    /* Setting remainder Parameters for TPID */
+    TPID::par_m_plus                = TPID::target_M_plus;
+    TPID::par_m_minus               = TPID::target_M_minus;
 
     TPID::par_P_plus[0] =
         bssn::BH1.getVx();  // parFile["TPID_PAR_P_PLUS"]["X"];
@@ -494,54 +661,21 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     TPID::center_offset[0] = parFile["TPID_CENTER_OFFSET"]["X"].as_floating();
     TPID::center_offset[1] = parFile["TPID_CENTER_OFFSET"]["Y"].as_floating();
     TPID::center_offset[2] = parFile["TPID_CENTER_OFFSET"]["Z"].as_floating();
+    used_params.insert("TPID_CENTER_OFFSET");
 
-    TPID::initial_lapse_psi_exponent =
-        parFile["TPID_INITIAL_LAPSE_PSI_EXPONENT"].as_floating();
-    TPID::npoints_A      = parFile["TPID_NPOINTS_A"].as_integer();
-    TPID::npoints_B      = parFile["TPID_NPOINTS_B"].as_integer();
-    TPID::npoints_phi    = parFile["TPID_NPOINTS_PHI"].as_integer();
-
-    TPID::give_bare_mass = parFile["TPID_GIVE_BARE_MASS"].as_integer();
-    TPID::initial_lapse  = parFile["INITIAL_LAPSE"].as_integer();
-    TPID::solve_momentum_constraint =
-        parFile["TPID_SOLVE_MOMENTUM_CONSTRAINT"].as_integer();
-    TPID::grid_setup_method = parFile["TPID_GRID_SETUP_METHOD"].as_integer();
-    TPID::verbose           = parFile["TPID_VERBOSE"].as_integer();
-    TPID::adm_tol           = parFile["TPID_ADM_TOL"].as_floating();
-    TPID::Newton_tol        = parFile["TPID_NEWTON_TOL"].as_floating();
-
-    if (parFile.contains("TPID_FILEPREFIX"))
-        TPID::FILE_PREFIX = parFile["TPID_FILEPREFIX"].as_string();
-
-    if (parFile.contains("TPID_REPLACE_LAPSE_WITH_SQRT_CHI"))
-        TPID::replace_lapse_with_sqrt_chi =
-            parFile["TPID_REPLACE_LAPSE_WITH_SQRT_CHI"].as_boolean();
-
-    if (parFile.contains("EXTRACTION_VAR_ID"))
-        BHLOC::EXTRACTION_VAR_ID = parFile["EXTRACTION_VAR_ID"].as_integer();
-
-    if (parFile.contains("EXTRACTION_TOL"))
-        BHLOC::EXTRACTION_TOL = parFile["EXTRACTION_TOL"].as_floating();
-
-    GW::BSSN_GW_NUM_RADAII = parFile["BSSN_GW_NUM_RADAII"].as_integer();
-    GW::BSSN_GW_NUM_LMODES = parFile["BSSN_GW_NUM_LMODES"].as_integer();
-
+    // extractio parameters that need to be read separately
     for (unsigned int i = 0; i < GW::BSSN_GW_NUM_RADAII; i++)
         GW::BSSN_GW_RADAII[i] = parFile["BSSN_GW_RADAII"][i].as_floating();
+    used_params.insert("BSSN_GW_RADAII");
 
     for (unsigned int i = 0; i < GW::BSSN_GW_NUM_LMODES; i++)
         GW::BSSN_GW_L_MODES[i] = parFile["BSSN_GW_L_MODES"][i].as_integer();
-
-    if (parFile.contains("BSSN_EH_COARSEN_VAL"))
-        bssn::BSSN_EH_COARSEN_VAL =
-            parFile["BSSN_EH_COARSEN_VAL"].as_floating();
-
-    if (parFile.contains("BSSN_EH_REFINE_VAL"))
-        bssn::BSSN_EH_REFINE_VAL = parFile["BSSN_EH_REFINE_VAL"].as_floating();
+    used_params.insert("BSSN_GW_L_MODES");
 
     if (parFile.contains("BSSN_REFINEMENT_MODE"))
         bssn::BSSN_REFINEMENT_MODE = static_cast<bssn::RefinementMode>(
             parFile["BSSN_REFINEMENT_MODE"].as_integer());
+    used_params.insert("BSSN_REFINEMENT_MODE");
 
     BSSN_OCTREE_MAX[0] = (double)(1u << bssn::BSSN_MAXDEPTH);
     BSSN_OCTREE_MAX[1] = (double)(1u << bssn::BSSN_MAXDEPTH);
@@ -583,33 +717,505 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_BH1_MASS = BH1.getBHMass();
     bssn::BSSN_BH2_MASS = BH2.getBHMass();
 
-    // AH parameters
-    if (parFile.contains("AEH_LMAX"))
-        AEH::AEH_LMAX = parFile["AEH_LMAX"].as_integer();
+    // quick check to see if we're divsible
+    if (AEH::AEH_SOLVER_FREQ > 0) {
+        if ((bssn::BSSN_IO_OUTPUT_FREQ % AEH::AEH_SOLVER_FREQ != 0)) {
+            std::cerr << "Error[parameter file]: BSSN_IO_OUTPUT_FREQ ("
+                      << bssn::BSSN_IO_OUTPUT_FREQ << ") must be a multiple of "
+                      << "AEH_SOLVER_FREQ (" << AEH::AEH_SOLVER_FREQ << ")\n";
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    if (parFile.contains("AEH_Q_THETA"))
-        AEH::AEH_Q_THETA = parFile["AEH_Q_THETA"].as_integer();
+    // if the parFile has the AEH "dictionary"
+    if (parFile.contains("AEH_PARAMS")) {
+        auto aeh_pars                                 = parFile["AEH_PARAMS"];
 
-    if (parFile.contains("AEH_Q_PHI"))
-        AEH::AEH_Q_PHI = parFile["AEH_Q_PHI"].as_integer();
+        std::vector<ParameterInformation> aehParsList = {
+            {"N_HORIZONS", AEH::N_HORIZONS, UseInitialValue},
+            {"N_RESOLUTIONS_MULTIGRID", AEH::N_RESOLUTIONS_MULTIGRID,
+             UseInitialValue},
 
-    if (parFile.contains("AEH_MAXITER"))
-        AEH::AEH_MAXITER = parFile["AEH_MAXITER"].as_integer();
+            {"MAX_ITERATIONS", AEH::MAX_ITERATIONS, UseInitialValue},
+            {"INITIAL_X_CENTER", AEH::INITIAL_X_CENTER, UseInitialValue},
+            {"INITIAL_Y_CENTER", AEH::INITIAL_Y_CENTER, UseInitialValue},
+            {"INITIAL_Z_CENTER", AEH::INITIAL_Z_CENTER, UseInitialValue},
+            {"M_SCALE", AEH::M_SCALE, UseInitialValue},
+            {"CFL_FACTOR", AEH::CFL_FACTOR, UseInitialValue},
+            {"THETA_L2_M_TOL", AEH::THETA_L2_M_TOL, UseInitialValue},
+            {"THETA_LINF_M_TOL", AEH::THETA_LINF_M_TOL, UseInitialValue},
+            {"ETA_DAMP_M", AEH::ETA_DAMP_M, UseInitialValue},
+            {"KO_STRENGTH", AEH::KO_STRENGTH, UseInitialValue},
+            {"MAX_SEARCH_RADIUS", AEH::MAX_SEARCH_RADIUS, UseInitialValue},
+            {"NR_INTERP_MAX", AEH::NR_INTERP_MAX, UseInitialValue},
+            {"NPHI_MAX", AEH::NPHI_MAX, UseInitialValue},
+            {"NTHETA_MAX", AEH::NTHETA_MAX, UseInitialValue},
+            {"AEH_SAVE_DIR", AEH::AEH_SAVE_DIR, UseInitialValue},
+            {"NUM_RESOLUTIONS_AFTER_FIND", AEH::NUM_RESOLUTIONS_AFTER_FIND,
+             UseInitialValue},
+            {"NTHETA_ARRAY", AEH::NTHETA_ARRAY, UseInitialValue},
+            {"NPHI_ARRAY", AEH::NPHI_ARRAY, UseInitialValue},
+            {"ENABLE_ETA_VARYING_ALG", AEH::ENABLE_ETA_VARYING_ALG,
+             UseInitialValue},
+            {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL, UseInitialValue}};
 
-    if (parFile.contains("AEH_ATOL"))
-        AEH::AEH_ATOL = parFile["AEH_ATOL"].as_floating();
+        // then load the parameters
+        for (const auto& param : aehParsList) {
+            set_param(aeh_pars, param);
+        }
 
-    if (parFile.contains("AEH_RTOL"))
-        AEH::AEH_RTOL = parFile["AEH_RTOL"].as_floating();
+        used_params.insert("AEH_PARAMS");
+    }
 
-    if (parFile.contains("AEH_SOLVER_FREQ"))
-        AEH::AEH_SOLVER_FREQ = parFile["AEH_SOLVER_FREQ"].as_integer();
+    bool is_bbh_temp = false;
+    std::vector<dendro_aeh::SimpleBlackHoleData> simpleBHData;
+    if (BSSN_ID_TYPE == 0 || BSSN_ID_TYPE == 1) {
+        is_bbh_temp  = true;
+        simpleBHData = {dendro_aeh::SimpleBlackHoleData(
+                            bssn::BH1.getBHCoordX(), bssn::BH1.getBHCoordY(),
+                            bssn::BH1.getBHCoordZ(), bssn::BH1.getBHMass()),
+                        dendro_aeh::SimpleBlackHoleData(
+                            bssn::BH2.getBHCoordX(), bssn::BH2.getBHCoordY(),
+                            bssn::BH2.getBHCoordZ(), bssn::BH2.getBHMass())};
+    }
 
-    if (parFile.contains("AEH_ALPHA"))
-        AEH::AEH_ALPHA = parFile["AEH_ALPHA"].as_floating();
+    // this is the function that will convert our inputs of chi, trK, at,
+    // and Gt into the standard metric variables of Gd and Kd
+    auto transform = [](const std::vector<double>& inputs) {
+        // do the transformation here
 
-    if (parFile.contains("AEH_BETA"))
-        AEH::AEH_BETA = parFile["AEH_BETA"].as_floating();
+        // so this is the transformation that'll be applied at each point,
+        // it expects 12 outputs in this order: gd00, gd01, gd02, gd11,
+        // gd12, gd22, Kd00, Kd01, Kd02, Kd11, Kd12, Kd22
+        std::vector<double> output(12, 0.0);
+
+        // the input follow aeh::AEH_INDICES, which are "constant"
+        constexpr int chi_idx  = 0;
+        constexpr int trK_idx  = 1;
+        constexpr int at00_idx = 2;
+        constexpr int at01_idx = 3;
+        constexpr int at02_idx = 4;
+        constexpr int at11_idx = 5;
+        constexpr int at12_idx = 6;
+        constexpr int at22_idx = 7;
+        constexpr int Gt00_idx = 8;
+        constexpr int Gt01_idx = 9;
+        constexpr int Gt02_idx = 10;
+        constexpr int Gt11_idx = 11;
+        constexpr int Gt12_idx = 12;
+        constexpr int Gt22_idx = 13;
+
+        constexpr int gd00     = 0;
+        constexpr int gd01     = 1;
+        constexpr int gd02     = 2;
+        constexpr int gd11     = 3;
+        constexpr int gd12     = 4;
+        constexpr int gd22     = 5;
+        constexpr int Kd00     = 6;
+        constexpr int Kd01     = 7;
+        constexpr int Kd02     = 8;
+        constexpr int Kd11     = 9;
+        constexpr int Kd12     = 10;
+        constexpr int Kd22     = 11;
+
+        // chi = idetgd^(1/3)
+        double idetgd          = pow(inputs[chi_idx], -3.0);
+        // detgd = 1 / idetgd
+        double detgd           = 1.0 / idetgd;
+
+        double inv_chi         = 1.0 / inputs[chi_idx];
+        double trK_third       = (1.0 / 3.0) * inputs[trK_idx];
+
+        // calculate local gd
+        output[gd00]           = inputs[Gt00_idx] * inv_chi;
+        output[gd01]           = inputs[Gt01_idx] * inv_chi;
+        output[gd02]           = inputs[Gt02_idx] * inv_chi;
+        output[gd11]           = inputs[Gt11_idx] * inv_chi;
+        output[gd12]           = inputs[Gt12_idx] * inv_chi;
+        output[gd22]           = inputs[Gt22_idx] * inv_chi;
+
+        // fill in Kd values
+        // basically: Atd[i,j] / chi + (1/3) * gd[i,j] * trK
+        output[Kd00] = inputs[at00_idx] * inv_chi + output[gd00] * trK_third;
+        output[Kd01] = inputs[at01_idx] * inv_chi + output[gd01] * trK_third;
+        output[Kd02] = inputs[at02_idx] * inv_chi + output[gd02] * trK_third;
+        output[Kd11] = inputs[at11_idx] * inv_chi + output[gd11] * trK_third;
+        output[Kd12] = inputs[at12_idx] * inv_chi + output[gd12] * trK_third;
+        output[Kd22] = inputs[at22_idx] * inv_chi + output[gd22] * trK_third;
+
+        return output;
+    };
+
+    Point grid_limits[2];
+    Point domain_limits[2];
+
+    grid_limits[0]   = Point(bssn::BSSN_OCTREE_MIN[0], bssn::BSSN_OCTREE_MIN[1],
+                             bssn::BSSN_OCTREE_MIN[2]);
+    grid_limits[1]   = Point(bssn::BSSN_OCTREE_MAX[0], bssn::BSSN_OCTREE_MAX[1],
+                             bssn::BSSN_OCTREE_MAX[2]);
+
+    domain_limits[0] = Point(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+                             bssn::BSSN_COMPD_MIN[2]);
+    domain_limits[1] = Point(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+                             bssn::BSSN_COMPD_MAX[2]);
+
+    // now we build up the aeh solver
+    AEH::ah_bah      = std::make_unique<dendro_aeh::AEH_BHaHAHA>(
+        AEH::N_HORIZONS, is_bbh_temp, AEH::INITIAL_X_CENTER,
+        AEH::INITIAL_Y_CENTER, AEH::INITIAL_Z_CENTER,
+        AEH::N_RESOLUTIONS_MULTIGRID, AEH::M_SCALE, AEH::CFL_FACTOR,
+        AEH::MAX_ITERATIONS, AEH::THETA_L2_M_TOL, AEH::THETA_LINF_M_TOL,
+        AEH::ETA_DAMP_M, AEH::KO_STRENGTH, AEH::MAX_SEARCH_RADIUS,
+        AEH::NR_INTERP_MAX, AEH::NTHETA_MAX, AEH::NPHI_MAX, AEH::AEH_SAVE_DIR,
+        simpleBHData, AEH::AEH_INDICES, transform, grid_limits, domain_limits,
+        bssn::BSSN_IO_OUTPUT_FREQ, AEH::NUM_RESOLUTIONS_AFTER_FIND,
+        AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY, AEH::ENABLE_ETA_VARYING_ALG,
+        AEH::VERBOSITY_LEVEL);
+
+    // check on the unused parameters to see what we didn't use
+    std::unordered_set<std::string> all_params_in_parfile;
+    for (const auto& [key, _] : parFile.as_table()) {
+        all_params_in_parfile.insert(key);
+    }
+
+    // find the unused ones
+    std::vector<std::string> unused_params;
+    for (const auto& key : all_params_in_parfile) {
+        if (used_params.find(key) == used_params.end()) {
+            unused_params.push_back(key);
+        }
+    }
+
+    // warn about parameters that are in the TOML file that we don't
+    // actually need
+    if (!unused_params.empty() && rank == 0) {
+        std::cout << YLW
+                  << "WARNING: Unused parameters in TOML file:" << std::endl;
+
+        for (const auto& key : unused_params) {
+            std::cout << "\t -- " << key << std::endl;
+        }
+        std::cout << NRM << std::endl;
+    }
+
+    MPI_Barrier(comm);
+}
+
+template <typename T, typename U>
+std::vector<T> to_toml_vec(const std::vector<U>& input) {
+    std::vector<T> output(input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        output[i] = static_cast<T>(input[i]);
+    }
+    return output;
+}
+
+void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
+    int rank;
+    MPI_Comm_rank(comm, &rank);
+
+    // only rank 0 should write to disk
+    if (rank == 0) {
+        toml::value root = toml::table{};
+
+        // this is the *reverse* of our other function's helper
+        auto add_param   = [&](toml::value& data,
+                             const ParameterInformation& param) {
+            try {
+                if (auto* p =
+                        std::any_cast<std::reference_wrapper<std::vector<int>>>(
+                            &param.value_reference)) {
+                    data[param.key] = to_toml_vec<std::int64_t>(p->get());
+                } else if (auto* p = std::any_cast<std::reference_wrapper<
+                                 std::vector<unsigned int>>>(
+                               &param.value_reference)) {
+                    data[param.key] = to_toml_vec<std::int64_t>(p->get());
+                } else if (auto* p = std::any_cast<
+                                 std::reference_wrapper<std::vector<double>>>(
+                               &param.value_reference)) {
+                    data[param.key] = p->get();
+                }
+
+                // scalars, vectors above
+                else if (auto* p = std::any_cast<std::reference_wrapper<int>>(
+                             &param.value_reference)) {
+                    data[param.key] = static_cast<std::int64_t>(p->get());
+                } else if (auto* p = std::any_cast<
+                                 std::reference_wrapper<unsigned int>>(
+                               &param.value_reference)) {
+                    data[param.key] = static_cast<std::int64_t>(p->get());
+                } else if (auto* p = std::any_cast<
+                                 std::reference_wrapper<std::string>>(
+                               &param.value_reference)) {
+                    data[param.key] = p->get();
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<double>>(
+                                   &param.value_reference)) {
+                    data[param.key] = p->get();
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<float>>(
+                                   &param.value_reference)) {
+                    data[param.key] = static_cast<double>(p->get());
+                } else if (auto* p =
+                               std::any_cast<std::reference_wrapper<bool>>(
+                                   &param.value_reference)) {
+                    data[param.key] = p->get();
+                } else {
+                    std::cerr
+                        << "[WriteTOML] Warning: Unknown type for parameter "
+                        << param.key << "\n";
+                }
+            } catch (const std::bad_any_cast& e) {
+                std::cerr << "[WriteTOML] Error casting parameter " << param.key
+                          << ": " << e.what() << "\n";
+            }
+        };
+
+        std::vector<ParameterInformation> parsList = {
+            {"BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ},
+            {"BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ},
+            {"BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ},
+            {"BSSN_VTU_FILE_PREFIX", bssn::BSSN_VTU_FILE_PREFIX},
+            {"BSSN_CHKPT_FILE_PREFIX", bssn::BSSN_CHKPT_FILE_PREFIX},
+            {"BSSN_PROFILE_FILE_PREFIX", bssn::BSSN_PROFILE_FILE_PREFIX},
+            {"BSSN_RESTORE_SOLVER", bssn::BSSN_RESTORE_SOLVER},
+            {"BSSN_ID_TYPE", bssn::BSSN_ID_TYPE},
+            {"BSSN_ENABLE_BLOCK_ADAPTIVITY",
+             bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY},
+            {"BSSN_BLK_MIN_X", bssn::BSSN_BLK_MIN_X},
+            {"BSSN_BLK_MIN_Y", bssn::BSSN_BLK_MIN_Y},
+            {"BSSN_BLK_MIN_Z", bssn::BSSN_BLK_MIN_Z},
+            {"BSSN_BLK_MAX_X", bssn::BSSN_BLK_MAX_X},
+            {"BSSN_BLK_MAX_Y", bssn::BSSN_BLK_MAX_Y},
+            {"BSSN_BLK_MAX_Z", bssn::BSSN_BLK_MAX_Z},
+            {"BSSN_DENDRO_GRAIN_SZ", bssn::BSSN_DENDRO_GRAIN_SZ},
+            {"BSSN_ASYNC_COMM_K", bssn::BSSN_ASYNC_COMM_K},
+            {"BSSN_DENDRO_AMR_FAC", bssn::BSSN_DENDRO_AMR_FAC},
+            {"BSSN_LOAD_IMB_TOL", bssn::BSSN_LOAD_IMB_TOL},
+            {"BSSN_RK_TIME_BEGIN", bssn::BSSN_RK_TIME_BEGIN},
+            {"BSSN_RK_TIME_END", bssn::BSSN_RK_TIME_END},
+            {"BSSN_RK_TYPE", bssn::BSSN_RK_TYPE},
+            {"BSSN_RK45_TIME_STEP_SIZE", bssn::BSSN_RK45_TIME_STEP_SIZE},
+            {"BSSN_RK45_DESIRED_TOL", bssn::BSSN_RK45_DESIRED_TOL},
+            {"BSSN_DIM", bssn::BSSN_DIM},
+            {"BSSN_MAXDEPTH", bssn::BSSN_MAXDEPTH},
+            {"BSSN_GRID_MIN_X", bssn::BSSN_GRID_MIN_X},
+            {"BSSN_GRID_MIN_Y", bssn::BSSN_GRID_MIN_Y},
+            {"BSSN_GRID_MIN_Z", bssn::BSSN_GRID_MIN_Z},
+            {"BSSN_GRID_MAX_X", bssn::BSSN_GRID_MAX_X},
+            {"BSSN_GRID_MAX_Y", bssn::BSSN_GRID_MAX_Y},
+            {"BSSN_GRID_MAX_Z", bssn::BSSN_GRID_MAX_Z},
+            {"ETA_CONST", bssn::ETA_CONST},
+            {"ETA_R0", bssn::ETA_R0},
+            {"ETA_DAMPING", bssn::ETA_DAMPING},
+            {"ETA_DAMPING_EXP", bssn::ETA_DAMPING_EXP},
+            {"CHI_FLOOR", bssn::CHI_FLOOR},
+            {"BSSN_TRK0", bssn::BSSN_TRK0},
+            {"KO_DISS_SIGMA", bssn::KO_DISS_SIGMA},
+            {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
+            {"BSSN_USE_WAVELET_TOL_FUNCTION",
+             bssn::BSSN_USE_WAVELET_TOL_FUNCTION},
+            {"BSSN_WAVELET_TOL", bssn::BSSN_WAVELET_TOL},
+            {"BSSN_WAVELET_TOL_MAX", bssn::BSSN_WAVELET_TOL_MAX},
+            {"BSSN_WAVELET_TOL_FUNCTION_R0",
+             bssn::BSSN_WAVELET_TOL_FUNCTION_R0},
+            {"BSSN_WAVELET_TOL_FUNCTION_R1",
+             bssn::BSSN_WAVELET_TOL_FUNCTION_R1},
+            {"BSSN_NUM_REFINE_VARS", bssn::BSSN_NUM_REFINE_VARS},
+            {"BSSN_NUM_EVOL_VARS_VTU_OUTPUT",
+             bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT},
+            {"BSSN_NUM_CONST_VARS_VTU_OUTPUT",
+             bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT},
+
+            // TPID
+            {"TPID_TARGET_M_PLUS", TPID::target_M_plus},
+            {"TPID_TARGET_M_MINUS", TPID::target_M_minus},
+            {"TPID_PAR_B", TPID::par_b},
+            {"TPID_INITIAL_LAPSE_PSI_EXPONENT",
+             TPID::initial_lapse_psi_exponent},
+            {"TPID_NPOINTS_A", TPID::npoints_A},
+            {"TPID_NPOINTS_B", TPID::npoints_B},
+            {"TPID_NPOINTS_PHI", TPID::npoints_phi},
+            {"TPID_GIVE_BARE_MASS", TPID::give_bare_mass},
+            {"INITIAL_LAPSE", TPID::initial_lapse},
+            {"TPID_SOLVE_MOMENTUM_CONSTRAINT", TPID::solve_momentum_constraint},
+            {"TPID_GRID_SETUP_METHOD", TPID::grid_setup_method},
+            {"TPID_VERBOSE", TPID::verbose},
+            {"TPID_ADM_TOL", TPID::adm_tol},
+            {"TPID_NEWTON_TOL", TPID::Newton_tol},
+
+            // Wave Extraction
+            {"BSSN_GW_NUM_RADAII", GW::BSSN_GW_NUM_RADAII},
+            {"BSSN_GW_NUM_LMODES", GW::BSSN_GW_NUM_LMODES},
+            {"AEH_SOLVER_FREQ", AEH::AEH_SOLVER_FREQ},
+
+            // Optionals That should be Saved for Sanity Sake
+            {"BSSN_REMESH_TEST_FREQ_AFTER_MERGER",
+             bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER},
+            {"RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION},
+            {"RIT_ETA_OUTER", bssn::RIT_ETA_OUTER},
+            {"RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL},
+            {"RIT_ETA_WIDTH", bssn::RIT_ETA_WIDTH},
+            {"BSSN_KO_SIGMA_SCALE_BY_CONFORMAL",
+             bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL},
+            {"BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY",
+             bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY},
+            {"BSSN_EPSILON_CAKO_GAUGE", bssn::BSSN_EPSILON_CAKO_GAUGE},
+            {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER},
+            {"BSSN_CAHD_C", bssn::BSSN_CAHD_C},
+            {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
+            {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
+            {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
+            {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY},
+            {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R},
+            {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R},
+            {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO},
+            {"BSSN_DENDRO_AMR_FAC_POST_MERGER",
+             bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER},
+            {"BSSN_INIT_GRID_ITER", bssn::BSSN_INIT_GRID_ITER},
+            {"BSSN_GW_REFINE_WTOL", bssn::BSSN_GW_REFINE_WTOL},
+            {"BSSN_MINDEPTH", bssn::BSSN_MINDEPTH},
+            {"BSSN_BH1_CONSTRAINT_R", bssn::BSSN_BH1_CONSTRAINT_R},
+            {"BSSN_BH2_CONSTRAINT_R", bssn::BSSN_BH2_CONSTRAINT_R},
+            {"BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE",
+             bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE},
+            {"BSSN_NYQUIST_M", bssn::BSSN_NYQUIST_M},
+            {"BSSN_SCALE_VTU_AND_GW_EXTRACTION",
+             bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION},
+            {"BSSN_SSL_SIGMA", bssn::BSSN_SSL_SIGMA},
+            {"BSSN_SSL_H", bssn::BSSN_SSL_H},
+            {"BSSN_EH_COARSEN_VAL", bssn::BSSN_EH_COARSEN_VAL},
+            {"BSSN_EH_REFINE_VAL", bssn::BSSN_EH_REFINE_VAL},
+            {"TPID_FILEPREFIX", TPID::FILE_PREFIX},
+            {"TPID_REPLACE_LAPSE_WITH_SQRT_CHI",
+             TPID::replace_lapse_with_sqrt_chi},
+            {"EXTRACTION_VAR_ID", BHLOC::EXTRACTION_VAR_ID},
+            {"EXTRACTION_TOL", BHLOC::EXTRACTION_TOL},
+            {"DENDRO_LOG_FILE", bssn::DENDRO_LOG_FILE},
+            {"DENDRO_LOG_CONSOLE_LEVEL", bssn::DENDRO_LOG_CONSOLE_LEVEL},
+            {"DENDRO_LOG_FILE_LEVEL", bssn::DENDRO_LOG_FILE_LEVEL},
+            {"DENDRO_LOG_FORCE_FILE_FLUSH", bssn::DENDRO_LOG_FORCE_FILE_FLUSH},
+            // CALCULATED optionals just for convenience
+            {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ},
+            {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ},
+            {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV},
+            {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV}};
+
+        // populate the root with the basic parameters:
+        for (const auto& param : parsList) {
+            add_param(root, param);
+        }
+
+        // then we have to handle nested tables, like the black hole:
+        auto create_bh_table = [](const bssn::BH& bh) -> toml::value {
+            toml::value v   = toml::table{};
+            v["MASS"]       = bh.getBHMass();
+            v["X"]          = bh.getBHCoordX();
+            v["Y"]          = bh.getBHCoordY();
+            v["Z"]          = bh.getBHCoordZ();
+            v["V_X"]        = bh.getVx();
+            v["V_Y"]        = bh.getVy();
+            v["V_Z"]        = bh.getVz();
+            v["SPIN"]       = bh.getBHSpin();
+            v["SPIN_THETA"] = bh.getBHSpinTheta();
+            v["SPIN_PHI"]   = bh.getBHSpinPhi();
+            return v;
+        };
+
+        root["BSSN_BH1"]      = create_bh_table(bssn::BH1);
+        root["BSSN_BH2"]      = create_bh_table(bssn::BH2);
+
+        // these need to be converted to vectors
+        root["BSSN_LAMBDA"]   = to_toml_vec<std::int64_t>(std::vector<int>(
+            std::begin(bssn::BSSN_LAMBDA), std::end(bssn::BSSN_LAMBDA)));
+        root["BSSN_LAMBDA_F"] = std::vector<double>(
+            std::begin(bssn::BSSN_LAMBDA_F), std::end(bssn::BSSN_LAMBDA_F));
+        root["BSSN_ETA_POWER"] = std::vector<double>(
+            std::begin(bssn::BSSN_ETA_POWER), std::end(bssn::BSSN_ETA_POWER));
+
+        std::vector<unsigned int> xi_vec(std::begin(bssn::BSSN_XI),
+                                         std::end(bssn::BSSN_XI));
+        root["BSSN_XI"]               = xi_vec;
+
+        toml::value center_offset_tmp = toml::table{};
+        center_offset_tmp["X"]        = TPID::center_offset[0];
+        center_offset_tmp["Y"]        = TPID::center_offset[1];
+        center_offset_tmp["Z"]        = TPID::center_offset[2];
+        root["TPID_CENTER_OFFSET"]    = center_offset_tmp;
+
+        // special handling needs to be done to make sure all of the vectors are
+        // in proper formatting for toml
+        std::vector<int> refine_vars;
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_REFINE_VARS; i++)
+            refine_vars.push_back(bssn::BSSN_REFINE_VARIABLE_INDICES[i]);
+        root["BSSN_REFINE_VARIABLE_INDICES"] =
+            to_toml_vec<std::int64_t>(refine_vars);
+
+        std::vector<int> vtu_evol;
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT; i++)
+            vtu_evol.push_back(bssn::BSSN_VTU_OUTPUT_EVOL_INDICES[i]);
+        root["BSSN_VTU_OUTPUT_EVOL_INDICES"] = vtu_evol;
+
+        std::vector<int> vtu_const;
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT; i++)
+            vtu_const.push_back(bssn::BSSN_VTU_OUTPUT_CONST_INDICES[i]);
+        root["BSSN_VTU_OUTPUT_CONST_INDICES"] = vtu_const;
+
+        std::vector<double> gw_radii;
+        for (unsigned int i = 0; i < GW::BSSN_GW_NUM_RADAII; i++)
+            gw_radii.push_back(GW::BSSN_GW_RADAII[i]);
+        root["BSSN_GW_RADAII"] = gw_radii;
+
+        std::vector<int> gw_modes;
+        for (unsigned int i = 0; i < GW::BSSN_GW_NUM_LMODES; i++)
+            gw_modes.push_back(GW::BSSN_GW_L_MODES[i]);
+        root["BSSN_GW_L_MODES"] = gw_modes;
+
+        root["BSSN_REFINEMENT_MODE"] =
+            static_cast<std::int64_t>(bssn::BSSN_REFINEMENT_MODE);
+
+        if (AEH::N_HORIZONS > 0) {
+            toml::value aeh_root;
+            std::vector<ParameterInformation> aehParsList = {
+                {"N_HORIZONS", AEH::N_HORIZONS},
+                {"N_RESOLUTIONS_MULTIGRID", AEH::N_RESOLUTIONS_MULTIGRID},
+                {"MAX_ITERATIONS", AEH::MAX_ITERATIONS},
+                {"INITIAL_X_CENTER", AEH::INITIAL_X_CENTER},
+                {"INITIAL_Y_CENTER", AEH::INITIAL_Y_CENTER},
+                {"INITIAL_Z_CENTER", AEH::INITIAL_Z_CENTER},
+                {"M_SCALE", AEH::M_SCALE},
+                {"CFL_FACTOR", AEH::CFL_FACTOR},
+                {"THETA_L2_M_TOL", AEH::THETA_L2_M_TOL},
+                {"THETA_LINF_M_TOL", AEH::THETA_LINF_M_TOL},
+                {"ETA_DAMP_M", AEH::ETA_DAMP_M},
+                {"KO_STRENGTH", AEH::KO_STRENGTH},
+                {"MAX_SEARCH_RADIUS", AEH::MAX_SEARCH_RADIUS},
+                {"NR_INTERP_MAX", AEH::NR_INTERP_MAX},
+                {"NPHI_MAX", AEH::NPHI_MAX},
+                {"NTHETA_MAX", AEH::NTHETA_MAX},
+                {"AEH_SAVE_DIR", AEH::AEH_SAVE_DIR},
+                {"NUM_RESOLUTIONS_AFTER_FIND", AEH::NUM_RESOLUTIONS_AFTER_FIND},
+                {"NTHETA_ARRAY", AEH::NTHETA_ARRAY},
+                {"NPHI_ARRAY", AEH::NPHI_ARRAY},
+                {"ENABLE_ETA_VARYING_ALG", AEH::ENABLE_ETA_VARYING_ALG},
+                {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL}};
+            for (const auto& param : aehParsList) {
+                add_param(aeh_root, param);
+            }
+            root["AEH_PARAMS"] = aeh_root;
+        }
+
+        std::ofstream ofs(fName);
+        if (!ofs.is_open()) {
+            std::cerr << "Error: Could not open file " << fName
+                      << " for writing.\n";
+        } else {
+            ofs << root;
+            ofs.close();
+            std::cout << "Wrote configuration backup to: " << fName
+                      << std::endl;
+        }
+    }
 
     MPI_Barrier(comm);
 }
@@ -661,15 +1267,41 @@ unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 }  // namespace GW
 
 namespace AEH {
-unsigned int AEH_LMAX        = 6;
-unsigned int AEH_Q_THETA     = 32;
-unsigned int AEH_Q_PHI       = 32;
-unsigned int AEH_MAXITER     = 50;
-double AEH_ATOL              = 1e-8;
-double AEH_RTOL              = 1e-8;
-unsigned int AEH_SOLVER_FREQ = 0;
 
-double AEH_ALPHA             = 1.0;
-double AEH_BETA              = 0.1;
+std::unique_ptr<dendro_aeh::AEH_BHaHAHA> ah_bah = nullptr;
+
+unsigned int N_HORIZONS                         = 3;
+unsigned int N_RESOLUTIONS_MULTIGRID            = 3;
+std::vector<int> MAX_ITERATIONS                 = {10000, 10000, 10000};
+std::vector<double> INITIAL_X_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Y_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> INITIAL_Z_CENTER            = {0.0, 0.0, 0.0};
+std::vector<double> M_SCALE                     = {0.0, 0.0, 0.0};
+std::vector<double> CFL_FACTOR                  = {1.0, 1.0, 1.0};
+std::vector<double> THETA_L2_M_TOL              = {1.e-5, 1.e-5, 1.e-5};
+std::vector<double> THETA_LINF_M_TOL            = {1.e-2, 1.e-2, 1.e-2};
+std::vector<double> ETA_DAMP_M                  = {7.0, 7.0, 7.0};
+std::vector<double> KO_STRENGTH                 = {0.0, 0.0, 0.0};
+std::vector<double> MAX_SEARCH_RADIUS           = {1.5, 1.5, 1.5};
+std::vector<int> NR_INTERP_MAX                  = {48, 48, 48};
+int NTHETA_MAX                                  = 32;
+int NPHI_MAX                                    = 64;
+std::string AEH_SAVE_DIR                        = "";
+int NUM_RESOLUTIONS_AFTER_FIND                  = 3;
+std::vector<int> NTHETA_ARRAY                   = {8, 16, 32};
+std::vector<int> NPHI_ARRAY                     = {16, 32, 64};
+int ENABLE_ETA_VARYING_ALG                      = 0;
+int VERBOSITY_LEVEL                             = 1;
+
+unsigned int AEH_LMAX                           = 6;
+unsigned int AEH_Q_THETA                        = 32;
+unsigned int AEH_Q_PHI                          = 32;
+unsigned int AEH_MAXITER                        = 50;
+double AEH_ATOL                                 = 1e-8;
+double AEH_RTOL                                 = 1e-8;
+unsigned int AEH_SOLVER_FREQ                    = 0;
+
+double AEH_ALPHA                                = 1.0;
+double AEH_BETA                                 = 0.1;
 
 }  // namespace AEH

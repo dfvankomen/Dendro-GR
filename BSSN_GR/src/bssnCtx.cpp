@@ -16,8 +16,10 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <string>
 
 #include "grUtils.h"
+#include "logger.h"
 #include "parUtils.h"
 #include "parameters.h"
 
@@ -470,7 +472,13 @@ int BSSNCtx::initialize() {
               newGridPoints_g != oldGridPoints_g) &&
              (iterCount < max_iter));
 
+    if (!rank_global) {
+        std::cout << "Now initializing grid..." << std::endl;
+    }
     this->init_grid();
+    if (!rank_global) {
+        std::cout << GRN << "Grid initialized!" << NRM << std::endl;
+    }
 
     // // realloc bssn deriv space
     deallocate_bssn_deriv_workspace();
@@ -522,6 +530,8 @@ int BSSNCtx::initialize() {
                      "======================================================"
                   << std::endl;
     }
+
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
     return 0;
 }
@@ -618,7 +628,12 @@ int BSSNCtx::init_grid() {
 int BSSNCtx::finalize() { return 0; }
 
 void BSSNCtx::compute_constraint_variables() {
+    dendro::logger::info("Compute constraint variables called");
     if (m_bConstraintsComputed) return;
+
+    dendro::logger::info(
+        "Constraint variables not previously computed this time step, "
+        "continuing");
 
     DVec& m_evar     = m_var[VL::CPU_EV];
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
@@ -698,9 +713,13 @@ void BSSNCtx::compute_constraint_variables() {
 #endif
 
     m_bConstraintsComputed = true;
+
+    dendro::logger::info("Constraint variables computed!");
 }
 
 int BSSNCtx::extract_constraints() {
+    dendro::logger::debug("Now extracting constraints");
+
     // make sure constraints are computed
     this->compute_constraint_variables();
 
@@ -722,12 +741,16 @@ int BSSNCtx::extract_constraints() {
                              evolVar[BHLOC::EXTRACTION_VAR_ID],
                              BHLOC::EXTRACTION_TOL, m_uiTinfo._m_uiStep,
                              m_uiTinfo._m_uiT);
+
+    dendro::logger::info("Finished extracting constraints!");
     return 0;
 }
 
 int BSSNCtx::extract_gravitational_waves() {
 #ifndef BSSN_KERR_SCHILD_TEST
 #ifdef BSSN_EXTRACT_GRAVITATIONAL_WAVES
+
+    dendro::logger::debug("Now extracting gravitational waves");
     // make sure constraints are compuated
     this->compute_constraint_variables();
 
@@ -737,6 +760,8 @@ int BSSNCtx::extract_gravitational_waves() {
 
     GW::extractFarFieldPsi4(m_uiMesh, (const DendroScalar**)consVar,
                             m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+
+    dendro::logger::info("Finished extracting gravitational waves");
 #endif
 #endif
     return 0;
@@ -744,6 +769,8 @@ int BSSNCtx::extract_gravitational_waves() {
 
 int BSSNCtx::write_vtu() {
     if (!m_uiMesh->isActive()) return 0;
+
+    dendro::logger::debug("Now writing variables to VTU files");
 
     DVec& m_evar     = m_var[VL::CPU_EV];
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
@@ -820,11 +847,7 @@ int BSSNCtx::write_vtu() {
                               (const char**)&pDataNames_char[0],
                               (const double**)pData);
 
-    if (!(m_uiMesh->getMPIRankGlobal())) {
-        std::cout << GRN << "=== Finished Writing the VTU Files! ===" << NRM
-                  << std::endl;
-    }
-
+    dendro::logger::info("Finished writing variables to output VTU files!");
 #endif
 
     return 0;
@@ -832,17 +855,21 @@ int BSSNCtx::write_vtu() {
 
 int BSSNCtx::write_bh_coords() {
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
+    dendro::logger::debug("Now writing BH coords");
     // ensure that the black hole locations have been updated, it does early
     // exit if it's happened
     this->evolve_bh_loc();
     bssn::writeBHCoordinates((const ot::Mesh*)m_uiMesh, (const Point*)m_uiBHLoc,
                              2, m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+    dendro::logger::info("Finished writing BH coordinates!");
 #endif
     return 0;
 }
 
 int BSSNCtx::write_checkpt() {
     if (!m_uiMesh->isActive()) return 0;
+
+    dendro::logger::debug("Now writing checkpoint file");
 
     // every other checkpoint index should be 0 or 1, this allows "alternate"
     // file writing
@@ -854,6 +881,8 @@ int BSSNCtx::write_checkpt() {
         cpIndex                         = 3;
         bssn::BSSN_MERGED_CHKPT_WRITTEN = true;
     }
+
+    dendro::logger::debug("Will checkpoint to file index {}", cpIndex);
 
     unsigned int rank = m_uiMesh->getMPIRank();
     unsigned int npes = m_uiMesh->getMPICommSize();
@@ -867,6 +896,7 @@ int BSSNCtx::write_checkpt() {
                                      m_uiMesh->getElementLocalBegin()));
     sprintf(fName, "%s_%d_octree_%d.oct", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
             cpIndex, rank);
+
     io::checkpoint::writeOctToFile(fName, pNodes,
                                    m_uiMesh->getNumLocalMeshElements());
 
@@ -882,6 +912,8 @@ int BSSNCtx::write_checkpt() {
         std::cout << "   ...Finished writing the octree checkpoints!"
                   << std::endl;
 
+    dendro::logger::debug(
+        "Now writing json checkpoint file with current status");
     if (!rank) {
         sprintf(fName, "%s_%d_step.cp", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
                 cpIndex);
@@ -939,13 +971,29 @@ int BSSNCtx::write_checkpt() {
 
         std::cout << "   ...Finished writing the plain-text checkpoint!"
                   << std::endl;
-        std::cout << "[BSSNCtx] \t finished writing checkpoint! " << std::endl;
+
+        std::cout << "Now checkpointing the AEH solver..." << std::endl;
     }
+
+    std::string aeh_chkpt_file = bssn::BSSN_CHKPT_FILE_PREFIX +
+                                 "_aeh_solver_checkpt-cp" +
+                                 std::to_string(cpIndex) + ".json";
+
+    AEH::ah_bah->create_checkpoint(m_uiMesh, aeh_chkpt_file);
+
+    if (!rank) {
+        std::cout << "Finished AEH solver checkpoint!" << std::endl;
+        std::cout << "[BSSNCtx] \t finished writing full checkpoint! "
+                  << std::endl;
+    }
+
+    dendro::logger::info("Finished writing checkpoint file");
 
     return 0;
 }
 
 int BSSNCtx::restore_checkpt() {
+    dendro::logger::info("Now attempting to restore a checkpoint");
     unsigned int numVars = 0;
     std::vector<ot::TreeNode> octree;
     json checkPoint;
@@ -1025,9 +1073,13 @@ int BSSNCtx::restore_checkpt() {
                 if (checkPoint.find("DENDRO_BSSN_BH_MERGE") !=
                     checkPoint.end()) {
                     // restore bh merge and merge time information
-                    m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                    m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                    m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                    m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                    double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                    unsigned int mergeStep =
+                        checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                    // make sure they're set internally and externally
+                    set_bh_merge_time(mergeTime, mergeStep);
                 }
 
                 // OLD: DEPRECIATED
@@ -1082,6 +1134,9 @@ int BSSNCtx::restore_checkpt() {
             restoreFileIndex = 0;
     }
 
+    dendro::logger::debug("Restore file index determined to be: {}",
+                          restoreFileIndex);
+
     par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
 
     restoreStatus = 0;
@@ -1095,20 +1150,28 @@ int BSSNCtx::restore_checkpt() {
     sprintf(fName, "%s_%d_step.cp", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
             restoreFileIndex);
 
+    dendro::logger::debug("Attempting to restore from file: ", fName);
+
     // first check to see if the file even exists
     if (!std::filesystem::exists(fName)) {
-        std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
-                  << fName << " does not exist!" << std::endl;
+        if (!rank) {
+            std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
+                      << fName << " does not exist!" << std::endl;
+        }
         restoreStatus = 2;
     }
 
     if (restoreStatus == 0) {
         std::ifstream infile(fName);
         if (!infile) {
-            std::cout << fName << " file open failed " << std::endl;
+            if (!rank) {
+                std::cout << fName << " file open failed " << std::endl;
+            }
             restoreStatus = 1;
         }
 
+        dendro::logger::debug(
+            "Now loading in the data from the checkpoint JSON file");
         if (restoreStatus == 0) {
             infile >> checkPoint;
             m_uiTinfo._m_uiTb      = checkPoint["DENDRO_TS_TIME_BEGIN"];
@@ -1135,9 +1198,13 @@ int BSSNCtx::restore_checkpt() {
             // if this key is in, then all three keys should be
             if (checkPoint.find("DENDRO_BSSN_BH_MERGE") != checkPoint.end()) {
                 // restore bh merge and merge time information
-                m_bIsBHMerged = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                m_dMergeTime  = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                m_uiMergeStep = checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+                m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
+                double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
+                unsigned int mergeStep =
+                    checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+
+                // make sure they're set internally and externally
+                set_bh_merge_time(mergeTime, mergeStep);
             }
 
             if (checkPoint.find("DENDRO_BSSN_BH_LOC_TIMES") !=
@@ -1239,6 +1306,7 @@ int BSSNCtx::restore_checkpt() {
         MPI_Abort(comm, 0);
     }
 
+    dendro::logger::debug("Now creating mesh from restored data");
     newMesh = new ot::Mesh(octree, 1, m_uiElementOrder, activeCommSz, comm);
     newMesh->setDomainBounds(Point(bssn::BSSN_GRID_MIN_X, bssn::BSSN_GRID_MIN_Y,
                                    bssn::BSSN_GRID_MIN_Z),
@@ -1319,6 +1387,20 @@ int BSSNCtx::restore_checkpt() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
 
+    // finally restore the aeh_chkpt_file
+    if (!rank) {
+        std::cout << "Now restoring AEH solver from checkpoint..." << std::endl;
+    }
+    std::string aeh_chkpt_file = bssn::BSSN_CHKPT_FILE_PREFIX +
+                                 "_aeh_solver_checkpt-cp" +
+                                 std::to_string(restoreFileIndex) + ".json";
+
+    AEH::ah_bah->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
+
+    if (!rank) {
+        std::cout << "Finished restoring AEH solver!" << std::endl;
+    }
+
     if (!rank) {
         std::cout << GRN << "---------------------------------------"
                   << std::endl;
@@ -1334,6 +1416,12 @@ int BSSNCtx::restore_checkpt() {
     }
 
     m_uiIsETSSynced = false;
+
+    dendro::logger::info("Finished restoring checkpoint!");
+
+    // make sure derivatives are set
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
+
     return 0;
 }
 
@@ -1350,7 +1438,17 @@ int BSSNCtx::post_timestep(DVec& sIn) {
 }
 
 bool BSSNCtx::is_remesh() {
-    bool isRefine = false;
+    bool isRefine         = false;
+    // wkb 27 March 2025
+    // if pre-merger, use AMR_FAC normally
+    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC;
+    // otherwise, use POST_MERGER value if non-zero
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN &&
+        (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+        // overwrite post-merger value
+        amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
+    }
+
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;
 
     MPI_Comm comm    = m_uiMesh->getMPIGlobalCommunicator();
@@ -1374,10 +1472,9 @@ bool BSSNCtx::is_remesh() {
         };
 
     if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::WAMR) {
-        isRefine =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+        isRefine = bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar,
+                                      refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
+                                      waveletTolFunc, amr_coarse_fac);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(
@@ -1385,25 +1482,27 @@ bool BSSNCtx::is_remesh() {
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, true);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH_WAMR) {
-        const bool isR1 =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+        const bool isR1 = bssn::isReMeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
         const bool isR2 = bssn::isRemeshEH(
             m_uiMesh, (const double**)unzipVar, bssn::VAR::U_ALPHA,
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, false);
 
         isRefine = (isR1 || isR2);
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
-        isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc);
+        isRefine =
+            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
+                             this->get_bh_loc_time_history());
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_WAMR) {
         // BHLB refinement for baseline
-        const bool isR1 = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc);
+        const bool isR1 =
+            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
+                             this->get_bh_loc_time_history());
         // WAMR for additional refinement
-        const bool isR2 =
-            bssn::addRemeshWAMR(m_uiMesh, (const double**)unzipVar,
-                                refineVarIds, bssn::BSSN_NUM_REFINE_VARS,
-                                waveletTolFunc, bssn::BSSN_DENDRO_AMR_FAC);
+        const bool isR2 = bssn::addRemeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
 
         isRefine = (isR1 || isR2);
     }
@@ -1440,6 +1539,7 @@ int BSSNCtx::terminal_output() {
 }
 
 void BSSNCtx::write_grid_summary_data() {
+    dendro::logger::debug("Now writing grid summary data");
     if (m_uiMesh->isActive()) {
         if (!m_uiMesh->getMPIRankGlobal()) {
             std::string fname =
@@ -1475,6 +1575,7 @@ void BSSNCtx::write_grid_summary_data() {
         }
     }
 
+    dendro::logger::info("Finished writing grid summary data");
     return;
 }
 
@@ -1616,6 +1717,7 @@ unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
 }
 
 void BSSNCtx::evolve_bh_loc() {
+    dendro::logger::debug("Now evolving BH locations");
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
     // early exit if we're at time step zero!
     if (m_bBHEvolved) return;
@@ -1629,7 +1731,7 @@ void BSSNCtx::evolve_bh_loc() {
         return;
     }
 
-    this->compute_constraint_variables();
+    // this->compute_constraint_variables();
 
     // compute how long it's been since the last time we calculatd it, thanks to
     // storing history!
@@ -1675,6 +1777,8 @@ void BSSNCtx::evolve_bh_loc() {
     // make sure we know that it's been evolved this time step if we're wanting
     // to evolve it
     m_bBHEvolved = true;
+
+    dendro::logger::info("BH locations evolved!");
 
     return;
 }
@@ -2120,6 +2224,8 @@ void BSSNCtx::lts_smooth(DVec sIn, LTS_SMOOTH_MODE mode) {
         delete[] uZipVars;
         delete[] unzipVarsRHS;
     }
+
+
 }
 #endif
 

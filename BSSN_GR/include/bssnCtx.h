@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <tuple>
 
 #include "TwoPunctures.h"
 #include "aeh.h"
@@ -89,6 +90,33 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         m_bBHEvolved           = false;
     }
 
+    const std::vector<std::pair<Point, Point>>& get_bh_loc_history() const {
+        return m_uiBHLocHistory;
+    }
+
+    const std::vector<double>& get_bh_loc_time_history() const {
+        return m_uiBHTimeHistory;
+    }
+
+    const std::vector<double> get_bh_angle_history() {
+        std::vector<double> angle_history;
+
+        for (auto& bh_points : m_uiBHLocHistory) {
+            double x1 = bh_points.first.x();
+            double y1 = bh_points.first.y();
+            double z1 = bh_points.first.z();
+
+            double x2 = bh_points.second.x();
+            double y2 = bh_points.second.y();
+            double z2 = bh_points.second.z();
+
+            // compute the relative angle for x and y
+            angle_history.push_back(atan2(y1 - y2, x1 - x2));
+        }
+
+        return angle_history;
+    }
+
     /** @brief get bh locations*/
     const Point& get_bh0_loc() const { return m_uiBHLoc[0]; }
     const Point& get_bh1_loc() const { return m_uiBHLoc[1]; }
@@ -99,8 +127,12 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     /** @brief update the BH merge time */
     void set_bh_merge_time(double_t merge_time, uint32_t merge_step) {
-        m_dMergeTime  = merge_time;
-        m_uiMergeStep = merge_step;
+        m_dMergeTime       = merge_time;
+        m_uiMergeStep      = merge_step;
+
+        // and then set the global variable
+        BSSN_BH_MERGE_TIME = m_dMergeTime;
+        BSSN_BH_MERGE_STEP = m_uiMergeStep;
     }
 
     /**
@@ -293,6 +325,8 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         if (m_bIsBHMerged) {
             return;
         }
+        dendro::logger::info(
+            "Black holes are merged, setting is merged inside BSSNCtx");
 
         m_bIsBHMerged = true;
         set_bh_merge_time(time_merged, step_merged);
@@ -312,6 +346,34 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     void calculate_full_grid_size();
 
     void store_bh_loc_history();
+
+    void findAH() {
+        // make sure only active meshes calculate
+        if (!m_uiMesh->isActive()) return;
+
+        DVec& m_evar     = m_var[VL::CPU_EV];
+        DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
+
+        m_uiMesh->readFromGhostBegin(m_evar.get_vec_ptr(), m_evar.get_dof());
+        m_uiMesh->readFromGhostEnd(m_evar.get_vec_ptr(), m_evar.get_dof());
+
+        // force a synchronization
+        this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
+
+        DendroScalar* eVar[bssn::BSSN_NUM_VARS];
+        m_evar.to_2d(eVar);
+
+        std::vector<Point> bh_locations;
+
+        if (bssn::BSSN_ID_TYPE == 0 || bssn::BSSN_ID_TYPE == 1) {
+            bh_locations.push_back(bssn::BSSN_BH_LOC[0]);
+            bh_locations.push_back(bssn::BSSN_BH_LOC[1]);
+        }
+
+        AEH::ah_bah->find_horizons(m_uiMesh, (const double**)eVar,
+                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
+                                   bh_locations);
+    }
 };
 
 }  // end of namespace bssn

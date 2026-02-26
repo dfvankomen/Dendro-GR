@@ -13,6 +13,7 @@
 #include <iostream>
 #include <toml.hpp>
 
+#include "aeh_bhahaha.h"
 #include "bh.h"
 #include "dendro.h"
 #include "grDef.h"
@@ -160,6 +161,8 @@ extern unsigned int BSSN_DENDRO_GRAIN_SZ;
 /**@brief AMR coarsening factor (we coarsen if
  * tol<BSSN_DENDRO_AMR_FAC*BSSN_WAVELET_TOL)*/
 extern double BSSN_DENDRO_AMR_FAC;
+/**@brief post-merger coarsening factor */
+extern double BSSN_DENDRO_AMR_FAC_POST_MERGER;
 
 /**@brief: AMR radius for the BH location based refinement. (BH1)*/
 extern double BSSN_BH1_AMR_R;
@@ -388,6 +391,10 @@ extern unsigned int BSSN_IO_OUTPUT_FREQ_TRUE;
 extern double BSSN_SSL_SIGMA;
 extern double BSSN_SSL_H;
 
+// merger time storage to access outside ctx obj
+extern double BSSN_BH_MERGE_TIME;
+extern unsigned int BSSN_BH_MERGE_STEP;
+
 // note ko derivs are not included
 #ifdef BSSN_USE_ADVECTIVE_DERIVS
 const unsigned int BSSN_NUM_DERIVS = 138 + 74;
@@ -395,7 +402,16 @@ const unsigned int BSSN_NUM_DERIVS = 138 + 74;
 const unsigned int BSSN_NUM_DERIVS = 138;
 #endif
 
+extern std::string DENDRO_LOG_FILE;
+// DEBUG is 1
+extern int DENDRO_LOG_FILE_LEVEL;
+// INFO is 2
+extern int DENDRO_LOG_CONSOLE_LEVEL;
+
+extern bool DENDRO_LOG_FORCE_FILE_FLUSH;
+
 void readParamTOMLFile(const char* fName, MPI_Comm comm);
+void writeParamTOMLFile(const char* fName, MPI_Comm comm);
 
 }  // namespace bssn
 
@@ -410,7 +426,7 @@ static const int do_initial_debug_output    = 1;
 static const int multiply_old_lapse         = 0;
 static const double TP_Tiny                 = 1.0e-15;
 static const double TP_Extend_Radius        = 0.0;
-static const int Newton_maxit               = 5;
+static const int Newton_maxit               = 15;
 
 extern double target_M_plus;
 extern double target_M_minus;
@@ -483,6 +499,43 @@ extern unsigned int BSSN_GW_L_MODES[BSSN_GW_MAX_LMODES];
 }  // namespace GW
 
 namespace AEH {
+
+extern std::unique_ptr<dendro_aeh::AEH_BHaHAHA> ah_bah;
+
+/**@brief absolute tolerance for AH convergence*/
+extern double AEH_ATOL;
+extern std::vector<int> MAX_ITERATIONS;
+
+extern unsigned int N_HORIZONS;
+extern unsigned int N_RESOLUTIONS_MULTIGRID;
+extern std::vector<double> INITIAL_X_CENTER;
+extern std::vector<double> INITIAL_Y_CENTER;
+extern std::vector<double> INITIAL_Z_CENTER;
+extern std::vector<double> M_SCALE;
+extern std::vector<double> CFL_FACTOR;
+extern std::vector<double> THETA_L2_M_TOL;
+extern std::vector<double> THETA_LINF_M_TOL;
+extern std::vector<double> ETA_DAMP_M;
+extern std::vector<double> KO_STRENGTH;
+extern std::vector<double> MAX_SEARCH_RADIUS;
+extern std::vector<int> NR_INTERP_MAX;
+extern int NTHETA_MAX;
+extern int NPHI_MAX;
+extern std::string AEH_SAVE_DIR;
+extern int NUM_RESOLUTIONS_AFTER_FIND;
+extern std::vector<int> NTHETA_ARRAY;
+extern std::vector<int> NPHI_ARRAY;
+extern int ENABLE_ETA_VARYING_ALG;
+extern int VERBOSITY_LEVEL;
+
+// these indices will be extracted for the AEH solver internally, they MUST
+// match up with the lambda that will be written
+const std::vector<int> AEH_INDICES = {
+    bssn::U_CHI,    bssn::U_K,      bssn::U_SYMAT0, bssn::U_SYMAT1,
+    bssn::U_SYMAT2, bssn::U_SYMAT3, bssn::U_SYMAT4, bssn::U_SYMAT5,
+    bssn::U_SYMGT0, bssn::U_SYMGT1, bssn::U_SYMGT2, bssn::U_SYMGT3,
+    bssn::U_SYMGT4, bssn::U_SYMGT5};
+
 /**@brief lmax used for AH surface parameterization*/
 extern unsigned int AEH_LMAX;
 
@@ -494,9 +547,6 @@ extern unsigned int AEH_Q_PHI;
 
 /**@brief number of max. iterations for AH solver*/
 extern unsigned int AEH_MAXITER;
-
-/**@brief absolute tolerance for AH convergence*/
-extern double AEH_ATOL;
 
 /**@brief relative tolerance for AH convergence*/
 extern double AEH_RTOL;

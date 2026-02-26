@@ -33,6 +33,9 @@
 
 # additional excludes
 build/
+intel_build/
+OpenMPI_build/
+new_OpenMPI_build/
 __pycache__
 kde
 .kdev4
@@ -54,3 +57,7 @@ kde
 .python-version
 CMakeFiles/
 .cache/
+
+# test files
+CodeGen/test_*.cpp
+BSSN_GR/src/test_*.cpp
