@@ -175,7 +175,6 @@ bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.c
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
-bssn_add_executable(rhscpu_test cuda/src/rhs_test.cpp)
 
 if(WITH_CUDA)
   # Helper macro for CUDA executables so we guarantee RDC is on!
@@ -188,6 +187,7 @@ if(WITH_CUDA)
         bssn_common dendro5 MPI::MPI_CXX GSL::gsl toml11::toml11 m dendro_git_version_and_date)
   endmacro()
 
+  bssn_add_cuda_executable(rhscpu_test cuda/src/rhs_test.cpp)
   bssn_add_cuda_executable(derivs_test cuda/src/derivs_test.cu)
   bssn_add_cuda_executable(rhsgpu_test cuda/src/rhs_test.cu)
   bssn_add_cuda_executable(bssnSolverCUDA cuda/src/gr_cuda.cu cuda/src/bssnCtxGPU.cu)
