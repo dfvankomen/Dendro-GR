@@ -58,13 +58,21 @@ message(STATUS "Build Target Architecture: ${CPU_ARCH}")
 message(STATUS "Compiler Flags: ${ARCH_FLAGS}")
 
 # set up fsanatize flags to check for memory leaks (Debug only)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  set(SAN_FLAGS "-fsanitize=address,undefined" "-fno-sanitize-recover=all")
-  foreach(FLAG ${SAN_FLAGS})
-    add_compile_options($<$<CONFIG:Debug>:${FLAG}>)
-    add_link_options($<$<CONFIG:Debug>:${FLAG}>)
-  endforeach()
-  message(STATUS "Sanitizers configured for Debug builds (Address + Undefined)")
+# if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+#   set(SAN_FLAGS "-fsanitize=address,undefined" "-fno-sanitize-recover=all")
+#   foreach(FLAG ${SAN_FLAGS})
+#     add_compile_options($<$<CONFIG:Debug>:${FLAG}>)
+#     add_link_options($<$<CONFIG:Debug>:${FLAG}>)
+#   endforeach()
+#   message(STATUS "Sanitizers configured for Debug builds (Address + Undefined)")
+# endif()
+
+
+# then we need to enable CUDA based on the user options
+option(WITH_CUDA "Build dendro with CUDA" OFF)
+
+if(WITH_CUDA)
+  enable_language(CUDA)
 endif()
 
 # =============================

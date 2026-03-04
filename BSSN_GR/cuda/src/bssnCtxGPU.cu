@@ -8,7 +8,7 @@
  *
  */
 #include "bssnCtxGPU.cuh"
-CONST_MEM DEVICE_REAL device::refel_1d[2 * REFEL_CONST_MEM_MAX];
+// CONST_MEM DEVICE_REAL device::refel_1d[2 * REFEL_CONST_MEM_MAX];
 
 namespace bssn {
 BSSNCtxGPU::BSSNCtxGPU(ot::Mesh* pMesh) : Ctx() {
@@ -304,6 +304,8 @@ int BSSNCtxGPU::initialize() {
                      "======================================================"
                   << std::endl;
     }
+
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
     this->host_to_device_sync();
     return 0;
@@ -1013,7 +1015,9 @@ bool BSSNCtxGPU::is_remesh() {
 
         isRefine = (isR1 || isR2);
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
-        isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc);
+        isRefine =
+            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
+                             this->get_bh_loc_time_history());
     }
 
     return isRefine;
@@ -1108,23 +1112,41 @@ int BSSNCtxGPU::grid_transfer(const ot::Mesh* m_new) {
     return 0;
 }
 
-void BSSNCtxGPU::evolve_bh_loc(DVec sIn, double dt) {
+void BSSNCtxGPU::evolve_bh_loc() {
+    dendro::logger::debug("Now evolving BH locations");
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
+    // early exit if we're at time step zero!
+    if (m_bBHEvolved) return;
 
+    // if time step is zero, don't evolve, just store and return.
+    if (this->m_uiTinfo._m_uiStep == 0) {
+        // make sure initial locations are stored, we need the "last" time
+        // history for dt calculation
+        this->store_bh_loc_history();
+        m_bBHEvolved = true;
+        return;
+    }
+
+    // this->compute_constraint_variables();
+
+    // compute how long it's been since the last time we calculatd it, thanks to
+    // storing history!
+    const double dt = m_uiTinfo._m_uiT - m_uiBHTimeHistory.back();
+    DVec sIn        = this->get_evolution_vars();
+
+    // m_uiMesh->readFromGhostBegin(sIn.GetVecArray()+ VAR::U_BETA0 *
+    // m_uiMesh->getDegOfFreedom(),3);
+    // m_uiMesh->readFromGhostEnd(sIn.GetVecArray()  + VAR::U_BETA0 *
+    // m_uiMesh->getDegOfFreedom(),3);
     Point bhLoc[2];
-    DVec& m_evar     = m_var[VL::CPU_EV];
-    DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
-    DVec& m_cvar     = m_var[VL::CPU_CV];
-    DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
-
     DendroScalar* evar[bssn::BSSN_NUM_VARS];
     sIn.to_2d(evar);
     bssn::computeBHLocations((const ot::Mesh*)m_uiMesh, m_uiBHLoc, bhLoc, evar,
                              dt);
     // if(!m_uiMesh->getMPIRankGlobal())
     // {
-    //     std::cout<<"bh0 "<<bhLoc[0]<<"dt : "<<dt<<std::endl;
-    //     std::cout<<"bh1 "<<bhLoc[1]<<"dt : "<<dt<<std::endl;
+    //     std::cout<<"bh0 "<<bhLoc[0]<<std::endl;
+    //     std::cout<<"bh1 "<<bhLoc[1]<<std::endl;
 
     // }
     m_uiBHLoc[0]         = bhLoc[0];
@@ -1133,18 +1155,35 @@ void BSSNCtxGPU::evolve_bh_loc(DVec sIn, double dt) {
     bssn::BSSN_BH_LOC[0] = m_uiBHLoc[0];
     bssn::BSSN_BH_LOC[1] = m_uiBHLoc[1];
 
+    // append the bssn location points to our history
+    this->store_bh_loc_history();
+
 // old bh location extractor.
 #if 0
-                DendroScalar *evar[bssn::BSSN_NUM_VARS];
-                Point bhLoc[2];
-                sIn.to_2d(evar);
-                bssn::extractBHCoords((const ot::Mesh *)m_uiMesh,(const DendroScalar*)evar[BHLOC::EXTRACTION_VAR_ID],BHLOC::EXTRACTION_TOL,(const Point *) m_uiBHLoc,2,(Point*)bhLoc);
-                
-                m_uiBHLoc[0] = bhLoc[0];
-                m_uiBHLoc[1] = bhLoc[1];
+    DendroScalar *evar[bssn::BSSN_NUM_VARS];
+    Point bhLoc[2];
+    sIn.to_2d(evar);
+    bssn::extractBHCoords((const ot::Mesh *)m_uiMesh,(const DendroScalar*)evar[BHLOC::EXTRACTION_VAR_ID],BHLOC::EXTRACTION_TOL,(const Point *) m_uiBHLoc,2,(Point*)bhLoc);
+    
+    m_uiBHLoc[0] = bhLoc[0];
+    m_uiBHLoc[1] = bhLoc[1];
 #endif
 #endif
 
+    // make sure we know that it's been evolved this time step if we're wanting
+    // to evolve it
+    m_bBHEvolved = true;
+
+    dendro::logger::info("BH locations evolved!");
+
     return;
 }
+
+void BSSNCtxGPU::store_bh_loc_history() {
+    // simple call that stores bh loc history based on bssn::BSSN_BH_LOC
+    m_uiBHLocHistory.push_back(
+        std::make_pair(bssn::BSSN_BH_LOC[0], bssn::BSSN_BH_LOC[1]));
+    m_uiBHTimeHistory.push_back(m_uiTinfo._m_uiT);
+}
+
 }  // namespace bssn

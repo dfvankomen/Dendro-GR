@@ -25,6 +25,8 @@
 #include "meshUtils.h"
 #include "octUtils.h"
 
+#define RUN_WEAK_SCALING
+
 int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
                 std::ostream& outfile, unsigned int ts_mode) {
     int rank, npes;
@@ -254,7 +256,7 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
               bssnCtx->set_ts_info(ts_gw_output);
               bssnCtx->terminal_output();
               bssnCtx->write_vtu();
-              bssnCtx->evolve_bh_loc(bssnCtx->get_evolution_vars_cpu(),ets->ts_size()*bssn::BSSN_GW_EXTRACT_FREQ);
+              bssnCtx->evolve_bh_loc();
 
               if( (step % bssn::BSSN_CHECKPT_FREQ) == 0 )
                 bssnCtx->write_checkpt();
@@ -278,18 +280,27 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
         if (!(ets->get_global_rank()))
             std::cout << " ETS time (max) : " << t2_g << std::endl;
 
+        std::cout << "[DEBUG] Deleting meshes..." << std::endl;
+
+        // make sure we grab the current active mesh
+        ot::Mesh* active_mesh = bssnCtx->get_mesh();
+
         if (bssn::BSSN_RESTORE_SOLVER == 0) {
-            if (pMesh == mesh)
+            if (pMesh != mesh) {
                 delete mesh;
-            else {
-                delete mesh;
-                delete pMesh;
             }
-        } else {
-            delete pMesh;
         }
+
+        // delete the active mesh
+        delete active_mesh;
+
+        std::cout << "[DEBUG] Deleting bssnCtx..." << std::endl;
         delete bssnCtx;
+
+        std::cout << "[DEBUG] Deleting ETS..." << std::endl;
         delete ets;
+
+        std::cout << "[DEBUG] Returning from bssn_driver..." << std::endl;
 
     } else {
         if (!rank) RAISE_ERROR("invalid ts mode : " << ts_mode << "specifed");

@@ -43,7 +43,8 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
     dim3 threadBlock(16, 16, 1);
     cuda::computeRHS(uzipVarsRHS, (const double **)uZipVars, blkList, numBlocks,
                      (const cuda::BSSNComputeParams *)&bssnParams, threadBlock,
-                     pt_min, pt_max, 1);
+                     pt_min, pt_max, 1, curr_time,
+                     (const double **)uZipConstVars);
 #else
 
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
@@ -207,35 +208,34 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     bssn::timer::t_rhs.start();
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
-   
-// clang-format off
+            // clang-format off
 #ifdef BSSN_ENABLE_AVX
   #ifdef __INTEL_COMPILER
     #pragma vector vectorlength(__RHS_AVX_SIMD_LEN__) vecremainder
     #pragma ivdep
   #endif
 #endif
-// clang-format on
-    
+            // clang-format on
+
             for (unsigned int i = PW; i < nx - PW; i++) {
                 // pull current coordinates
-                const double x = pmin[0] + i * hx;
-                const double y = pmin[1] + j * hy;
-                const double z = pmin[2] + k * hz;
-                
+                const double x        = pmin[0] + i * hx;
+                const double y        = pmin[1] + j * hy;
+                const double z        = pmin[2] + k * hz;
+
                 // index for variables at current location
                 const unsigned int pp = i + nx * (j + ny * k);
-                
+
                 // set up some commonly used distances for the eta fxn
                 const double r_coord  = sqrt(x * x + y * y + z * z);
-                const double dr1 = sqrt((x - bh1x)*(x - bh1x)
-                                      + (y - bh1y)*(y - bh1y)
-                                      + (z - bh1z)*(z - bh1z));
-                const double dr2 = sqrt((x - bh2x)*(x - bh2x)
-                                      + (y - bh2y)*(y - bh2y)
-                                      + (z - bh2z)*(z - bh2z));
-                // eta formulation
-                // clang-format off
+                const double dr1 =
+                    sqrt((x - bh1x) * (x - bh1x) + (y - bh1y) * (y - bh1y) +
+                         (z - bh1z) * (z - bh1z));
+                const double dr2 =
+                    sqrt((x - bh2x) * (x - bh2x) + (y - bh2y) * (y - bh2y) +
+                         (z - bh2z) * (z - bh2z));
+// eta formulation
+// clang-format off
                 // const double eta = bssn::ETA_CONST; // constant damping
                 #include "eta_RIT.inc.cpp" // RIT's prescription
                 // #include "eta_linear_inverse.inc.cpp"
@@ -252,7 +252,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 // #include "eta_causal_fade_tuned.inc.cpp"
                 // clang-format on
 
-// clang-format off
+                // clang-format off
 #ifdef BSSN_ENABLE_SSL_HD
   #pragma message("BSSN: enabling both SSL and CAHD")
   // #include "bssn_eqns_SSL_HD.cpp"
@@ -287,8 +287,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     #endif
   #endif
 #endif
-// clang-format on
-
+                // clang-format on
             }
         }
     }

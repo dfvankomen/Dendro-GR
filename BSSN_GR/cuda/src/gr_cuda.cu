@@ -22,13 +22,13 @@
 
 int main(int argc, char** argv) {
     // 0- NUTS 1-UTS
-    unsigned int ts_mode = 0;
+    unsigned int ts_mode = 1;
 
     if (argc < 2) {
         std::cout
             << "Usage: " << argv[0]
-            << "paramFile TSMode(0){0-Spatially Adaptive Time Stepping(SATS, "
-            << GRN << "default" << NRM << ") , 1- Uniform Time Stepping.  }"
+            << "paramFile TSMode(0){0-Spatially Adaptive Time Stepping(SATS "
+               ") , 1- Uniform Time Stepping. (default) }"
             << std::endl;
         return 0;
     }
@@ -404,9 +404,7 @@ int main(int argc, char** argv) {
                 bssnCtx->set_ts_info(ts_gw_output);
                 bssnCtx->terminal_output();
                 bssnCtx->write_vtu();
-                bssnCtx->evolve_bh_loc(
-                    bssnCtx->get_evolution_vars_cpu(),
-                    ets->ts_size() * bssn::BSSN_GW_EXTRACT_FREQ);
+                bssnCtx->evolve_bh_loc();
 
                 if ((step % bssn::BSSN_CHECKPT_FREQ) == 0)
                     bssnCtx->write_checkpt();
