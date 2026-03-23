@@ -22,6 +22,7 @@
 #include "logger.h"
 #include "parUtils.h"
 #include "parameters.h"
+#include "bssnShellInterp.h"
 
 namespace bssn {
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
@@ -1337,24 +1338,86 @@ int BSSNCtx::restore_checkpt() {
     ot::alloc_mpi_ctx<DendroScalar>(newMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
 
-    // only reads the evolution variables.
-    if (isActive) {
-        int activeRank;
-        int activeNpes;
+/// only reads the evolution variables.
+if (isActive) {
+    int activeRank;
+    int activeNpes;
 
-        DendroScalar* inVec[BSSN_NUM_VARS];
-        DVec& m_evar = m_var[VL::CPU_EV];
-        m_evar.to_2d(inVec);
+    DendroScalar* inVec[BSSN_NUM_VARS];
+    DVec& m_evar = m_var[VL::CPU_EV];
+    m_evar.to_2d(inVec);
 
-        MPI_Comm_rank(newComm, &activeRank);
-        MPI_Comm_size(newComm, &activeNpes);
-        assert(activeNpes == activeCommSz);
+    MPI_Comm_rank(newComm, &activeRank);
+    MPI_Comm_size(newComm, &activeNpes);
+    assert(activeNpes == activeCommSz);
 
-        sprintf(fName, "%s_%d_%d.var", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-                restoreFileIndex, activeRank);
-        restoreStatus = io::checkpoint::readVecFromFile(fName, newMesh, inVec,
-                                                        bssn::BSSN_NUM_VARS);
+    sprintf(fName, "%s_%d_%d.var", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
+            restoreFileIndex, activeRank);
+    restoreStatus = io::checkpoint::readVecFromFile(fName, newMesh, inVec,
+                                                    bssn::BSSN_NUM_VARS);
+
+    if (restoreStatus == 0) {
+        const unsigned int nDof = newMesh->getDegOfFreedom();
+
+        std::vector<std::vector<DendroScalar>> src(BSSN_NUM_VARS);
+        for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
+            src[v].resize(nDof);
+            std::copy(inVec[v], inVec[v] + nDof, src[v].begin());
+        }
+
+        // Build local node-coordinate cache once for faster interpolation
+        const auto cache = bssn::shell_interp::build_node_cache(newMesh);
+
+        const double shell_r0    = 5.0;
+        const double shell_width = 1.0;
+
+        unsigned int changed = 0;
+
+        for (unsigned int node = newMesh->getNodeLocalBegin();
+             node < newMesh->getNodeLocalEnd(); node++) {
+
+            double X, Y, Z;
+            bssn::shell_interp::get_node_xyz(newMesh, node, X, Y, Z);
+
+            const bssn::shell_interp::ShellSampleInfo sh =
+                bssn::shell_interp::spherical_shell_map(X, Y, Z,
+                                                        shell_r0, shell_width);
+
+            if (!sh.in_shell) continue;
+
+            const double w = bssn::shell_interp::smoothstep5(sh.s);
+
+            for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
+                const double vin =
+                    bssn::shell_interp::sample_var_idw(
+                        cache, src[v].data(),
+                        sh.xin[0], sh.xin[1], sh.xin[2],
+                        8, 2.0);
+
+                const double vout =
+                    bssn::shell_interp::sample_var_idw(
+                        cache, src[v].data(),
+                        sh.xout[0], sh.xout[1], sh.xout[2],
+                        8, 2.0);
+
+                inVec[v][node] = (1.0 - w) * vin + w * vout;
+            }
+
+            changed++;
+        }
+
+        // Enforce algebraic BSSN constraints after shell interpolation
+        for (unsigned int node = newMesh->getNodeLocalBegin();
+             node < newMesh->getNodeLocalEnd(); node++) {
+            enforce_bssn_constraints(inVec, node);
+        }
+
+        std::cout << "[DEBUG] rank " << rank
+                  << " shell-filled " << changed
+                  << " nodes across all fields and enforced algebraic BSSN constraints"
+                  << std::endl;
     }
+}
 
     MPI_Comm_free(&newComm);
     par::Mpi_Allreduce(&restoreStatus, &restoreStatusGlobal, 1, MPI_MAX, comm);
