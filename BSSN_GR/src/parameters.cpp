@@ -53,6 +53,7 @@ bool BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY = false;
 double BSSN_EPSILON_CAKO_GAUGE                         = 0.99;
 double BSSN_EPSILON_CAKO_OTHER                         = 0.3;
 bool BSSN_CAKO_ENABLED                                 = false;
+bool BSSN_ENABLE_SHELL_INTERP = false;
 double BSSN_CAHD_C                                     = 0.0;
 
 double BSSN_LOAD_IMB_TOL                               = 0.1;
@@ -83,6 +84,9 @@ double BSSN_AMR_R_RATIO                   = 2.0;
 
 double BSSN_BH1_CONSTRAINT_R              = 5.0;
 double BSSN_BH2_CONSTRAINT_R              = 5.0;
+
+double BSSN_SHELL_R0    = 5.0;
+double BSSN_SHELL_WIDTH = 1.0;
 
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
@@ -534,6 +538,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
          bssn::BSSN_GW_EXTRACT_FREQ},
         {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_MAXDEPTH},
         {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV, bssn::BSSN_MAXDEPTH},
+        {"BSSN_SHELL_R0", bssn::BSSN_SHELL_R0, UseInitialValue},
+        {"BSSN_SHELL_WIDTH", bssn::BSSN_SHELL_WIDTH, UseInitialValue},
+        {"BSSN_ENABLE_SHELL_INTERP", bssn::BSSN_ENABLE_SHELL_INTERP, UseInitialValue},
     };
 
     // then load the OPTIONAL parameters

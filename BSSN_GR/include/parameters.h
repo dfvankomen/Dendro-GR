@@ -174,6 +174,15 @@ extern double BSSN_BH2_AMR_R;
  * why it's the default **/
 extern double BSSN_AMR_R_RATIO;
 
+/**@brief: shell interpolation center radius for checkpoint repair */
+extern double BSSN_SHELL_R0;
+
+/**@brief: shell interpolation shell thickness */
+extern double BSSN_SHELL_WIDTH;
+
+/**@brief: enable shell excision/interpolation during checkpoint restore */
+extern bool BSSN_ENABLE_SHELL_INTERP;
+
 /**@brief: BH Mass. (BH1)*/
 extern double BSSN_BH1_MASS;
 

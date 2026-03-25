@@ -1357,65 +1357,73 @@ if (isActive) {
                                                     bssn::BSSN_NUM_VARS);
 
     if (restoreStatus == 0) {
-        const unsigned int nDof = newMesh->getDegOfFreedom();
 
-        std::vector<std::vector<DendroScalar>> src(BSSN_NUM_VARS);
-        for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
-            src[v].resize(nDof);
-            std::copy(inVec[v], inVec[v] + nDof, src[v].begin());
-        }
+        if (bssn::BSSN_ENABLE_SHELL_INTERP) {
+            const unsigned int nDof = newMesh->getDegOfFreedom();
 
-        // Build local node-coordinate cache once for faster interpolation
-        const auto cache = bssn::shell_interp::build_node_cache(newMesh);
-
-        const double shell_r0    = 5.0;
-        const double shell_width = 1.0;
-
-        unsigned int changed = 0;
-
-        for (unsigned int node = newMesh->getNodeLocalBegin();
-             node < newMesh->getNodeLocalEnd(); node++) {
-
-            double X, Y, Z;
-            bssn::shell_interp::get_node_xyz(newMesh, node, X, Y, Z);
-
-            const bssn::shell_interp::ShellSampleInfo sh =
-                bssn::shell_interp::spherical_shell_map(X, Y, Z,
-                                                        shell_r0, shell_width);
-
-            if (!sh.in_shell) continue;
-
-            const double w = bssn::shell_interp::smoothstep5(sh.s);
-
+            std::vector<std::vector<DendroScalar>> src(BSSN_NUM_VARS);
             for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
-                const double vin =
-                    bssn::shell_interp::sample_var_idw(
-                        cache, src[v].data(),
-                        sh.xin[0], sh.xin[1], sh.xin[2],
-                        8, 2.0);
-
-                const double vout =
-                    bssn::shell_interp::sample_var_idw(
-                        cache, src[v].data(),
-                        sh.xout[0], sh.xout[1], sh.xout[2],
-                        8, 2.0);
-
-                inVec[v][node] = (1.0 - w) * vin + w * vout;
+                src[v].resize(nDof);
+                std::copy(inVec[v], inVec[v] + nDof, src[v].begin());
             }
 
-            changed++;
-        }
+            // Build local node-coordinate cache once for faster interpolation
+            const auto cache = bssn::shell_interp::build_node_cache(newMesh);
 
-        // Enforce algebraic BSSN constraints after shell interpolation
-        for (unsigned int node = newMesh->getNodeLocalBegin();
-             node < newMesh->getNodeLocalEnd(); node++) {
-            enforce_bssn_constraints(inVec, node);
-        }
+            // Runtime-configurable shell parameters
+            const double shell_r0    = bssn::BSSN_SHELL_R0;
+            const double shell_width = bssn::BSSN_SHELL_WIDTH;
 
-        std::cout << "[DEBUG] rank " << rank
-                  << " shell-filled " << changed
-                  << " nodes across all fields and enforced algebraic BSSN constraints"
-                  << std::endl;
+            unsigned int changed = 0;
+
+            for (unsigned int node = newMesh->getNodeLocalBegin();
+                 node < newMesh->getNodeLocalEnd(); node++) {
+
+                double X, Y, Z;
+                bssn::shell_interp::get_node_xyz(newMesh, node, X, Y, Z);
+
+                const bssn::shell_interp::ShellSampleInfo sh =
+                    bssn::shell_interp::spherical_shell_map(X, Y, Z,
+                                                            shell_r0, shell_width);
+
+                if (!sh.in_shell) continue;
+
+                const double deriv_h = 0.15 * shell_width;   // tunable
+                const unsigned int interp_k = 8;
+                const double interp_power = 2.0;
+
+                for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
+                    inVec[v][node] =
+                        bssn::shell_interp::sample_var_cubic_hermite_shell(
+                            cache,
+                            src[v].data(),
+                            sh,
+                            deriv_h,
+                            interp_k,
+                            interp_power);
+                }
+
+                changed++;
+            }
+
+            // Enforce algebraic BSSN constraints after shell interpolation
+            for (unsigned int node = newMesh->getNodeLocalBegin();
+                 node < newMesh->getNodeLocalEnd(); node++) {
+                enforce_bssn_constraints(inVec, node);
+            }
+
+            std::cout << "[DEBUG] rank " << rank
+                      << " shell-filled " << changed
+                      << " nodes across all fields and enforced algebraic BSSN constraints"
+                      << " (r0=" << shell_r0
+                      << ", width=" << shell_width << ")"
+                      << std::endl;
+
+        } else {
+            std::cout << "[DEBUG] rank " << rank
+                      << " restored checkpoint without shell interpolation"
+                      << std::endl;
+        }
     }
 }
 

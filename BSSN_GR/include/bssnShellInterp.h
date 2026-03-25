@@ -13,15 +13,13 @@
 namespace bssn {
 namespace shell_interp {
 
-inline double smoothstep5(double s) {
-    if (s <= 0.0) return 0.0;
-    if (s >= 1.0) return 1.0;
-    return s * s * s * (10.0 + s * (-15.0 + 6.0 * s));
-}
-
 struct ShellSampleInfo {
     bool in_shell;
     double s;
+    double r;
+    double rin;
+    double rout;
+    double n[3];
     double xin[3];
     double xout[3];
 };
@@ -30,29 +28,38 @@ inline ShellSampleInfo spherical_shell_map(double x, double y, double z,
                                            double r0, double width) {
     ShellSampleInfo out{};
     out.in_shell = false;
-    out.s = 0.0;
-
-    const double rin  = r0 - 0.5 * width;
-    const double rout = r0 + 0.5 * width;
+    out.s        = 0.0;
+    out.r        = 0.0;
+    out.rin      = r0 - 0.5 * width;
+    out.rout     = r0 + 0.5 * width;
+    out.n[0]     = 0.0;
+    out.n[1]     = 0.0;
+    out.n[2]     = 0.0;
 
     const double r = std::sqrt(x * x + y * y + z * z);
+    out.r = r;
+
     if (r <= 1.0e-14) return out;
-    if (r < rin || r > rout) return out;
+    if (r < out.rin || r > out.rout) return out;
 
     const double nx = x / r;
     const double ny = y / r;
     const double nz = z / r;
 
     out.in_shell = true;
-    out.s = (r - rin) / (rout - rin);
+    out.s        = (r - out.rin) / (out.rout - out.rin);
 
-    out.xin[0] = rin * nx;
-    out.xin[1] = rin * ny;
-    out.xin[2] = rin * nz;
+    out.n[0] = nx;
+    out.n[1] = ny;
+    out.n[2] = nz;
 
-    out.xout[0] = rout * nx;
-    out.xout[1] = rout * ny;
-    out.xout[2] = rout * nz;
+    out.xin[0] = out.rin * nx;
+    out.xin[1] = out.rin * ny;
+    out.xin[2] = out.rin * nz;
+
+    out.xout[0] = out.rout * nx;
+    out.xout[1] = out.rout * ny;
+    out.xout[2] = out.rout * nz;
 
     return out;
 }
@@ -84,7 +91,7 @@ struct NodeCache {
     std::vector<double> x;
     std::vector<double> y;
     std::vector<double> z;
-    std::vector<unsigned int> nodes;  // actual mesh node ids
+    std::vector<unsigned int> nodes;
 };
 
 inline NodeCache build_node_cache(const ot::Mesh* pMesh) {
@@ -108,32 +115,6 @@ inline NodeCache build_node_cache(const ot::Mesh* pMesh) {
     return cache;
 }
 
-inline double sample_var_nearest(const ot::Mesh* pMesh,
-                                 const DendroScalar* var,
-                                 double xs, double ys, double zs) {
-    double best_r2  = std::numeric_limits<double>::max();
-    double best_val = 0.0;
-
-    for (unsigned int node = pMesh->getNodeLocalBegin();
-         node < pMesh->getNodeLocalEnd(); node++) {
-
-        double X, Y, Z;
-        get_node_xyz(pMesh, node, X, Y, Z);
-
-        const double dx = X - xs;
-        const double dy = Y - ys;
-        const double dz = Z - zs;
-        const double r2 = dx * dx + dy * dy + dz * dz;
-
-        if (r2 < best_r2) {
-            best_r2  = r2;
-            best_val = var[node];
-        }
-    }
-
-    return best_val;
-}
-
 inline double sample_var_idw(const NodeCache& cache,
                              const DendroScalar* var,
                              double xs, double ys, double zs,
@@ -152,7 +133,6 @@ inline double sample_var_idw(const NodeCache& cache,
         const double dz = cache.z[i] - zs;
         const double r2 = dx * dx + dy * dy + dz * dz;
 
-        // exact hit
         if (r2 < 1.0e-30) return var[cache.nodes[i]];
 
         if (best.size() < k) {
@@ -185,6 +165,96 @@ inline double sample_var_idw(const NodeCache& cache,
     }
 
     return (wsum > 0.0) ? (vsum / wsum) : var[cache.nodes[best[0].second]];
+}
+
+inline double sample_on_ray_idw(const NodeCache& cache,
+                                const DendroScalar* var,
+                                const double n[3], double rr,
+                                unsigned int k = 8,
+                                double power = 2.0) {
+    return sample_var_idw(cache, var,
+                          rr * n[0], rr * n[1], rr * n[2],
+                          k, power);
+}
+
+inline double deriv_inner_2nd_order(double fm2, double fm1, double f0, double h) {
+    return (3.0 * f0 - 4.0 * fm1 + fm2) / (2.0 * h);
+}
+
+inline double deriv_outer_2nd_order(double f0, double fp1, double fp2, double h) {
+    return (-3.0 * f0 + 4.0 * fp1 - fp2) / (2.0 * h);
+}
+
+inline double hermite_cubic(double fin, double dfin,
+                            double fout, double dfout,
+                            double rin, double rout, double r) {
+    const double dr = rout - rin;
+    if (dr <= 0.0) return fin;
+
+    double t = (r - rin) / dr;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+
+    const double t2 = t * t;
+    const double t3 = t2 * t;
+
+    const double h00 =  2.0 * t3 - 3.0 * t2 + 1.0;
+    const double h10 =        t3 - 2.0 * t2 + t;
+    const double h01 = -2.0 * t3 + 3.0 * t2;
+    const double h11 =        t3 -       t2;
+
+    return h00 * fin + h10 * dr * dfin
+         + h01 * fout + h11 * dr * dfout;
+}
+
+inline double sample_var_cubic_hermite_shell(const NodeCache& cache,
+                                             const DendroScalar* var,
+                                             const ShellSampleInfo& sh,
+                                             double deriv_h,
+                                             unsigned int k = 8,
+                                             double power = 2.0) {
+    const double rin  = sh.rin;
+    const double rout = sh.rout;
+    const double r    = sh.r;
+
+    const double width = rout - rin;
+    if (width <= 0.0) return 0.0;
+
+    double h = deriv_h;
+    if (h <= 0.0) h = 0.1 * width;
+
+    const double fin = sample_on_ray_idw(cache, var, sh.n, rin,  k, power);
+    const double fout = sample_on_ray_idw(cache, var, sh.n, rout, k, power);
+
+    // Use trusted points outside the shell to estimate boundary derivatives
+    double rin_m1 = rin - h;
+    double rin_m2 = rin - 2.0 * h;
+    double rout_p1 = rout + h;
+    double rout_p2 = rout + 2.0 * h;
+
+    // keep radii positive near the origin
+    if (rin_m1 <= 1.0e-12) rin_m1 = 0.5 * rin;
+    if (rin_m2 <= 1.0e-12) rin_m2 = 0.25 * rin;
+
+    // If we had to clip, use the actual spacing that resulted
+    const double hin1 = rin - rin_m1;
+    const double hin2 = rin_m1 - rin_m2;
+
+    double dfin = 0.0;
+    if (std::abs(hin1 - hin2) / std::max(hin1, 1.0e-14) < 1.0e-8) {
+        const double fm1 = sample_on_ray_idw(cache, var, sh.n, rin_m1, k, power);
+        const double fm2 = sample_on_ray_idw(cache, var, sh.n, rin_m2, k, power);
+        dfin = deriv_inner_2nd_order(fm2, fm1, fin, hin1);
+    } else {
+        const double fm1 = sample_on_ray_idw(cache, var, sh.n, rin_m1, k, power);
+        dfin = (fin - fm1) / std::max(rin - rin_m1, 1.0e-14);
+    }
+
+    const double fp1 = sample_on_ray_idw(cache, var, sh.n, rout_p1, k, power);
+    const double fp2 = sample_on_ray_idw(cache, var, sh.n, rout_p2, k, power);
+    const double dfout = deriv_outer_2nd_order(fout, fp1, fp2, h);
+
+    return hermite_cubic(fin, dfin, fout, dfout, rin, rout, r);
 }
 
 }  // namespace shell_interp
