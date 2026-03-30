@@ -88,6 +88,10 @@ double BSSN_BH2_CONSTRAINT_R              = 5.0;
 double BSSN_SHELL_R0    = 5.0;
 double BSSN_SHELL_WIDTH = 1.0;
 
+double       BSSN_SHELL_FILTER_RADIUS   = 1.0;
+double       BSSN_SHELL_FILTER_STRENGTH = 0.35;
+unsigned int BSSN_SHELL_FILTER_KMAX     = 32;
+
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
 
@@ -541,6 +545,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_SHELL_R0", bssn::BSSN_SHELL_R0, UseInitialValue},
         {"BSSN_SHELL_WIDTH", bssn::BSSN_SHELL_WIDTH, UseInitialValue},
         {"BSSN_ENABLE_SHELL_INTERP", bssn::BSSN_ENABLE_SHELL_INTERP, UseInitialValue},
+        {"BSSN_SHELL_FILTER_RADIUS",   bssn::BSSN_SHELL_FILTER_RADIUS,   UseInitialValue},
+        {"BSSN_SHELL_FILTER_STRENGTH", bssn::BSSN_SHELL_FILTER_STRENGTH, UseInitialValue},
+        {"BSSN_SHELL_FILTER_KMAX",     bssn::BSSN_SHELL_FILTER_KMAX,     UseInitialValue},
     };
 
     // then load the OPTIONAL parameters

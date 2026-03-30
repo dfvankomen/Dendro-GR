@@ -20,11 +20,11 @@
 BSSN_RESTORE_SOLVER = 1
 
 # Frequency for the VTU Output (scales with q)
-BSSN_IO_OUTPUT_FREQ = 400
+BSSN_IO_OUTPUT_FREQ = 10
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = true
 
 # Frequency to use for triggering the remeshing
-BSSN_REMESH_TEST_FREQ = 50
+BSSN_REMESH_TEST_FREQ = 5000
 
 # Extraction frequency for gravitational waves (scales with q)
 BSSN_GW_EXTRACT_FREQ = 25
@@ -85,8 +85,25 @@ BSSN_ELE_ORDER = 6
 # Minimum Depth of the Mesh/Octree
 BSSN_MINDEPTH = 4
 # Maximum Depth of the Mesh/Octree
-BSSN_MAXDEPTH = 15
+BSSN_MAXDEPTH = 13
 
+
+########################################################################
+# SHELL INTERPOLATION / REPAIR (checkpoint restore)
+
+# Enable shell excision + interpolation during restore
+BSSN_ENABLE_SHELL_INTERP = true
+
+# Shell center radius
+BSSN_SHELL_R0 = 12.0
+
+# Shell thickness
+BSSN_SHELL_WIDTH = 8.0
+
+# Local shell filtering parameters
+BSSN_SHELL_FILTER_RADIUS = 1.0
+BSSN_SHELL_FILTER_STRENGTH = 0.35
+BSSN_SHELL_FILTER_KMAX = 32
 
 ########################################################################
 # REFINEMENT STRATEGY
@@ -111,7 +128,7 @@ BSSN_AMR_R_RATIO = 1.618033988749895
 BSSN_USE_WAVELET_TOL_FUNCTION = 6
 
 # Wavelet tolerence for Wavelet Refinement (minimum)
-BSSN_WAVELET_TOL = 0.00001
+BSSN_WAVELET_TOL = 0.0001
 
 # Gravitational Wave Refinement tolerence
 BSSN_GW_REFINE_WTOL = 0.0001
@@ -133,7 +150,7 @@ BSSN_REFINE_VARIABLE_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,1
 BSSN_NUM_REFINE_VARS = 24
 
 # The number of iterations that should be done for grid initialization
-BSSN_INIT_GRID_ITER = 10
+BSSN_INIT_GRID_ITER = 3
 
 # If we want to use the set reference mode for initial convergence
 BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE = true
@@ -149,7 +166,7 @@ BSSN_CFL_FACTOR = 0.25
 # The starting time of the simulation
 BSSN_RK_TIME_BEGIN = 0.0
 # The ending time of the simulation
-BSSN_RK_TIME_END = 700.0
+BSSN_RK_TIME_END = 100.0
 
 # RK Method to use (0 -> RK3, 1 -> RK4, 2 -> RK45)
 BSSN_RK_TYPE = 1
@@ -205,12 +222,12 @@ BSSN_ID_TYPE = 0
 ########################################################################
 # Set up BSSN grid points
 
-BSSN_GRID_MIN_X = -400.0
-BSSN_GRID_MAX_X = 400.0
-BSSN_GRID_MIN_Y = -400.0
-BSSN_GRID_MAX_Y = 400.0
-BSSN_GRID_MIN_Z = -400.0
-BSSN_GRID_MAX_Z = 400.0
+BSSN_GRID_MIN_X = -100.0
+BSSN_GRID_MAX_X = 100.0
+BSSN_GRID_MIN_Y = -100.0
+BSSN_GRID_MAX_Y = 100.0
+BSSN_GRID_MIN_Z = -100.0
+BSSN_GRID_MAX_Z = 100.0
 
 
 ########################################################################
@@ -220,13 +237,13 @@ BSSN_GRID_MAX_Z = 400.0
 BSSN_BH1_AMR_R = 1.0
 BSSN_BH1_CONSTRAINT_R = 1.0
 BSSN_BH1_MAX_LEV = 15
-BSSN_BH1 = { MASS = 0.5, X = 4.0, Y = 0.0, Z = 0.0, V_X = -0.002284343811437988, V_Y = 0.11284523509709575, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
+BSSN_BH1 = { MASS = 0.5, X = 0.01, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.2, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
 # m_- (larger BH)
 BSSN_BH2_AMR_R = 1.0
 BSSN_BH2_CONSTRAINT_R = 1.0
 BSSN_BH2_MAX_LEV = 15
-BSSN_BH2 = { MASS = 0.5, X = -4.0, Y = 0.0, Z = 0.0, V_X = 0.002284343811437988, V_Y = -0.11284523509709575, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
+BSSN_BH2 = { MASS = 0.01, X = -0.01, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
 
 ########################################################################
@@ -236,24 +253,24 @@ BSSN_BH2 = { MASS = 0.5, X = -4.0, Y = 0.0, Z = 0.0, V_X = 0.002284343811437988,
 TPID_PAR_B = 4.0
 
 # distance from grid center to BH midpoint
-TPID_CENTER_OFFSET = { X = 0.0, Y = 0.0, Z = 0.0 }
+TPID_CENTER_OFFSET = { X = -4.0, Y = 0.0, Z = 0.0 }
 
 # 0 - Use ADM mass and iteratively solve for bare mass
 # 1 - Use bare mass
 
 # ADM target masses
-# TPID_GIVE_BARE_MASS = 0
-# TPID_TARGET_M_PLUS = 0.5
-# TPID_TARGET_M_MINUS = 0.5
+#TPID_GIVE_BARE_MASS = 0
+#TPID_TARGET_M_PLUS = 0.5
+#TPID_TARGET_M_MINUS = 0.01
 
 TPID_GIVE_BARE_MASS = 1
-TPID_TARGET_M_PLUS = 0.48236442246752931
-TPID_TARGET_M_MINUS = 0.48236442246752931
+TPID_TARGET_M_PLUS = 0.31158
+TPID_TARGET_M_MINUS = 0.000
 
 # Grid points for spectral grid
-TPID_NPOINTS_A = 65
-TPID_NPOINTS_B = 78
-TPID_NPOINTS_PHI = 10
+TPID_NPOINTS_A = 100
+TPID_NPOINTS_B = 100
+TPID_NPOINTS_PHI = 18
 
 # Convergence tolerances
 TPID_NEWTON_TOL = 1.6e-14
@@ -295,7 +312,7 @@ EXTRACTION_TOL = 0.3
 
 # radii at which we extract the GWs
 BSSN_GW_NUM_RADAII = 6
-BSSN_GW_RADAII = [ 50.0, 60.0, 70.0, 80.0, 90.0, 100.0 ]
+BSSN_GW_RADAII = [ 5.0, 6.0, 7.0, 8.0, 9.0, 10.0 ]
 
 # which spherical harmonic degrees (l-modes) to resolve
 BSSN_GW_NUM_LMODES = 7
@@ -350,7 +367,7 @@ DENDRO_LOG_FORCE_FILE_FLUSH = false
 # APPARANT HORIZON SOLVER PARAMETERS
 
 # Time steps between AH solves
-AEH_SOLVER_FREQ = 50
+AEH_SOLVER_FREQ = 10
 
 [AEH_PARAMS]
 
@@ -377,3 +394,5 @@ THETA_LINF_M_TOL = [1.0e-3, 1.0e-3, 1.0e-3]
 # Courant-Friedrichs-Lewy factor within hyperbolic relaxation. 
 # Etienne's team uses .95 by default but lowers it if a solve fails.
 CFL_FACTOR = [0.95, 0.95, 0.95]
+
+

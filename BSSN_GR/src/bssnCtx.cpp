@@ -1377,9 +1377,9 @@ if (isActive) {
             const double shell_width = bssn::BSSN_SHELL_WIDTH;
 
             // Filtering knobs (parameterize later if desired)
-            const double filter_radius     = 1.0;   // local smoothing radius
-            const double filter_strength   = 0.35;  // 0=no change, 1=max smoothing
-            const unsigned int filter_kmax = 32;    // max nearby points in local avg
+            const double filter_radius     = bssn::BSSN_SHELL_FILTER_RADIUS;
+            const double filter_strength   = bssn::BSSN_SHELL_FILTER_STRENGTH;
+            const unsigned int filter_kmax = bssn::BSSN_SHELL_FILTER_KMAX;
 
             unsigned int changed = 0;
 

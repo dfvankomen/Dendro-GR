@@ -180,6 +180,10 @@ extern double BSSN_SHELL_R0;
 /**@brief: shell interpolation shell thickness */
 extern double BSSN_SHELL_WIDTH;
 
+extern double       BSSN_SHELL_FILTER_RADIUS;
+extern double       BSSN_SHELL_FILTER_STRENGTH;
+extern unsigned int BSSN_SHELL_FILTER_KMAX;
+
 /**@brief: enable shell excision/interpolation during checkpoint restore */
 extern bool BSSN_ENABLE_SHELL_INTERP;
 
