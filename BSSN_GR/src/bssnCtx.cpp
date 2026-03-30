@@ -1353,26 +1353,33 @@ if (isActive) {
 
     sprintf(fName, "%s_%d_%d.var", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
             restoreFileIndex, activeRank);
-    restoreStatus = io::checkpoint::readVecFromFile(fName, newMesh, inVec,
-                                                    bssn::BSSN_NUM_VARS);
+    restoreStatus = io::checkpoint::readVecFromFile(
+        fName, newMesh, inVec, bssn::BSSN_NUM_VARS);
 
     if (restoreStatus == 0) {
 
         if (bssn::BSSN_ENABLE_SHELL_INTERP) {
             const unsigned int nDof = newMesh->getDegOfFreedom();
 
+            // Copy restored data so filtering always samples from the
+            // original checkpoint values, not progressively modified values.
             std::vector<std::vector<DendroScalar>> src(BSSN_NUM_VARS);
             for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
                 src[v].resize(nDof);
                 std::copy(inVec[v], inVec[v] + nDof, src[v].begin());
             }
 
-            // Build local node-coordinate cache once for faster interpolation
+            // Build local node-coordinate cache once
             const auto cache = bssn::shell_interp::build_node_cache(newMesh);
 
             // Runtime-configurable shell parameters
             const double shell_r0    = bssn::BSSN_SHELL_R0;
             const double shell_width = bssn::BSSN_SHELL_WIDTH;
+
+            // Filtering knobs (parameterize later if desired)
+            const double filter_radius     = 1.0;   // local smoothing radius
+            const double filter_strength   = 0.35;  // 0=no change, 1=max smoothing
+            const unsigned int filter_kmax = 32;    // max nearby points in local avg
 
             unsigned int changed = 0;
 
@@ -1383,45 +1390,46 @@ if (isActive) {
                 bssn::shell_interp::get_node_xyz(newMesh, node, X, Y, Z);
 
                 const bssn::shell_interp::ShellSampleInfo sh =
-                    bssn::shell_interp::spherical_shell_map(X, Y, Z,
-                                                            shell_r0, shell_width);
+                    bssn::shell_interp::spherical_shell_map(
+                        X, Y, Z, shell_r0, shell_width);
 
                 if (!sh.in_shell) continue;
 
-                const double deriv_h = 0.15 * shell_width;   // tunable
-                const unsigned int interp_k = 8;
-                const double interp_power = 2.0;
-
                 for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
                     inVec[v][node] =
-                        bssn::shell_interp::sample_var_cubic_hermite_shell(
+                        bssn::shell_interp::filter_var_in_shell(
                             cache,
                             src[v].data(),
                             sh,
-                            deriv_h,
-                            interp_k,
-                            interp_power);
+                            X, Y, Z,
+                            filter_radius,
+                            filter_strength,
+                            filter_kmax);
                 }
 
                 changed++;
             }
 
-            // Enforce algebraic BSSN constraints after shell interpolation
+            // Enforce algebraic BSSN constraints after shell filtering
             for (unsigned int node = newMesh->getNodeLocalBegin();
                  node < newMesh->getNodeLocalEnd(); node++) {
                 enforce_bssn_constraints(inVec, node);
             }
 
             std::cout << "[DEBUG] rank " << rank
-                      << " shell-filled " << changed
+                      << " shell-filtered " << changed
                       << " nodes across all fields and enforced algebraic BSSN constraints"
                       << " (r0=" << shell_r0
-                      << ", width=" << shell_width << ")"
+                      << ", width=" << shell_width
+                      << ", filter_radius=" << filter_radius
+                      << ", filter_strength=" << filter_strength
+                      << ", filter_kmax=" << filter_kmax
+                      << ")"
                       << std::endl;
 
         } else {
             std::cout << "[DEBUG] rank " << rank
-                      << " restored checkpoint without shell interpolation"
+                      << " restored checkpoint without shell filtering"
                       << std::endl;
         }
     }

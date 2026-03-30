@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include "mesh.h"
@@ -35,10 +36,17 @@ inline ShellSampleInfo spherical_shell_map(double x, double y, double z,
     out.n[0]     = 0.0;
     out.n[1]     = 0.0;
     out.n[2]     = 0.0;
+    out.xin[0]   = 0.0;
+    out.xin[1]   = 0.0;
+    out.xin[2]   = 0.0;
+    out.xout[0]  = 0.0;
+    out.xout[1]  = 0.0;
+    out.xout[2]  = 0.0;
 
     const double r = std::sqrt(x * x + y * y + z * z);
     out.r = r;
 
+    if (width <= 0.0) return out;
     if (r <= 1.0e-14) return out;
     if (r < out.rin || r > out.rout) return out;
 
@@ -115,6 +123,26 @@ inline NodeCache build_node_cache(const ot::Mesh* pMesh) {
     return cache;
 }
 
+inline double smoothstep5(double s) {
+    if (s <= 0.0) return 0.0;
+    if (s >= 1.0) return 1.0;
+    return s * s * s * (10.0 + s * (-15.0 + 6.0 * s));
+}
+
+inline double shell_mask(const ShellSampleInfo& sh) {
+    // 0 at both shell boundaries, 1 near the middle, smooth everywhere
+    const double s = sh.s;
+    const double left  = smoothstep5(2.0 * s);
+    const double right = smoothstep5(2.0 * (1.0 - s));
+    return left * right;
+}
+
+inline double clamp01(double a) {
+    if (a <= 0.0) return 0.0;
+    if (a >= 1.0) return 1.0;
+    return a;
+}
+
 inline double sample_var_idw(const NodeCache& cache,
                              const DendroScalar* var,
                              double xs, double ys, double zs,
@@ -158,7 +186,8 @@ inline double sample_var_idw(const NodeCache& cache,
     for (const auto& entry : best) {
         const double r2 = entry.first;
         const unsigned int idx = entry.second;
-        const double w = 1.0 / std::pow(std::sqrt(r2), power);
+        const double rr = std::sqrt(std::max(r2, 1.0e-30));
+        const double w = 1.0 / std::pow(rr, power);
 
         wsum += w;
         vsum += w * var[cache.nodes[idx]];
@@ -223,20 +252,17 @@ inline double sample_var_cubic_hermite_shell(const NodeCache& cache,
     double h = deriv_h;
     if (h <= 0.0) h = 0.1 * width;
 
-    const double fin = sample_on_ray_idw(cache, var, sh.n, rin,  k, power);
+    const double fin  = sample_on_ray_idw(cache, var, sh.n, rin,  k, power);
     const double fout = sample_on_ray_idw(cache, var, sh.n, rout, k, power);
 
-    // Use trusted points outside the shell to estimate boundary derivatives
-    double rin_m1 = rin - h;
-    double rin_m2 = rin - 2.0 * h;
+    double rin_m1  = rin  - h;
+    double rin_m2  = rin  - 2.0 * h;
     double rout_p1 = rout + h;
     double rout_p2 = rout + 2.0 * h;
 
-    // keep radii positive near the origin
     if (rin_m1 <= 1.0e-12) rin_m1 = 0.5 * rin;
     if (rin_m2 <= 1.0e-12) rin_m2 = 0.25 * rin;
 
-    // If we had to clip, use the actual spacing that resulted
     const double hin1 = rin - rin_m1;
     const double hin2 = rin_m1 - rin_m2;
 
@@ -255,6 +281,74 @@ inline double sample_var_cubic_hermite_shell(const NodeCache& cache,
     const double dfout = deriv_outer_2nd_order(fout, fp1, fp2, h);
 
     return hermite_cubic(fin, dfin, fout, dfout, rin, rout, r);
+}
+
+inline double sample_var_local_avg(const NodeCache& cache,
+                                   const DendroScalar* var,
+                                   double xs, double ys, double zs,
+                                   double radius,
+                                   unsigned int kmax = 32) {
+    if (cache.nodes.empty()) return 0.0;
+
+    const double r2max = radius * radius;
+    if (r2max <= 0.0) return sample_var_idw(cache, var, xs, ys, zs, 8, 2.0);
+
+    std::vector<std::pair<double, unsigned int>> inside;
+    inside.reserve(std::min<unsigned int>(kmax, static_cast<unsigned int>(cache.nodes.size())));
+
+    for (unsigned int i = 0; i < cache.nodes.size(); i++) {
+        const double dx = cache.x[i] - xs;
+        const double dy = cache.y[i] - ys;
+        const double dz = cache.z[i] - zs;
+        const double r2 = dx * dx + dy * dy + dz * dz;
+
+        if (r2 <= r2max) {
+            inside.emplace_back(r2, i);
+        }
+    }
+
+    if (inside.empty()) {
+        return sample_var_idw(cache, var, xs, ys, zs, 8, 2.0);
+    }
+
+    std::sort(inside.begin(), inside.end(),
+              [](const auto& a, const auto& b) {
+                  return a.first < b.first;
+              });
+
+    if (inside.size() > kmax) inside.resize(kmax);
+
+    double vsum = 0.0;
+    double wsum = 0.0;
+
+    const double sigma2 = std::max(0.25 * r2max, 1.0e-30);
+
+    for (const auto& entry : inside) {
+        const double r2 = entry.first;
+        const unsigned int idx = entry.second;
+        const double w = std::exp(-r2 / sigma2);
+
+        vsum += w * var[cache.nodes[idx]];
+        wsum += w;
+    }
+
+    return (wsum > 0.0) ? (vsum / wsum)
+                        : sample_var_idw(cache, var, xs, ys, zs, 8, 2.0);
+}
+
+inline double filter_var_in_shell(const NodeCache& cache,
+                                  const DendroScalar* var,
+                                  const ShellSampleInfo& sh,
+                                  double x, double y, double z,
+                                  double filter_radius,
+                                  double strength,
+                                  unsigned int kmax = 32) {
+    const double u0 = sample_var_idw(cache, var, x, y, z, 8, 2.0);
+    const double us = sample_var_local_avg(cache, var, x, y, z,
+                                           filter_radius, kmax);
+
+    const double a = clamp01(strength) * shell_mask(sh);
+    return (1.0 - a) * u0 + a * us;
 }
 
 }  // namespace shell_interp
