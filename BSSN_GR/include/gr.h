@@ -16,6 +16,7 @@
 #include "dendroProfileParams.h"
 #include "enuts.h"
 #include "ets.h"
+#include "ets_msrk.h"
 
 #define BLD "\033[1m"
 

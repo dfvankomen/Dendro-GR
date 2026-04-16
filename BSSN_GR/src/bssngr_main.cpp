@@ -341,18 +341,58 @@ int main(int argc, char** argv) {
             std::cout << GRN << "Now setting up the uniform time stepper!"
                       << NRM << std::endl;
         bssn::BSSNCtx* bssnCtx = new bssn::BSSNCtx(mesh);
-        ts::ETS<DendroScalar, bssn::BSSNCtx>* ets =
-            new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
+
+        // select time integrator based on BSSN_RK_TYPE:
+        //   0=RK3, 1=RK4, 2=RK5 (Butcher 6-stage)
+        //   3=MSRK2_1, 4=MSRK2_2, 5=MSRK3 (multistep RK, arXiv:2603.05763)
+        // MSRK methods reuse RHS evals from previous steps for ~20-40% speedup.
+        const RKType rkType = (RKType)bssn::BSSN_RK_TYPE;
+        const bool useMSRK  = (rkType == RKType::RK4_MSRK2_1 ||
+                               rkType == RKType::RK4_MSRK2_2 ||
+                               rkType == RKType::RK4_MSRK3);
+
+        // separate typed pointers needed because evolve/init/sync_with_mesh
+        // are non-virtual in ETS_MSRK. base pointer used for accessors.
+        ts::ETS<DendroScalar, bssn::BSSNCtx>* ets           = nullptr;
+        ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>* ets_msrk = nullptr;
+
+        if (useMSRK) {
+            ts::ETSType msrkVariant;
+            if (rkType == RKType::RK4_MSRK2_1)
+                msrkVariant = ts::ETSType::RK4_MSRK2_1;
+            else if (rkType == RKType::RK4_MSRK2_2)
+                msrkVariant = ts::ETSType::RK4_MSRK2_2;
+            else
+                msrkVariant = ts::ETSType::RK4_MSRK3;
+
+            ets_msrk = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(
+                bssnCtx, msrkVariant);
+            ets = ets_msrk;
+        } else {
+            ets = new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
+
+            if (rkType == RKType::RK3)
+                ets->set_ets_coefficients(ts::ETSType::RK3);
+            else if (rkType == RKType::RK4)
+                ets->set_ets_coefficients(ts::ETSType::RK4);
+            else if (rkType == RKType::RK5)
+                ets->set_ets_coefficients(ts::ETSType::RK5);
+        }
+
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());
 
-        if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK3)
-            ets->set_ets_coefficients(ts::ETSType::RK3);
-        else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK4)
-            ets->set_ets_coefficients(ts::ETSType::RK4);
-        else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK45)
-            ets->set_ets_coefficients(ts::ETSType::RK5);
+        auto do_init = [&]() {
+            if (useMSRK) ets_msrk->init(); else ets->init();
+        };
+        auto do_evolve = [&]() {
+            if (useMSRK) ets_msrk->evolve(); else ets->evolve();
+        };
+        auto do_sync = [&]() {
+            if (useMSRK) ets_msrk->sync_with_mesh();
+            else ets->sync_with_mesh();
+        };
 
-        ets->init();
+        do_init();
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -459,7 +499,7 @@ int main(int argc, char** argv) {
                 }
             }
 
-            if ((step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
+            if (bssn::BSSN_REMESH_TEST_FREQ > 0 && (step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
                 bool isRemesh = bssnCtx->is_remesh();
                 if (isRemesh) {
                     if (!rank_global)
@@ -471,7 +511,7 @@ int main(int argc, char** argv) {
                                                      bssn::BSSN_SPLIT_FIX);
                     bssn::deallocate_bssn_deriv_workspace();
                     bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    ets->sync_with_mesh();
+                    do_sync();
                     bssnCtx->calculate_full_grid_size();
 
                     ot::Mesh* pmesh = bssnCtx->get_mesh();
@@ -531,7 +571,7 @@ int main(int argc, char** argv) {
             }
 
             // print terminal output
-            if ((step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
+            if (bssn::BSSN_TIME_STEP_OUTPUT_FREQ > 0 && (step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
                               << NRM << "\tCurrent Step: " << ets->curr_step()
@@ -545,7 +585,7 @@ int main(int argc, char** argv) {
             // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
 
-            if ((step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
+            if (bssn::BSSN_GW_EXTRACT_FREQ_TRUE > 0 && (step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
                               << std::endl;
@@ -559,7 +599,7 @@ int main(int argc, char** argv) {
             }
 
             // Write VTU and BHLocation files
-            if ((step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
+            if (bssn::BSSN_IO_OUTPUT_FREQ_TRUE > 0 && (step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
 
@@ -568,17 +608,17 @@ int main(int argc, char** argv) {
             }
 
             // Run AH solver
-            if ((AEH::AEH_SOLVER_FREQ > 0) &&
+            if (AEH::AEH_SOLVER_FREQ > 0 &&
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
                 // bssnaeh::perform_aeh_step(bssnCtx, rank);
 
                 bssnCtx->findAH();
             }
 
-            ets->evolve();
+            do_evolve();
 
             // Write checkpoint  data
-            if ((step % bssn::BSSN_CHECKPT_FREQ) == 0) {
+            if (bssn::BSSN_CHECKPT_FREQ > 0 && (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
                 bssnCtx->write_checkpt();
             }
 

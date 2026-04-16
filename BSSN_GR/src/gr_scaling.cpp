@@ -138,7 +138,7 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
             ets->set_ets_coefficients(ts::ETSType::RK3);
         else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK4)
             ets->set_ets_coefficients(ts::ETSType::RK4);
-        else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK45)
+        else if ((RKType)bssn::BSSN_RK_TYPE == RKType::RK5)
             ets->set_ets_coefficients(ts::ETSType::RK5);
 
         for (ets->init(); ets->curr_step() < (warm_up + num_step);

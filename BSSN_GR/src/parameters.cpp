@@ -25,8 +25,7 @@ unsigned int BSSN_ELE_ORDER            = 6;
 unsigned int BSSN_PADDING_WIDTH        = BSSN_ELE_ORDER >> 1u;
 
 unsigned int BSSN_IO_OUTPUT_FREQ       = 10;
-unsigned int BSSN_TIME_STEP_OUTPUT_FREQ =
-    std::numeric_limits<unsigned int>::max();
+unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 10;
 
 double BSSN_BH_MERGE_TIME          = std::numeric_limits<double>::max();
 unsigned int BSSN_BH_MERGE_STEP    = std::numeric_limits<unsigned int>::max();
