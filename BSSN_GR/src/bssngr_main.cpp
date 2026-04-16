@@ -347,16 +347,11 @@ int main(int argc, char** argv) {
         //   3=MSRK2_1, 4=MSRK2_2, 5=MSRK3 (multistep RK, arXiv:2603.05763)
         // MSRK methods reuse RHS evals from previous steps for ~20-40% speedup.
         const RKType rkType = (RKType)bssn::BSSN_RK_TYPE;
-        const bool useMSRK  = (rkType == RKType::RK4_MSRK2_1 ||
-                               rkType == RKType::RK4_MSRK2_2 ||
-                               rkType == RKType::RK4_MSRK3);
 
-        // separate typed pointers needed because evolve/init/sync_with_mesh
-        // are non-virtual in ETS_MSRK. base pointer used for accessors.
-        ts::ETS<DendroScalar, bssn::BSSNCtx>* ets           = nullptr;
-        ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>* ets_msrk = nullptr;
+        ts::ETS<DendroScalar, bssn::BSSNCtx>* ets = nullptr;
 
-        if (useMSRK) {
+        if (rkType == RKType::RK4_MSRK2_1 || rkType == RKType::RK4_MSRK2_2 ||
+            rkType == RKType::RK4_MSRK3) {
             ts::ETSType msrkVariant;
             if (rkType == RKType::RK4_MSRK2_1)
                 msrkVariant = ts::ETSType::RK4_MSRK2_1;
@@ -365,9 +360,8 @@ int main(int argc, char** argv) {
             else
                 msrkVariant = ts::ETSType::RK4_MSRK3;
 
-            ets_msrk = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(
+            ets = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(
                 bssnCtx, msrkVariant);
-            ets = ets_msrk;
         } else {
             ets = new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
 
@@ -380,19 +374,7 @@ int main(int argc, char** argv) {
         }
 
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());
-
-        auto do_init = [&]() {
-            if (useMSRK) ets_msrk->init(); else ets->init();
-        };
-        auto do_evolve = [&]() {
-            if (useMSRK) ets_msrk->evolve(); else ets->evolve();
-        };
-        auto do_sync = [&]() {
-            if (useMSRK) ets_msrk->sync_with_mesh();
-            else ets->sync_with_mesh();
-        };
-
-        do_init();
+        ets->init();
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -511,7 +493,7 @@ int main(int argc, char** argv) {
                                                      bssn::BSSN_SPLIT_FIX);
                     bssn::deallocate_bssn_deriv_workspace();
                     bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    do_sync();
+                    ets->sync_with_mesh();
                     bssnCtx->calculate_full_grid_size();
 
                     ot::Mesh* pmesh = bssnCtx->get_mesh();
@@ -615,7 +597,7 @@ int main(int argc, char** argv) {
                 bssnCtx->findAH();
             }
 
-            do_evolve();
+            ets->evolve();
 
             // Write checkpoint  data
             if (bssn::BSSN_CHECKPT_FREQ > 0 && (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
