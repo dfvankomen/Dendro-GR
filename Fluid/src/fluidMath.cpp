@@ -645,7 +645,7 @@ int mhd_solver_4(double *u, double *v, double gd[3][3], double gu[3][3],
         fpar[FP_SSQ] = Ssq;
 
         //{{{ Having rescaled, check again that the inequality that failed
-        //before is now satisfied.
+        // before is now satisfied.
         if (beta_sq + (D / a) * (D / a) >= 1.0) {
             if (ltrace) {
                 printf(

@@ -160,8 +160,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::string> arg_s(argv, argv + argc);
-bssn:
-    printGitInformation(rank, arg_s);
+    bssn::printGitInformation(rank, arg_s);
 
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
@@ -555,6 +554,7 @@ bssn:
                 // information
                 bssnCtx->extract_constraints();
                 bssnCtx->extract_gravitational_waves();
+                // write bh coordinates at GW extraction time
                 bssnCtx->write_bh_coords();
             }
 

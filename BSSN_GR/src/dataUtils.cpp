@@ -243,11 +243,10 @@ std::vector<Point> calculate_relative_velocity_history(
     return vel_history;
 }
 
-
 /**
  * Calculates the angular velocity given relative position and velocity.
- * Returns null vector if separation distance < epsilon. 
- * 
+ * Returns null vector if separation distance < epsilon.
+ *
  * @param r Relative position vector
  * @param v Relative velocity vector
  * @return Angular velocity vector
@@ -264,19 +263,15 @@ Point calculate_angular_velocity(const Point& r, const Point& v) {
 
     // Calculate and return the angular velocity vector
     // Angular velocity = (r × v) / |r|^2
-    return Point(
-        (r.y() * v.z() - r.z() * v.y()) / r2,
-        (r.z() * v.x() - r.x() * v.z()) / r2,
-        (r.x() * v.y() - r.y() * v.x()) / r2
-    );
+    return Point((r.y() * v.z() - r.z() * v.y()) / r2,
+                 (r.z() * v.x() - r.x() * v.z()) / r2,
+                 (r.x() * v.y() - r.y() * v.x()) / r2);
 }
-
-
 
 /**
  * Calculates the history of angular velocities for a binary black hole system.
  * The angular velocity is flattened after the black holes merge.
- * 
+ *
  * @param bh_rp_history Vector of relative position history
  * @param bh_rv_history Vector of relative velocity history
  * @return Vector of angular velocity history
@@ -284,10 +279,9 @@ Point calculate_angular_velocity(const Point& r, const Point& v) {
 std::vector<Point> calculate_angular_velocity_history(
     const std::vector<Point>& bh_rp_history,
     const std::vector<Point>& bh_rv_history) {
-
     std::vector<Point> angular_velocity_history;
-    const double BH_MERGED_SEP_TOL = 1.0; // best value in my tests
-    size_t index_pre_merge = 0;
+    const double BH_MERGED_SEP_TOL = 1.0;  // best value in my tests
+    size_t index_pre_merge         = 0;
 
     ////////////////////////////////////////////////////////////////////
     // Calculate initial angular velocity from parameter file
@@ -307,13 +301,15 @@ std::vector<Point> calculate_angular_velocity_history(
             Point r = bh_rp_history[i + 1];  // Use i+1 for relative position
 
             if (r.abs() > BH_MERGED_SEP_TOL) {
-                // Not merged yet 
+                // Not merged yet
                 Point v = bh_rv_history[i];
-                angular_velocity_history.push_back(calculate_angular_velocity(r, v));
+                angular_velocity_history.push_back(
+                    calculate_angular_velocity(r, v));
                 index_pre_merge = i;
             } else {
                 // Use the last pre-merge angular velocity
-                angular_velocity_history.push_back(angular_velocity_history[index_pre_merge]);
+                angular_velocity_history.push_back(
+                    angular_velocity_history[index_pre_merge]);
             }
         }
     }
@@ -324,13 +320,13 @@ std::vector<Point> calculate_angular_velocity_history(
 /**
  * @brief Calculates and cleans wavelengths from angular velocity history.
  *
- * This function takes a history of angular velocities, calculates the 
- * corresponding wavelengths, and then applies a cleaning step to ensure 
- * the wavelengths are monotonically decreasing as we move forward through 
+ * This function takes a history of angular velocities, calculates the
+ * corresponding wavelengths, and then applies a cleaning step to ensure
+ * the wavelengths are monotonically decreasing as we move forward through
  * the vector.
  *
  * The wavelength is calculated using the formula: λ = 2πc / |ω|, where
- * c is assumed to be 1.0. If the magnitude of angular velocity is very 
+ * c is assumed to be 1.0. If the magnitude of angular velocity is very
  * close to zero, the wavelength is set to the maximum possible double value.
  *
  * @param angular_velocity_history A vector of Point objects representing
@@ -340,123 +336,119 @@ std::vector<Point> calculate_angular_velocity_history(
  */
 std::vector<double> calculate_clean_wavelength(
     const std::vector<Point>& angular_velocity_history) {
-  std::vector<double> wavelength;
-  wavelength.reserve(angular_velocity_history.size());
-  const double two_pi_c = 2.0 * M_PI * 1.0; // 2π * c, where c = 1.0
+    std::vector<double> wavelength;
+    wavelength.reserve(angular_velocity_history.size());
+    const double two_pi_c = 2.0 * M_PI * 1.0;  // 2π * c, where c = 1.0
 
-  // Calculate wavelength
-  for (const auto& omega : angular_velocity_history) {
-    double omega_mag = std::hypot(omega.x(), omega.y(), omega.z());
-    wavelength.push_back(omega_mag < std::numeric_limits<double>::epsilon() ?
-                         std::numeric_limits<double>::max() :
-                         two_pi_c / omega_mag);
-  }
+    // Calculate wavelength
+    for (const auto& omega : angular_velocity_history) {
+        double omega_mag = std::hypot(omega.x(), omega.y(), omega.z());
+        wavelength.push_back(omega_mag < std::numeric_limits<double>::epsilon()
+                                 ? std::numeric_limits<double>::max()
+                                 : two_pi_c / omega_mag);
+    }
 
-  // Clean up wavelength (force monotonicity)
-  for (size_t i = 1; i < wavelength.size(); ++i) {
-    // ensure the next one is <= the last one
-    wavelength[i] = std::min(wavelength[i], wavelength[i-1]);
-  }
+    // Clean up wavelength (force monotonicity)
+    for (size_t i = 1; i < wavelength.size(); ++i) {
+        // ensure the next one is <= the last one
+        wavelength[i] = std::min(wavelength[i], wavelength[i - 1]);
+    }
 
-  return wavelength;
+    return wavelength;
 }
 
 /**
- * @brief Calculates cleaned wavelength at a given retarded time. 
+ * @brief Calculates cleaned wavelength at a given retarded time.
  *
- * This function reads in a retarded time, along with histories, 
- * and returns the interpolated cleaned wavelength at that time. 
+ * This function reads in a retarded time, along with histories,
+ * and returns the interpolated cleaned wavelength at that time.
  *
- * @param t_ret retarded time at which we should sample 
+ * @param t_ret retarded time at which we should sample
  * @param time_history history of time values
  * @param clean_wavelength_history cleaned wavelength history
- * @return lam_clean cleaned, interpolated, retarded time wavelength. 
+ * @return lam_clean cleaned, interpolated, retarded time wavelength.
  */
-double get_clean_wavelength(double t_ret,
-                            const std::vector<double>& time_history,
-                            const std::vector<double>& clean_wavelength_history) {
-  // Handle t_ret before the start of the history
-  if (t_ret <= bssn::BSSN_RK_TIME_BEGIN) {
-    // return the first value 
-    return clean_wavelength_history.front();
-  }
+double get_clean_wavelength(
+    double t_ret, const std::vector<double>& time_history,
+    const std::vector<double>& clean_wavelength_history) {
+    // Handle t_ret before the start of the history
+    if (t_ret <= bssn::BSSN_RK_TIME_BEGIN) {
+        // return the first value
+        return clean_wavelength_history.front();
+    }
 
-  // Find the appropriate interval in the history
-  auto it = std::lower_bound(time_history.begin(), time_history.end(), t_ret);
-  size_t index = std::distance(time_history.begin(), it);
-  
-  // Handle t_ret after the end of the history
-  if (index == time_history.size()) {
-    return clean_wavelength_history.back();
-  }
+    // Find the appropriate interval in the history
+    auto it = std::lower_bound(time_history.begin(), time_history.end(), t_ret);
+    size_t index = std::distance(time_history.begin(), it);
 
-  // Interpolate wavelength
-  double t0 = time_history[index - 1];
-  double t1 = time_history[index];
-  double alpha = (t_ret - t0) / (t1 - t0);
-  
-  return (1 - alpha) * clean_wavelength_history[index - 1] + 
-         alpha * clean_wavelength_history[index];
+    // Handle t_ret after the end of the history
+    if (index == time_history.size()) {
+        return clean_wavelength_history.back();
+    }
+
+    // Interpolate wavelength
+    double t0    = time_history[index - 1];
+    double t1    = time_history[index];
+    double alpha = (t_ret - t0) / (t1 - t0);
+
+    return (1 - alpha) * clean_wavelength_history[index - 1] +
+           alpha * clean_wavelength_history[index];
 }
-
-
-
-
 
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const std::vector<std::pair<Point, Point>>& bh_loc_history,
                 const std::vector<double>& bh_loc_history_t) {
     ////////////////////////////////////////////////////////////////////
-    // set up booleans to check whether the grid has changed 
-    bool isOctChange                    = false;
-    bool isOctChange_g                  = false;
-    
+    // set up booleans to check whether the grid has changed
+    bool isOctChange   = false;
+    bool isOctChange_g = false;
+
     if (pMesh->isActive()) {
         ////////////////////////////////////////////////////////////////
-        // Read in data from mesh 
-        const unsigned int eleLocalBegin    = pMesh->getElementLocalBegin();
-        const unsigned int eleLocalEnd      = pMesh->getElementLocalEnd();
+        // Read in data from mesh
+        const unsigned int eleLocalBegin = pMesh->getElementLocalBegin();
+        const unsigned int eleLocalEnd   = pMesh->getElementLocalEnd();
         Point d1, d2, temp;
-        
-        // initialize refinement flags 
+
+        // initialize refinement flags
         std::vector<unsigned int> refine_flags;
         // NOTE: these are the previous refine flags,
         // they're usually "no change" on remesh
         std::vector<unsigned int> prev_refine_flags =
             pMesh->getAllRefinementFlags();
-        
+
         ////////////////////////////////////////////////////////////////
         // Set up onion parameters
         // read in AMR radii
         const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
         // level offset immediately about the BHs
         // (we don't actually refine to BSSN_BH?_MAX_LEV; two less)
-        const unsigned int LVL_OFF = MAXDEAPTH_LEVEL_DIFF + 1;
+        const unsigned int LVL_OFF     = MAXDEAPTH_LEVEL_DIFF + 1;
 
         // consider BHs merged if punctures are less than this value
-        const double BH_MERGED_SEP_TOL      = 0.1;
+        const double BH_MERGED_SEP_TOL = 0.1;
         // distance btw the black holes
-        const double dBH = (bhLoc[0] - bhLoc[1]).abs();
+        const double dBH               = (bhLoc[0] - bhLoc[1]).abs();
         // lower of two max depths
         const unsigned int refLevMin =
             std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
 
         ////////////////////////////////////////////////////////////////
-        // Set up a few ORBIT parameters 
+        // Set up a few ORBIT parameters
         // grid width
-        const double Delta_x = bssn::BSSN_GRID_MAX_X - bssn::BSSN_GRID_MIN_X;
+        const double Delta_x  = bssn::BSSN_GRID_MAX_X - bssn::BSSN_GRID_MIN_X;
         // smallest GW extraction radius
-        const double R_GW_min = GW::BSSN_GW_RADAII[0]; 
+        const double R_GW_min = GW::BSSN_GW_RADAII[0];
         // largest GW extraction radius
-        const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1]; 
+        const double R_GW_max = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
         // element order
-        const unsigned int n_order = bssn::BSSN_ELE_ORDER; 
+        const unsigned int n_order = bssn::BSSN_ELE_ORDER;
         // hardcode ending ORBIT some time past merger
-        constexpr double t_ring = 100; // ringdown time
+        constexpr double t_ring    = 100;  // ringdown time
         // ORBIT disable time
         const double bh_merge_time = bssn::BSSN_BH_MERGE_TIME;
-        const double t_disable = bh_merge_time + R_GW_max + t_ring; 
-    
+        const double t_disable     = bh_merge_time + R_GW_max + t_ring;
+
         ////////////////////////////////////////////////////////////////
         // if(!pMesh->getMPIRank())
         //     std::cout<<"bh distance: "<<dBH<<std::endl;
@@ -489,9 +481,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // Set obnoxiously large values for minimum radii
             // (to be overwritten) so as we go through box edges
             // we find minimum distances to BHs and to grid center
-            double r1_min = 100000 * Delta_x; // distance to BH1
-            double r2_min = 100000 * Delta_x; // distance to BH2
-            double r_min  = 100000 * Delta_x; // distance to grid center
+            double r1_min = 100000 * Delta_x;  // distance to BH1
+            double r2_min = 100000 * Delta_x;  // distance to BH2
+            double r_min  = 100000 * Delta_x;  // distance to grid center
 
             // measure minimum distances between both BHs
             for (unsigned int kk = 0; kk < 2; kk++)
@@ -520,7 +512,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             refine_flags[ele - eleLocalBegin] = OCT_COARSE;
 
             // function which ensures we're at least at a given level
-            auto setLevelFloor = [&](int l_min) {
+            auto setLevelFloor                = [&](int l_min) {
                 int currentLevel = pNodes[ele].getLevel();
 
                 if (currentLevel < l_min) {
@@ -585,22 +577,24 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             ////////////////////////////////////////////////////////////
             // Onion refinement immediately about the black holes
             if (dBH > BH_MERGED_SEP_TOL) {
-                // if not merged yet, handle BHs separately to set up onion 
-                double ratio; // ratio of radii btw concentric layers
-                int shift; 
+                // if not merged yet, handle BHs separately to set up onion
+                double ratio;  // ratio of radii btw concentric layers
+                int shift;
                 // DISABLED: option to boost initial refinement
                 if (bssn::BSSN_CURRENT_RK_COORD_TIME < -10) {
                     // boost initial refinement, bolstering onion
                     ratio = 2.0;
                     shift = 1;
-                } else { // relax onion later
-                    ratio = bssn::BSSN_AMR_R_RATIO; 
+                } else {  // relax onion later
+                    ratio = bssn::BSSN_AMR_R_RATIO;
                     shift = 0;
                 }
                 // refinement levels near each BH
-                const int l_goal_0 = onionLevel(r1_min, r_near[0],
+                const int l_goal_0 =
+                    onionLevel(r1_min, r_near[0],
                                bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift, ratio);
-                const int l_goal_1 = onionLevel(r2_min, r_near[1],
+                const int l_goal_1 =
+                    onionLevel(r2_min, r_near[1],
                                bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift, ratio);
                 setLevelFloor(l_goal_0);
                 setLevelFloor(l_goal_1);
@@ -613,13 +607,17 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const double rBH_lim =
                     std::max(std::max(r_near[0], r_near[1]), 1.55 * (m1 + m2));
                 // calculate level floor due to onion structure
-                const int N_horizon = 50; // goal number of points across the horizon
-                const int l_post = std::ceil(2 + std::log2(Delta_x * std::floor((N_horizon+1)/2.) / rBH_lim / n_order));
+                const int N_horizon =
+                    50;  // goal number of points across the horizon
+                const int l_post = std::ceil(
+                    2 + std::log2(Delta_x * std::floor((N_horizon + 1) / 2.) /
+                                  rBH_lim / n_order));
                 // could here do l_post = std::min(l_post,bssn::BSSN_MAXDEPTH)
                 // for low-res runs to keep l_post <= max depth
-                const int l_goal = onionLevel(rBH_min,rBH_lim,l_post - LVL_OFF);
-                // const int l_goal = onionLevel(rBH_min,rBH_lim,refLevMin - LVL_OFF);
-                // set level floor
+                const int l_goal =
+                    onionLevel(rBH_min, rBH_lim, l_post - LVL_OFF);
+                // const int l_goal = onionLevel(rBH_min,rBH_lim,refLevMin -
+                // LVL_OFF); set level floor
                 setLevelFloor(l_goal);
             }
 
@@ -627,26 +625,27 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             ////////////////////////////////////////////////////////////
             // ORBIT refinement
             // @wkb 6 Feb 2025
-            
+
             // calculate retarded time
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
             // calculate retarded orbital wavelength
-            const double lam_clean = get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength); 
+            const double lam_clean =
+                get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength);
 
             // calculate wavelength goal based on goal sph. har. order m
-            auto get_ell = [lam_clean, Delta_x, n_order](double t_ret, 
-                            unsigned int m = 8) -> int {
+            auto get_ell = [lam_clean, Delta_x, n_order](
+                               double t_ret, unsigned int m = 8) -> int {
                 // Get refinement level necessary from wavelength
-                return static_cast<int>(
-                    std::ceil(std::log2(Delta_x * m / (n_order * lam_clean / 2.))));
+                return static_cast<int>(std::ceil(
+                    std::log2(Delta_x * m / (n_order * lam_clean / 2.))));
             };
-            
+
             // min refinement level required from GWs
             int ell_star;
 
             /*
-            // enable this code here to use a different Nyquist criteria 
-            // beyond the GW extraction radii (to cut down costs) 
+            // enable this code here to use a different Nyquist criteria
+            // beyond the GW extraction radii (to cut down costs)
             if (r_min <= R_GW_max) {
               // if w/i region of capturing GWs, resolve highly
               ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
