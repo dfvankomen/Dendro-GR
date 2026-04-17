@@ -618,6 +618,36 @@ int main(int argc, char** argv) {
         if (!(ets->get_global_rank()))
             std::cout << " ETS time (max) : " << t2_g << std::endl;
 
+        // Phase-level timing breakdown (max over ranks, accumulated over run)
+        {
+            auto max_over_ranks = [&](double v) {
+                double g;
+                par::Mpi_Allreduce(&v, &g, 1, MPI_MAX, ets->get_global_comm());
+                return g;
+            };
+            const double t_rhs_g          = max_over_ranks(bssn::timer::t_rhs.seconds);
+            const double t_deriv_g        = max_over_ranks(bssn::timer::t_deriv.seconds);
+            const double t_bdyc_g         = max_over_ranks(bssn::timer::t_bdyc.seconds);
+            const double t_rkStep_g       = max_over_ranks(bssn::timer::t_rkStep.seconds);
+            const double t_ghostEx_g      = max_over_ranks(bssn::timer::t_ghostEx_sync.seconds);
+            const double t_unzip_sync_g   = max_over_ranks(bssn::timer::t_unzip_sync.seconds);
+            const double t_unzip_async_g  = max_over_ranks(bssn::timer::t_unzip_async.seconds);
+            const double t_zip_g          = max_over_ranks(bssn::timer::t_zip.seconds);
+            const double t_ioVtu_g        = max_over_ranks(bssn::timer::t_ioVtu.seconds);
+            if (!(ets->get_global_rank())) {
+                std::cout << " ---- phase breakdown (max over ranks, s) ----" << std::endl;
+                std::cout << "   rkStep       : " << t_rkStep_g << std::endl;
+                std::cout << "     deriv      : " << t_deriv_g << std::endl;
+                std::cout << "     rhs        : " << t_rhs_g << std::endl;
+                std::cout << "     bdyc       : " << t_bdyc_g << std::endl;
+                std::cout << "   ghostExchge  : " << t_ghostEx_g << std::endl;
+                std::cout << "   unzip_sync   : " << t_unzip_sync_g << std::endl;
+                std::cout << "   unzip_async  : " << t_unzip_async_g << std::endl;
+                std::cout << "   zip          : " << t_zip_g << std::endl;
+                std::cout << "   ioVtu        : " << t_ioVtu_g << std::endl;
+            }
+        }
+
         delete bssnCtx->get_mesh();
         delete bssnCtx;
         delete ets;

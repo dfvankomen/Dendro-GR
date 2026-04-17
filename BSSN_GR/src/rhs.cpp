@@ -4,6 +4,15 @@
 #include "hadrhs.h"
 #include "parameters.h"
 
+#if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) \
+ || defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+  // Generated cascade bodies define their own VEC typedef (scoped to their
+  // body {}) and #undef/#define the macros before use, so AVX2 and AVX-512
+  // variants can coexist in the same TU.
+  #include <immintrin.h>
+  #include <cmath>
+#endif
+
 using namespace std;
 using namespace bssn;
 
@@ -185,8 +194,29 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     // clang-format off
     #include "bssnrhs_evar_derivs.h"
+#if defined(BSSN_USE_CASCADE_AVX512_FUSED)
+    // AVX-512 fused: for bflag==0 blocks (interior), use mixed-only
+    // precompute — both the 8-wide AVX-512 kernel (wide blocks) and the
+    // 4-wide AVX2-fused kernel (narrow blocks) work from mixed-only arrays.
+    // Only bflag!=0 (boundary) blocks need the full 138-array workspace.
+    if (bflag == 0) {
+        #include "bssnrhs_derivs_mixed_only.h"
+    } else {
+        #include "bssnrhs_derivs.h"
+        #include "bssnrhs_derivs_adv.h"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX_FUSED)
+    // AVX2 fused: bflag==0 → mixed-only precompute; else full precompute
+    if (bflag == 0) {
+        #include "bssnrhs_derivs_mixed_only.h"
+    } else {
+        #include "bssnrhs_derivs.h"
+        #include "bssnrhs_derivs_adv.h"
+    }
+#else
     #include "bssnrhs_derivs.h"
     #include "bssnrhs_derivs_adv.h"
+#endif
     // clang-format on
 
     bssn::timer::t_deriv.stop();
@@ -206,6 +236,33 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double sig_ssl = bssn::BSSN_SSL_SIGMA;
 
     bssn::timer::t_rhs.start();
+#ifdef BSSN_USE_CASCADE_AVX512_FUSED
+    #pragma message("BSSN: using AVX-512 fused cascade (vikr, 8-wide)")
+    if (bflag == 0 && (nx - 2*PW) >= 8) {
+        // Wide interior: 8-wide AVX-512 fused
+        #include "bssn_cascade_avx512_fused_interior.inc.cpp"
+    } else if (bflag == 0) {
+        // Narrow interior (width < 8): 4-wide AVX2 fused (reads mixed-only)
+        #include "bssn_cascade_avx_fused_interior.inc.cpp"
+    } else {
+        // Boundary block (bflag != 0): full precompute already done,
+        // use non-fused AVX2 (reads full 138-array workspace)
+        #include "bssn_cascade_avx_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX_FUSED)
+    #pragma message("BSSN: using AVX2-batched cascade with inline deriv stencils (vikr, fused)")
+    if (bflag == 0) {
+        #include "bssn_cascade_avx_fused_interior.inc.cpp"
+    } else {
+        // Boundary block: fused centered stencils are wrong at the 3 outer
+        // points; fall back to non-fused AVX cascade (reads the full 138-
+        // array workspace that bflag-aware deriv code populated above).
+        #include "bssn_cascade_avx_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX)
+    #pragma message("BSSN: using AVX2-batched cascade RHS (vikr)")
+    #include "bssn_cascade_avx_interior.inc.cpp"
+#else
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
             // clang-format off
@@ -253,7 +310,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 // clang-format on
 
                 // clang-format off
-#ifdef BSSN_ENABLE_SSL_HD
+#ifdef BSSN_USE_CASCADE
+  #pragma message("BSSN: using bilinear cascade RHS (experimental, vikr)")
+  #include "bssneqs_cascade.cpp"
+#elif defined(BSSN_ENABLE_SSL_HD)
   #pragma message("BSSN: enabling both SSL and CAHD")
   // #include "bssn_eqns_SSL_HD.cpp"
   // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
@@ -291,6 +351,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             }
         }
     }
+#endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
     if (bflag != 0) {
