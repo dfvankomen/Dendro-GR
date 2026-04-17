@@ -461,12 +461,14 @@
     {
         VEC beadal = VFMA(be[0], ad_al[0], VFMA(be[1], ad_al[1], VMUL(be[2], ad_al[2])));
         VEC out = VSUB(VMUL(VSET((double)lambda[0]), beadal), VMUL(_two, VMUL(al, Kv)));
+    #ifdef BSSN_ENABLE_SSL_HD
         // SSL: shock-avoiding lapse correction
         //   a_rhs += -sqrt(chi) * h_ssl * (alpha - sqrt(chi)) * exp(-0.5*t^2/sig^2)
         // Constant factor per RHS call (t, h_ssl, sig_ssl are scalars in scope).
         const VEC _ssl_fac = VSET(-h_ssl * std::exp(-0.5*t*t/(sig_ssl*sig_ssl)));
         const VEC _sqrt_chi = VSQRT(ch);
         out = VFMA(_ssl_fac, VMUL(_sqrt_chi, VSUB(al, _sqrt_chi)), out);
+    #endif
         VSTORE(a_rhs+pp, out);
     }
     {
@@ -493,6 +495,7 @@
         VEC beadch = VFMA(be[0], ad_ch[0], VFMA(be[1], ad_ch[1], VMUL(be[2], ad_ch[2])));
         VEC term = VADD(VMUL(_w23, VMUL(ch, div_be)), VMUL(VSET(2.0/3.0), VMUL(ch, VMUL(al, Kv))));
         VEC chi_rhs_out = VADD(beadch, term);
+    #ifdef BSSN_ENABLE_SSL_HD
         // CAHD: constraint-added Hamiltonian damping
         //   chi_rhs += -cahd_fac * ham / dt * chi
         //   ham = chi*R_scalar - At_sqr + (2/3)*K^2
@@ -504,6 +507,7 @@
         VEC _ham = VSUB(VFMA(ch, _R_scalar, VMUL(VSET(2.0/3.0), VMUL(Kv, Kv))), At_sqr);
         const VEC _cahd_coef = VSET(-BSSN_CAHD_C * dx_i * dx_i / (1.0 + 10.0 * dx_i * dx_i) / dt);
         chi_rhs_out = VFMA(_cahd_coef, VMUL(_ham, ch), chi_rhs_out);
+    #endif
         VSTORE(chi_rhs+pp, chi_rhs_out);
     }
     {

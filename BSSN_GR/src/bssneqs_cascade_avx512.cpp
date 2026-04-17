@@ -10,6 +10,7 @@
 #undef VMUL
 #undef VDIV
 #undef VFMA
+#undef VSQRT
 #define VSET(x)      _mm512_set1_pd(x)
 #define VLOAD(p)     _mm512_loadu_pd(p)
 #define VSTORE(p,v)  _mm512_storeu_pd((p),(v))
@@ -18,6 +19,7 @@
 #define VMUL(a,b)    _mm512_mul_pd((a),(b))
 #define VDIV(a,b)    _mm512_div_pd((a),(b))
 #define VFMA(a,b,c)  _mm512_fmadd_pd((a),(b),(c))
+#define VSQRT(a)     _mm512_sqrt_pd(a)
 // -----------------------------------------------------------
 
 // BSSN RHS via bilinear cascade, AVX512-batched (8 grid points per batch)
@@ -266,6 +268,14 @@
     {
         VEC beadal = VFMA(be[0], ad_al[0], VFMA(be[1], ad_al[1], VMUL(be[2], ad_al[2])));
         VEC out = VSUB(VMUL(VSET((double)lambda[0]), beadal), VMUL(_two, VMUL(al, Kv)));
+    #ifdef BSSN_ENABLE_SSL_HD
+        // SSL: shock-avoiding lapse correction
+        //   a_rhs += -sqrt(chi) * h_ssl * (alpha - sqrt(chi)) * exp(-0.5*t^2/sig^2)
+        // Constant factor per RHS call (t, h_ssl, sig_ssl are scalars in scope).
+        const VEC _ssl_fac = VSET(-h_ssl * std::exp(-0.5*t*t/(sig_ssl*sig_ssl)));
+        const VEC _sqrt_chi = VSQRT(ch);
+        out = VFMA(_ssl_fac, VMUL(_sqrt_chi, VSUB(al, _sqrt_chi)), out);
+    #endif
         VSTORE(a_rhs+pp, out);
     }
     {
@@ -291,7 +301,21 @@
     {
         VEC beadch = VFMA(be[0], ad_ch[0], VFMA(be[1], ad_ch[1], VMUL(be[2], ad_ch[2])));
         VEC term = VADD(VMUL(_w23, VMUL(ch, div_be)), VMUL(VSET(2.0/3.0), VMUL(ch, VMUL(al, Kv))));
-        VSTORE(chi_rhs+pp, VADD(beadch, term));
+        VEC chi_rhs_out = VADD(beadch, term);
+    #ifdef BSSN_ENABLE_SSL_HD
+        // CAHD: constraint-added Hamiltonian damping
+        //   chi_rhs += -cahd_fac * ham / dt * chi
+        //   ham = chi*R_scalar - At_sqr + (2/3)*K^2
+        //   cahd_fac = BSSN_CAHD_C * dx^2 / (1 + 10*dx^2) (scalar per call)
+        VEC _R_scalar = _zero;
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                _R_scalar = VFMA(igt[i][j], R[i][j], _R_scalar);
+        VEC _ham = VSUB(VFMA(ch, _R_scalar, VMUL(VSET(2.0/3.0), VMUL(Kv, Kv))), At_sqr);
+        const VEC _cahd_coef = VSET(-BSSN_CAHD_C * dx_i * dx_i / (1.0 + 10.0 * dx_i * dx_i) / dt);
+        chi_rhs_out = VFMA(_cahd_coef, VMUL(_ham, ch), chi_rhs_out);
+    #endif
+        VSTORE(chi_rhs+pp, chi_rhs_out);
     }
     {
         double * const At_rhs_arr[6] = {At_rhs00, At_rhs01, At_rhs02, At_rhs11, At_rhs12, At_rhs22};
