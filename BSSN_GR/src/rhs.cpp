@@ -369,7 +369,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
                  1.0, 1.0, sz, bflag);
         bssn_bcs(Theta_rhs, Theta, grad_0_Theta, grad_1_Theta, grad_2_Theta, pmin,
-                 pmax, 1.0, 1.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag);
 
         bssn::timer::t_bdyc.stop();
     }
