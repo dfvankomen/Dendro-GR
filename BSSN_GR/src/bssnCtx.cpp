@@ -16,6 +16,7 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 
 #include "grUtils.h"
@@ -24,6 +25,22 @@
 #include "parameters.h"
 
 namespace bssn {
+namespace {
+void validate_evol_var_index(unsigned int var, const char* list_name) {
+    if (var >= bssn::BSSN_NUM_VARS) {
+        throw std::runtime_error(std::string(list_name) +
+                                 " contains an invalid evolution variable index.");
+    }
+}
+
+void validate_constraint_var_index(unsigned int var, const char* list_name) {
+    if (var >= bssn::BSSN_CONSTRAINT_NUM_VARS) {
+        throw std::runtime_error(std::string(list_name) +
+                                 " contains an invalid constraint variable index.");
+    }
+}
+}  // namespace
+
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     m_uiMesh = pMesh;
 
@@ -384,8 +401,11 @@ int BSSNCtx::initialize() {
     DendroScalar* unzipVar[bssn::BSSN_NUM_VARS];
     unsigned int refineVarIds[bssn::BSSN_NUM_REFINE_VARS];
 
-    for (unsigned int vIndex = 0; vIndex < bssn::BSSN_NUM_REFINE_VARS; vIndex++)
+    for (unsigned int vIndex = 0; vIndex < bssn::BSSN_NUM_REFINE_VARS; vIndex++) {
+        validate_evol_var_index(bssn::BSSN_REFINE_VARIABLE_INDICES[vIndex],
+                                "BSSN_REFINE_VARIABLE_INDICES");
         refineVarIds[vIndex] = bssn::BSSN_REFINE_VARIABLE_INDICES[vIndex];
+    }
 
     double wTol = bssn::BSSN_WAVELET_TOL;
     std::function<double(double, double, double, double* hx)> waveletTolFunc =
@@ -808,15 +828,18 @@ int BSSNCtx::write_vtu() {
     double* pData[(numConstVars + numEvolVars)];
 
     for (unsigned int i = 0; i < numEvolVars; i++) {
-        pDataNames.push_back(
-            std::string(bssn::BSSN_VAR_NAMES[BSSN_VTU_OUTPUT_EVOL_INDICES[i]]));
-        pData[i] = evolVar[BSSN_VTU_OUTPUT_EVOL_INDICES[i]];
+        const unsigned int var = BSSN_VTU_OUTPUT_EVOL_INDICES[i];
+        validate_evol_var_index(var, "BSSN_VTU_OUTPUT_EVOL_INDICES");
+        pDataNames.push_back(std::string(bssn::BSSN_VAR_NAMES[var]));
+        pData[i] = evolVar[var];
     }
 
     for (unsigned int i = 0; i < numConstVars; i++) {
+        const unsigned int var = BSSN_VTU_OUTPUT_CONST_INDICES[i];
+        validate_constraint_var_index(var, "BSSN_VTU_OUTPUT_CONST_INDICES");
         pDataNames.push_back(std::string(
-            bssn::BSSN_CONSTRAINT_VAR_NAMES[BSSN_VTU_OUTPUT_CONST_INDICES[i]]));
-        pData[numEvolVars + i] = consVar[BSSN_VTU_OUTPUT_CONST_INDICES[i]];
+            bssn::BSSN_CONSTRAINT_VAR_NAMES[var]));
+        pData[numEvolVars + i] = consVar[var];
     }
 
     std::vector<char*> pDataNames_char;
@@ -1462,8 +1485,11 @@ bool BSSNCtx::is_remesh() {
     m_evar_unz.to_2d(unzipVar);
 
     unsigned int refineVarIds[bssn::BSSN_NUM_REFINE_VARS];
-    for (unsigned int vIndex = 0; vIndex < bssn::BSSN_NUM_REFINE_VARS; vIndex++)
+    for (unsigned int vIndex = 0; vIndex < bssn::BSSN_NUM_REFINE_VARS; vIndex++) {
+        validate_evol_var_index(bssn::BSSN_REFINE_VARIABLE_INDICES[vIndex],
+                                "BSSN_REFINE_VARIABLE_INDICES");
         refineVarIds[vIndex] = bssn::BSSN_REFINE_VARIABLE_INDICES[vIndex];
+    }
 
     double wTol = bssn::BSSN_WAVELET_TOL;
     std::function<double(double, double, double, double* hx)> waveletTolFunc =
