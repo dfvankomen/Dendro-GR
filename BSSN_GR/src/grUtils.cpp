@@ -1153,6 +1153,7 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
     if (var[VAR::U_CHI] < CHI_FLOOR) var[VAR::U_CHI] = CHI_FLOOR;
 
     var[VAR::U_K]      = 0.0;
+    var[VAR::U_THETA]  = 0.0;
 
     var[VAR::U_BETA0]  = 0.0;
     var[VAR::U_BETA1]  = 0.0;
@@ -1309,6 +1310,7 @@ void KerrSchildData(const double xx1, const double yy1, const double zz1,
     var[VAR::U_ALPHA]  = alpha;
     var[VAR::U_CHI]    = Chi;
     var[VAR::U_K]      = TrK;
+    var[VAR::U_THETA]  = 0.0;
 
     var[VAR::U_BETA0]  = Betau[0];
     var[VAR::U_BETA1]  = Betau[1];
@@ -1394,6 +1396,7 @@ void noiseData(const double xx1, const double yy1, const double zz1,
     var[VAR::U_CHI]    = 1.0 + noise_amp * random_variable[1];
 
     var[VAR::U_K]      = noise_amp * random_variable[2];
+    var[VAR::U_THETA]  = 0.0;
 
     var[VAR::U_GT0]    = noise_amp * random_variable[3];
     var[VAR::U_GT1]    = noise_amp * random_variable[4];
@@ -1516,6 +1519,7 @@ void fake_initial_data(double xx1, double yy1, double zz1, double* u) {
                   0.4 * (25.0 + 5.0 * cos(y) + 5.0 * sin(x) + sin(x) * cos(y)) *
                       exp(-4.0 * cos(x) * sin(y)) * cos(z);
     u[VAR::U_K] *= 0.01234;
+    u[VAR::U_THETA] = 0.0;
 
     u[VAR::U_SYMAT0] =
         exp(-4.0 * cos(x) * sin(y)) *
@@ -1681,6 +1685,7 @@ void minkowskiInitialData(const double xx1, const double yy1, const double zz1,
     var[VAR::U_ALPHA]  = 1;  // lapse
     var[VAR::U_CHI]    = 1;  // chi
     var[VAR::U_K]      = 0;  // trace K
+    var[VAR::U_THETA]  = 0;  // Theta
     var[VAR::U_GT0]    = 0;  // Gt0
     var[VAR::U_GT1]    = 0;  // Gt1
     var[VAR::U_GT2]    = 0;  // Gt2

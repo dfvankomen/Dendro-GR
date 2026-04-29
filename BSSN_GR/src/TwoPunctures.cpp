@@ -307,6 +307,7 @@ void TwoPunctures(const double xx1, const double yy1, const double zz1,
 
     vars[VAR::U_K]      = trK;
     vars[VAR::U_CHI]    = chi;
+    vars[VAR::U_THETA]  = 0.0;
 
     vars[VAR::U_BETA0]  = 0.0;
     vars[VAR::U_BETA1]  = 0.0;

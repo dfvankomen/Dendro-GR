@@ -69,7 +69,7 @@ mom = dendrosym.dtypes.vec3("mom" + idx_str)
 psi4_real = dendrosym.dtypes.scalar("psi4_real" + idx_str)
 psi4_imag = dendrosym.dtypes.scalar("psi4_imag" + idx_str)
 dendroConfigs.add_constraint_variables([ham, mom, psi4_real, psi4_imag])
-psi = dendrosym.dtypes.scalar("psi" + idx_str)
+chi = dendrosym.dtypes.scalar("chi" + idx_str)
 
 p_expo_param = dendrosym.dtypes.ParameterVariable("p_expo", dtype="double")
 p_expo = p_expo_param.get_symbolic_repr()
@@ -121,8 +121,8 @@ kod_ = dendrosym.nr.set_kreiss_oliger_dissipation('kograd')
 alpha = dendrosym.dtypes.scalar("alpha" + idx_str)
 beta = dendrosym.dtypes.vec3("beta" + idx_str)
 K = dendrosym.dtypes.scalar("K" + idx_str)
-psi = dendrosym.dtypes.scalar("psi" + idx_str)
-dendroConfigs.add_evolution_variables([alpha, beta, K, psi])
+chi = dendrosym.dtypes.scalar("chi" + idx_str)
+dendroConfigs.add_evolution_variables([alpha, beta, K, chi])
 dendroConfigs.set_advective_derivative_var(beta)
 
 # theta is an expression
@@ -166,22 +166,19 @@ dendroConfigs.set_metric(gammat)
 igammat = dendrosym.nr.get_inverse_metric()
 C1 = dendrosym.nr.get_first_christoffel()
 C2 = dendrosym.nr.get_second_christoffel()
-C3 = dendrosym.nr.get_complete_christoffel(psi)
+C3 = dendrosym.nr.get_complete_christoffel(chi)
 
 # calculate Gamma tilde from gamma hat
 # Gamma hat
 Gamma_hat = dendrosym.dtypes.vec3("Gammahat" + idx_str)
 # so then gamma tilde is given by:
-Gammat = tuple([
-    Gamma_hat[ii] - 2 * psi**(p_expo) * sum(igammat[ii, jj] * Z[jj] for jj in dendrosym.nr.e_i)
-    for ii in dendrosym.nr.e_i
-])
+# Gammat = tuple([
+#     Gamma_hat[ii] - 2 * chi**(p_expo) * sum(igammat[ii, jj] * Z[jj] for jj in dendrosym.nr.e_i)
+#     for ii in dendrosym.nr.e_i
+# ])
 dendroConfigs.add_evolution_variables(Gamma_hat)
 
-# calculate R   
-R, Rt, Rpsi, CalGt = dendrosym.nr.compute_ricci(Gammat, psi)
-R_trace = dendrosym.nr.trace(
-    R)  # this should be (3)R or just R with no indices
+
 
 # NOTE: this will need to be updated if we want to not use a vacuum
 S_trace = dendrosym.nr.trace(S)
@@ -192,7 +189,27 @@ K_old = K + 2 * s_param * Theta
 #Define Gamma
 
 #Define the difference in Gamma^hat - Gammat
-#Gamma_diff = 2 * psi**(p_expo) * perp(Z)
+#Gamma_diff = 2 * chi**(p_expo) * perp(Z)
+
+
+#define Z
+# contracted Christoffel from metric
+Gammat = [
+    sum(igammat[j, k] * C2[i, j, k] for j, k in dendrosym.nr.e_ij)
+    for i in dendrosym.nr.e_i
+]
+
+# then define Z from difference
+Z = [
+    one_half / chi**p_expo *
+    sum(gammat[i, j] * (Gamma_hat[j] - Gammat[j])
+        for j in dendrosym.nr.e_i)
+    for i in dendrosym.nr.e_i
+]
+# calculate R   
+R, Rt, Rpsi, CalGt = dendrosym.nr.compute_ricci(Gammat, chi)
+R_trace = dendrosym.nr.trace(
+    R)  # this should be (3)R or just R with no indices
 # == END VARIABLE INITIALIZATION ==
 
 # ====================================================================
@@ -204,6 +221,10 @@ K_old = K + 2 * s_param * Theta
 
 
 def evolution_rhs_eqns():
+    div_beta = sum([d_(kk, beta[kk]) for kk in dendrosym.nr.e_i])
+
+    def d_K_old(ii):
+        return d_(ii, K) + 2 * s_param * d_(ii, Theta)
 
     # ==========
     # GAMMA (tilde) RHS
@@ -218,8 +239,7 @@ def evolution_rhs_eqns():
     #       the M_ij piece I have here
     gammat_rhs = - 2 * alpha * dendrosym.nr.trace_free(At) + \
         M_ij - \
-        two_thirds * gammat * sum(
-            [d_(kk, beta[kk]) for kk in dendrosym.nr.e_i]) + \
+        two_thirds * gammat * div_beta + \
         sym.Matrix([sum(
             [beta[kk] * d_(kk, gammat[ii, jj]) for kk in dendrosym.nr.e_i]
                     ) for ii, jj in dendrosym.nr.e_ij]).reshape(3, 3) - \
@@ -237,6 +257,7 @@ def evolution_rhs_eqns():
         for jj in dendrosym.nr.e_i
     ] for ii in dendrosym.nr.e_i
                        ])  # TODO: please look up the right cristoffel symbol
+    two_D_sym_Z = DiZj + DiZj.T
     # then the summation part
     AilALj = sym.Matrix([
         sum([
@@ -253,12 +274,12 @@ def evolution_rhs_eqns():
     ]).reshape(3, 3)
     M_ij = dendrosym.nr.calc_symmetric_part_rank2(M_ij)
     # A tilde i j's right hand side
-    At_rhs = 1/psi**(p_expo) * dendrosym.nr.trace_free(
-        -dendrosym.nr.DiDj(alpha) + alpha * (R + 2 * DiZj - 8 * sym.pi * S)
-    ) + alpha * (- 2 * alpha * AilALj \
+    At_rhs = 1/chi**(p_expo) * dendrosym.nr.trace_free(
+        -dendrosym.nr.DiDj(alpha) + alpha * (R + two_D_sym_Z - 8 * sym.pi * S)
+    ) + alpha * (- 2 * AilALj \
          + At * (K_old - 2 * Theta))\
           + M_ij \
-        - two_thirds * At * sum([d_(kk, beta[kk]) for kk in dendrosym.nr.e_i]) \
+        - two_thirds * At * div_beta \
         + sym.Matrix([
             sum(
                 [beta[kk] * d_(kk, At[ii, jj]) for kk in dendrosym.nr.e_i]
@@ -267,29 +288,28 @@ def evolution_rhs_eqns():
                                           igammat[ii, jj] for ii, jj in dendrosym.nr.e_ij])
     
     # ==========
-    # PSI RHS
+    # CHI RHS
     # ===
-    # psi's right hand side
-    # NOTE: 2 - the dendro note for CCZ4 (potentially) uses psi for this
+    # chi's right hand side
+    # NOTE: 2 - the dendro note for CCZ4 (potentially) uses chi for this
     # equation and it's slightly different
-    #William M: Relabeled phi to psi across all equations. 
-    psi_rhs = dendrosym.nr.lie(beta, psi) + \
-        two_thirds * 1/p_expo * psi * (sum([d_(kk, beta[kk]) for kk in dendrosym.nr.e_i]) - \
-                                alpha * K_old)
+    #William M: Relabeled phi to chi across all equations. 
+    chi_rhs = dendrosym.nr.lie(beta, chi) + \
+        two_thirds * 1/p_expo * chi * (div_beta - alpha * K_old)
     
     # NOTE: the old implemenation includes p_expo in the denominator
-    # == END PSI RHS ==
+    # == END CHI RHS ==
 
     # ==========
     # K RHS
     # ===
     # K rhs
     # NOTE: "covariant divergence" might be incorrect!
-    K_rhs = -dendrosym.nr.laplacian(alpha, psi) + alpha * (1 - e_0 * e_0 * s_param) * (
+    K_rhs = -dendrosym.nr.laplacian(alpha, chi) + alpha * (1 - e_0 * e_0 * s_param) * (
         R_trace + 2 * dendrosym.nr.covariant_divergence(Z) + K_old**2 + \
             12 * sym.pi + tau) + alpha * K_old * (one_third * e_0**2 * s_param * K_old - \
               2 * (1 - s_param) * Theta) + e_0**2 * s_param * alpha * dendrosym.nr.sqr(At) + \
-               4 * sym.pi * alpha * (S_trace + e_0**2 * s_param * tau) + s_param * 1/psi**(p_expo) * \
+               4 * sym.pi * alpha * (S_trace + e_0**2 * s_param * tau) + s_param * 1/chi**(p_expo) * \
                     sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) + \
                         alpha * kappa1 * (s_param * (kappa2 - 1) + 3 * (1- s_param) * (1 + kappa2)) * \
                           Theta + dendrosym.nr.lie(beta, K) - 4 * sym.pi * alpha * (S_trace - 3 * tau)
@@ -304,7 +324,7 @@ def evolution_rhs_eqns():
     Theta_rhs = one_half * alpha * e_0**2 * (
         R_trace + 2 * dendrosym.nr.covariant_divergence(Z) + two_thirds * K_old**2 - \
              dendrosym.nr.sqr(At) - 16 * sym.pi * tau) - alpha * Theta * K_old + one_half * \
-                1/psi**(p_expo) * sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) - \
+                1/chi**(p_expo) * sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) - \
                     alpha * kappa1 * (2 + kappa2) * Theta
     # == END Theta RHS ==
 
@@ -331,20 +351,20 @@ def evolution_rhs_eqns():
         2 * alpha * (
             sym.Matrix([sum([C2[ii, jj, kk] * At_UU[jj, kk]
                              for jj, kk in dendrosym.nr.e_ij]) for ii in dendrosym.nr.e_i]) + \
-            3 * p_expo * one_half * sym.Matrix([sum([At_UU[ii, jj] * d_(jj, sym.ln(psi))
+            3 * p_expo * one_half * sym.Matrix([sum([At_UU[ii, jj] * d_(jj, chi) / chi
                                                       for jj in dendrosym.nr.e_i]) for ii in dendrosym.nr.e_i]) - \
-            two_thirds * sym.Matrix([sum([igammat[ii, jj] * d_(jj, K_old)
+            two_thirds * sym.Matrix([sum([igammat[ii, jj] * d_K_old(jj)
                                            for jj in dendrosym.nr.e_i]) for ii in dendrosym.nr.e_i]) - \
             8 * sym.pi * sym.Matrix([sum([igammat[ii, jj] * S[jj]
                                            for jj in dendrosym.nr.e_i]) for ii in dendrosym.nr.e_i])
                     ) + \
         2 * alpha * (sym.Matrix([sum([igammat[ii, jj] * (one_third * d_(jj, Theta) - \
-                                                          Theta * d_(jj, sym.ln(alpha))) \
+                                                          Theta * d_(jj, alpha) / alpha) \
                                                           for jj in dendrosym.nr.e_i])  \
                                                             for ii in dendrosym.nr.e_i]) - \
         one_third * K_old * sym.Matrix([Gamma_hat[ii] - Gammat[ii] for ii in dendrosym.nr.e_i])
                     ) - \
-        alpha * kappa1 * sym.Matrix([sum([Gamma_hat[ii] - Gammat[ii]]) for ii in dendrosym.nr.e_i])
+        2 * alpha * kappa1 * sym.Matrix([Gamma_hat[ii] - Gammat[ii] for ii in dendrosym.nr.e_i])
     )
     # then force this "matrix" to be a list since it's just a vector, we use the
     # matrix so that it can easily be modified/added/subtracted
@@ -405,10 +425,10 @@ def evolution_rhs_eqns():
     # SET UP THE RETURNS
 
     rhs_list = [
-        alpha_rhs, beta_rhs, B_rhs, gammat_rhs, At_rhs, psi_rhs, K_rhs,
-        Theta_rhs, Gamma_hat_rhs
+        alpha_rhs, beta_rhs, K_rhs, chi_rhs, Theta_rhs, B_rhs, At_rhs,
+        gammat_rhs, Gamma_hat_rhs
     ]
-    var_list = [alpha, beta, B, gammat, At, psi, K, Theta, Gamma_hat]
+    var_list = [alpha, beta, K, chi, Theta, B, At, gammat, Gamma_hat]
 
     return rhs_list, var_list
 
@@ -426,7 +446,7 @@ def physical_constraint_eqns():
     phi = sym.Matrix([[-y, x, 0.0]])
 
     # Gram-Schmidt for orthonormal basis. THis if the non-conformally scaled metric
-    gd = gammat * psi**(p_expo)
+    gd = gammat * chi**(p_expo)
 
     # for r_vec
     inner_product = sum([
@@ -521,18 +541,18 @@ def physical_constraint_eqns():
     ])
     Vv = Vv.reshape(3, 3)
 
-    # r_d_psi
-    r_d_psi = sum([r_np[ii] * d_(ii, psi) for ii in dendrosym.nr.e_i])
+    # r_d_chi
+    r_d_chi = sum([r_np[ii] * d_(ii, chi) for ii in dendrosym.nr.e_i])
 
     # A temporary
-    A_temp = psi**(p_expo) * (one_third * K + psi**(p_expo) * Atrr -
-                              0.5 * p_expo * r_d_psi / psi)
+    A_temp = chi**(p_expo) * (one_third * K + chi**(p_expo) * Atrr -
+                              0.5 * p_expo * r_d_chi / chi)
 
     # now actually calculate Psi4
     Psi4_temp = sym.Matrix([
         R[ii, jj] + At[ii, jj] * A_temp - Atr_vec[ii] *
-        (psi**(2 * p_expo) * Atr_vec[jj] - 0.5 * p_expo * psi**
-         (p_expo - 1) * d_(jj, psi)) - psi**(p_expo) *
+        (chi**(2 * p_expo) * Atr_vec[jj] - 0.5 * p_expo * chi**
+         (p_expo - 1) * d_(jj, chi)) - chi**(p_expo) *
         (Uu[ii, jj] - Vv[ii, jj]) for ii, jj in dendrosym.nr.e_ij
     ])
     Psi4_temp = Psi4_temp.reshape(3, 3)
@@ -543,7 +563,7 @@ def physical_constraint_eqns():
         [Psi4_temp[ii, jj] * NN[ii, jj] for ii, jj in dendrosym.nr.e_ij])
 
     # ACTUAL CONSTRAINT EQUATIONS
-    ham_rhs = sum(1/psi**(p_expo) * igammat[jj, kk] * R[jj, kk] for jj, kk in
+    ham_rhs = sum(1/chi**(p_expo) * igammat[jj, kk] * R[jj, kk] for jj, kk in
                   dendrosym.nr.e_ij) - dendrosym.nr.sqr(At) + two_thirds * K**2
 
     # momentum constraint
@@ -559,7 +579,7 @@ def physical_constraint_eqns():
         for ii in dendrosym.nr.e_i
     ]) + (1.5) * p_expo * sym.Matrix([
         sum([
-            igammat[jj, kk] * At[kk, ii] * d_(jj, psi) / psi
+            igammat[jj, kk] * At[kk, ii] * d_(jj, chi) / chi
             for jj, kk in dendrosym.nr.e_ij
         ]) for ii in dendrosym.nr.e_i
     ]) - two_thirds * sym.Matrix([d_(ii, K) for ii in dendrosym.nr.e_i]))
@@ -585,7 +605,7 @@ gammat_f_and_a = [[[1.0, 1.0], [1.0, 0.0], [1.0, 0.0]],
                   [[], [1.0, 1.0], [1.0, 0.0]], [[], [], [1.0, 1.0]]]
 At_f_and_a = [2.0, 0.0
               ]  # At is a matrix, but you can also have them all be the same
-psi_f_and_a = [1.0, 1.0]
+chi_f_and_a = [1.0, 1.0]
 K_f_and_a = [1.0, 0.0]
 Theta_f_and_a = [1.0, 0.0]
 Gamma_hat_f_and_a = [[2.0, 0.0], [2.0, 0.0], [2.0, 0.0]]
@@ -595,14 +615,14 @@ B_f_and_a = [1.0,
              0.0]  # this is also a 3 vec, but trying with them all the same
 
 dendroConfigs.set_bhs_falloff_and_asymptotic(
-    "evolution", [gammat, At, psi, K, Theta, Gamma_hat, alpha, beta, B], [
-        gammat_f_and_a, At_f_and_a, psi_f_and_a, K_f_and_a, Theta_f_and_a,
+    "evolution", [gammat, At, chi, K, Theta, Gamma_hat, alpha, beta, B], [
+        gammat_f_and_a, At_f_and_a, chi_f_and_a, K_f_and_a, Theta_f_and_a,
         Gamma_hat_f_and_a, alpha_f_and_a, beta_f_and_a, B_f_and_a
     ])
 
 # add a few evolution constraints
 dendroConfigs.add_evolution_constraint(At, "trace_zero")
-dendroConfigs.add_evolution_constraint(psi, "pos_floor")
+dendroConfigs.add_evolution_constraint(chi, "pos_floor")
 dendroConfigs.add_evolution_constraint(alpha, "pos_floor")
 
 #evolution_rhs_code = dendroConfigs.generate_rhs_code("evolution")

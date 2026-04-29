@@ -59,6 +59,7 @@ var[VAR::U_ALPHA] = sqrt(Delta_bar * rho_bar_sqr / Sigma_bar);
 var[VAR::U_CHI]   = pow(rbar, 4) / pow(Sigma_bar * rho_bar_sqr, 1.0 / 3.0);
 // var[VAR::U_CHI] = pow(rbar/(rbar+0.5*mass), 4);
 var[VAR::U_K]     = 0.0;
+var[VAR::U_THETA] = 0.0;
 
 var[VAR::U_BETA0] = -ybar * beta_phi_up;  // shift_x
 var[VAR::U_BETA1] = xbar * beta_phi_up;   // shift_y

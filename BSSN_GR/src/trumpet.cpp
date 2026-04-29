@@ -130,6 +130,7 @@ void trumpetData(const double xx1, const double yy1, const double zz1,
         var[bssn::VAR::U_CHI] = bssn::CHI_FLOOR;
 
     var[bssn::VAR::U_K]      = tmp_trK;
+    var[bssn::VAR::U_THETA]  = 0.0;
 
     var[bssn::VAR::U_BETA0]  = xx * tmp_beta;
     var[bssn::VAR::U_BETA1]  = yy * tmp_beta;

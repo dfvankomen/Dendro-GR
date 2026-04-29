@@ -29,7 +29,7 @@ extern unsigned int BSSN_ELE_ORDER;
 extern unsigned int BSSN_PADDING_WIDTH;
 
 /**@brief number of variables*/
-static const unsigned int BSSN_NUM_VARS            = 24;
+static const unsigned int BSSN_NUM_VARS            = 25;
 
 /**@brief number of constraints variables*/
 static const unsigned int BSSN_CONSTRAINT_NUM_VARS = 6;
@@ -397,9 +397,9 @@ extern unsigned int BSSN_BH_MERGE_STEP;
 
 // note ko derivs are not included
 #ifdef BSSN_USE_ADVECTIVE_DERIVS
-const unsigned int BSSN_NUM_DERIVS = 138 + 74;
+const unsigned int BSSN_NUM_DERIVS = 141 + 74;
 #else
-const unsigned int BSSN_NUM_DERIVS = 138;
+const unsigned int BSSN_NUM_DERIVS = 141;
 #endif
 
 extern std::string DENDRO_LOG_FILE;

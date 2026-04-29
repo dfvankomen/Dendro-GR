@@ -158,13 +158,13 @@ double BSSN_DENDRO_AMR_FAC_POST_MERGER                   = 0.0;
 unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,24};
 
 unsigned int BSSN_NUM_EVOL_VARS_VTU_OUTPUT               = 1;
 unsigned int BSSN_NUM_CONST_VARS_VTU_OUTPUT              = 1;
 unsigned int BSSN_VTU_OUTPUT_EVOL_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,24};
 unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[BSSN_CONSTRAINT_NUM_VARS] = {
     0, 1, 2, 3, 4, 5};
 

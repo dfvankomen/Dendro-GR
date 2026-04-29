@@ -47,9 +47,12 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     const double *const At3   = &uZipVars[VAR::U_SYMAT3][offset];
     const double *const At4   = &uZipVars[VAR::U_SYMAT4][offset];
     const double *const At5   = &uZipVars[VAR::U_SYMAT5][offset];
-    const double *const Gt0   = &uZipVars[VAR::U_GT0][offset];
-    const double *const Gt1   = &uZipVars[VAR::U_GT1][offset];
-    const double *const Gt2   = &uZipVars[VAR::U_GT2][offset];
+    const double *const Gh0   = &uZipVars[VAR::U_GH0][offset];
+    const double *const Gh1   = &uZipVars[VAR::U_GH1][offset];
+    const double *const Gh2   = &uZipVars[VAR::U_GH2][offset];
+    const double *const Gt0   = Gh0;
+    const double *const Gt1   = Gh1;
+    const double *const Gt2   = Gh2;
     const double *const B0    = &uZipVars[VAR::U_B0][offset];
     const double *const B1    = &uZipVars[VAR::U_B1][offset];
     const double *const B2    = &uZipVars[VAR::U_B2][offset];
