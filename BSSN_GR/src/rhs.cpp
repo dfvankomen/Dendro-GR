@@ -4,13 +4,14 @@
 #include "hadrhs.h"
 #include "parameters.h"
 
-#if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) \
- || defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
-  // Generated cascade bodies define their own VEC typedef (scoped to their
-  // body {}) and #undef/#define the macros before use, so AVX2 and AVX-512
-  // variants can coexist in the same TU.
-  #include <immintrin.h>
-  #include <cmath>
+#if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
+    defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+// Generated cascade bodies define their own VEC typedef (scoped to their
+// body {}) and #undef/#define the macros before use, so AVX2 and AVX-512
+// variants can coexist in the same TU.
+#include <immintrin.h>
+
+#include <cmath>
 #endif
 
 using namespace std;
@@ -237,31 +238,32 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     bssn::timer::t_rhs.start();
 #ifdef BSSN_USE_CASCADE_AVX512_FUSED
-    #pragma message("BSSN: using AVX-512 fused cascade (vikr, 8-wide)")
-    if (bflag == 0 && (nx - 2*PW) >= 8) {
-        // Wide interior: 8-wide AVX-512 fused
-        #include "bssn_cascade_avx512_fused_interior.inc.cpp"
+#pragma message("BSSN: using AVX-512 fused cascade (vikr, 8-wide)")
+    if (bflag == 0 && (nx - 2 * PW) >= 8) {
+// Wide interior: 8-wide AVX-512 fused
+#include "bssn_cascade_avx512_fused_interior.inc.cpp"
     } else if (bflag == 0) {
-        // Narrow interior (width < 8): 4-wide AVX2 fused (reads mixed-only)
-        #include "bssn_cascade_avx_fused_interior.inc.cpp"
+// Narrow interior (width < 8): 4-wide AVX2 fused (reads mixed-only)
+#include "bssn_cascade_avx_fused_interior.inc.cpp"
     } else {
-        // Boundary block (bflag != 0): full precompute already done,
-        // use non-fused AVX2 (reads full 138-array workspace)
-        #include "bssn_cascade_avx_interior.inc.cpp"
+// Boundary block (bflag != 0): full precompute already done,
+// use non-fused AVX2 (reads full 138-array workspace)
+#include "bssn_cascade_avx_interior.inc.cpp"
     }
 #elif defined(BSSN_USE_CASCADE_AVX_FUSED)
-    #pragma message("BSSN: using AVX2-batched cascade with inline deriv stencils (vikr, fused)")
+#pragma message( \
+    "BSSN: using AVX2-batched cascade with inline deriv stencils (vikr, fused)")
     if (bflag == 0) {
-        #include "bssn_cascade_avx_fused_interior.inc.cpp"
+#include "bssn_cascade_avx_fused_interior.inc.cpp"
     } else {
-        // Boundary block: fused centered stencils are wrong at the 3 outer
-        // points; fall back to non-fused AVX cascade (reads the full 138-
-        // array workspace that bflag-aware deriv code populated above).
-        #include "bssn_cascade_avx_interior.inc.cpp"
+// Boundary block: fused centered stencils are wrong at the 3 outer
+// points; fall back to non-fused AVX cascade (reads the full 138-
+// array workspace that bflag-aware deriv code populated above).
+#include "bssn_cascade_avx_interior.inc.cpp"
     }
 #elif defined(BSSN_USE_CASCADE_AVX)
-    #pragma message("BSSN: using AVX2-batched cascade RHS (vikr)")
-    #include "bssn_cascade_avx_interior.inc.cpp"
+#pragma message("BSSN: using AVX2-batched cascade RHS (vikr)")
+#include "bssn_cascade_avx_interior.inc.cpp"
 #else
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
@@ -291,8 +293,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 const double dr2 =
                     sqrt((x - bh2x) * (x - bh2x) + (y - bh2y) * (y - bh2y) +
                          (z - bh2z) * (z - bh2z));
-// eta formulation
-// clang-format off
+                // eta formulation
+                // clang-format off
                 // const double eta = bssn::ETA_CONST; // constant damping
                 #include "eta_RIT.inc.cpp" // RIT's prescription
                 // #include "eta_linear_inverse.inc.cpp"

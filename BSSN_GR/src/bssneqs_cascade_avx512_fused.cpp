@@ -505,7 +505,7 @@
             for (int j = 0; j < 3; j++)
                 _R_scalar = VFMA(igt[i][j], R[i][j], _R_scalar);
         VEC _ham = VSUB(VFMA(ch, _R_scalar, VMUL(VSET(2.0/3.0), VMUL(Kv, Kv))), At_sqr);
-        const VEC _cahd_coef = VSET(-BSSN_CAHD_C * dx_i * dx_i / (1.0 + 10.0 * dx_i * dx_i) / dt);
+        const VEC _cahd_coef = VSET(BSSN_CAHD_C * dx_i * dx_i / (1.0 + 10.0 * dx_i * dx_i) / dt);
         chi_rhs_out = VFMA(_cahd_coef, VMUL(_ham, ch), chi_rhs_out);
     #endif
         VSTORE(chi_rhs+pp, chi_rhs_out);

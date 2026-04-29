@@ -55,6 +55,38 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
 
+    // --- CPU capability gate -----------------------------------------
+    // If this binary was compiled for AVX2/AVX-512 but the runtime CPU
+    // lacks those features (e.g., built on a login node, run on an
+    // older compute node), fail fast with a clear message instead of
+    // crashing on illegal-instruction. __builtin_cpu_supports requires
+    // a string literal so we check each feature by name directly.
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_cpu_init();
+    {
+        const char* missing = nullptr;
+ #if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) \
+  || defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+        if (!__builtin_cpu_supports("avx2")) missing = "avx2";
+        else if (!__builtin_cpu_supports("fma")) missing = "fma";
+ #endif
+ #if defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+        if (!missing && !__builtin_cpu_supports("avx512f"))  missing = "avx512f";
+        if (!missing && !__builtin_cpu_supports("avx512dq")) missing = "avx512dq";
+ #endif
+        if (missing) {
+            if (!rank) {
+                std::cerr << "FATAL: binary requires CPU feature '" << missing
+                          << "' but runtime CPU lacks it.\n"
+                          << "       Rebuild for the target node's CPU, or "
+                             "run on a node that supports " << missing << ".\n";
+            }
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
+#endif
+    // ------------------------------------------------------------------
+
     if (!rank) {
         std::cout << "======================================" << std::endl;
         std::cout << GRN << ":::: Now initializing BSSN Solver ::::" << NRM
