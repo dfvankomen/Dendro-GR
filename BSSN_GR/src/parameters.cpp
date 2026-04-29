@@ -602,16 +602,40 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_ETA_POWER[1] = parFile["BSSN_ETA_POWER"][1].as_floating();
     used_params.insert("BSSN_ETA_POWER");
 
+    auto validate_index_list = [&](const char* key, unsigned int count,
+                                   unsigned int upper_bound) {
+        const std::vector<int> values = toml::find<std::vector<int>>(parFile, key);
+        if (values.size() != count) {
+            throw std::runtime_error(std::string("Parameter ") + key +
+                                     " length does not match its count.");
+        }
+        for (unsigned int i = 0; i < count; i++) {
+            if (values[i] < 0 ||
+                static_cast<unsigned int>(values[i]) >= upper_bound) {
+                throw std::runtime_error(std::string("Parameter ") + key +
+                                         " contains an invalid variable index.");
+            }
+        }
+    };
+
+    validate_index_list("BSSN_REFINE_VARIABLE_INDICES",
+                        bssn::BSSN_NUM_REFINE_VARS, bssn::BSSN_NUM_VARS);
     for (unsigned int i = 0; i < bssn::BSSN_NUM_REFINE_VARS; i++)
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i].as_integer();
     used_params.insert("BSSN_REFINE_VARIABLE_INDICES");
 
+    validate_index_list("BSSN_VTU_OUTPUT_EVOL_INDICES",
+                        bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT,
+                        bssn::BSSN_NUM_VARS);
     for (unsigned int i = 0; i < bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT; i++)
         bssn::BSSN_VTU_OUTPUT_EVOL_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_EVOL_INDICES"][i].as_integer();
     used_params.insert("BSSN_VTU_OUTPUT_EVOL_INDICES");
 
+    validate_index_list("BSSN_VTU_OUTPUT_CONST_INDICES",
+                        bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT,
+                        bssn::BSSN_CONSTRAINT_NUM_VARS);
     for (unsigned int i = 0; i < bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT; i++)
         bssn::BSSN_VTU_OUTPUT_CONST_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_CONST_INDICES"][i].as_integer();

@@ -135,9 +135,9 @@ BSSN_WAVELET_TOL_FUNCTION_R0 = 3.0
 BSSN_WAVELET_TOL_FUNCTION_R1 = 12.0
 
 # Number of variables to use for refinement, goes with BSSN_REFINE_VARIABLE_INDICES
-BSSN_NUM_REFINE_VARS = 24
+BSSN_NUM_REFINE_VARS = 25
 # The indices of the variables for refinement, see grDef.h for which variable corresponds to which index
-BSSN_REFINE_VARIABLE_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+BSSN_REFINE_VARIABLE_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
 
 # FD Intergrid transfer mode
 BSSN_USE_FD_GRID_TRANSFER = false
@@ -330,4 +330,3 @@ BSSN_KO_SIGMA_SCALE_BY_CONFORMAL = false
 
 # CAHD: Hamiltonian damping strength
 BSSN_CAHD_C = 0.077
-

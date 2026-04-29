@@ -84,6 +84,8 @@ static const char* BSSN_VAR_NAMES[] = {
     "U_BETA0",  "U_BETA1",  "U_BETA2",  "U_B0",     "U_B1",     "U_B2",
     "U_SYMGT0", "U_SYMGT1", "U_SYMGT2", "U_SYMGT3", "U_SYMGT4", "U_SYMGT5",
     "U_SYMAT0", "U_SYMAT1", "U_SYMAT2", "U_SYMAT3", "U_SYMAT4", "U_SYMAT5", "U_THETA"};
+static_assert(sizeof(BSSN_VAR_NAMES) / sizeof(BSSN_VAR_NAMES[0]) == U_THETA + 1,
+              "BSSN_VAR_NAMES must match the VAR enum.");
 
 static const char* BSSN_CONSTRAINT_VAR_NAMES[] = {
     "C_HAM", "C_MOM0", "C_MOM1", "C_MOM2", "C_PSI4_REAL", "C_PSI4_IMG"};
