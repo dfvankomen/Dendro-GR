@@ -287,6 +287,15 @@ extern unsigned int BSSN_LAMBDA[4];
 /**@brief: lambda values for evolution */
 extern double BSSN_LAMBDA_F[2];
 
+/**@brief: CCZ4 damping/conformal parameters: kappa1, kappa2, kappa3, kappac, s, e0 */
+extern double BSSN_CCZ4_KAPPA[6];
+
+/**@brief: CCZ4 shift damping eta. Negative values keep the existing eta prescription. */
+extern double BSSN_CCZ4_ETA;
+
+/**@brief: CCZ4 matter source tau parameter */
+extern unsigned int BSSN_CCZ4_TAU;
+
 /**@brief : parameters for eta_damping function */
 extern double BSSN_ETA_R0;
 extern double BSSN_ETA_POWER[2];

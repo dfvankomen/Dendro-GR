@@ -169,6 +169,11 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const unsigned int lambda[4]         = {BSSN_LAMBDA[0], BSSN_LAMBDA[1],
                                             BSSN_LAMBDA[2], BSSN_LAMBDA[3]};
     const double lambda_f[2]             = {BSSN_LAMBDA_F[0], BSSN_LAMBDA_F[1]};
+    const double kappa[6]                = {
+        bssn::BSSN_CCZ4_KAPPA[0], bssn::BSSN_CCZ4_KAPPA[1],
+        bssn::BSSN_CCZ4_KAPPA[2], bssn::BSSN_CCZ4_KAPPA[3],
+        bssn::BSSN_CCZ4_KAPPA[4], bssn::BSSN_CCZ4_KAPPA[5]};
+    const unsigned int tau               = bssn::BSSN_CCZ4_TAU;
 
     // for CAHD we need also need dt, dx_i, and dx_min
     const double dt                      = bssn::BSSN_RK45_TIME_STEP_SIZE;

@@ -183,6 +183,11 @@ ETA_DAMPING = 1.0
 ETA_DAMPING_EXP = 1.0
 BSSN_LAMBDA = [ 1, 1, 1, 1 ]
 BSSN_LAMBDA_F = [ 1.0, 0.0 ]
+# CCZ4 parameters: [kappa1, kappa2, kappa3, kappac, s, e0]
+BSSN_CCZ4_KAPPA = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+# Negative keeps the existing spatial eta prescription; non-negative uses this constant eta.
+BSSN_CCZ4_ETA = -1.0
+BSSN_CCZ4_TAU = 0
 BSSN_XI = [ 0, 0, 0 ]
 CHI_FLOOR = 0.0001
 BSSN_TRK0 = 0.0

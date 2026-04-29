@@ -135,6 +135,10 @@ double BSSN_CURRENT_MIN_DX = (BSSN_COMPD_MAX[0] - BSSN_COMPD_MIN[0]) *
 
 unsigned int BSSN_LAMBDA[4]                              = {1, 1, 1, 1};
 double BSSN_LAMBDA_F[2]                                  = {1.0, 0.0};
+double BSSN_CCZ4_KAPPA[6]                                = {0.0, 0.0, 0.0,
+                                                            1.0, 1.0, 1.0};
+double BSSN_CCZ4_ETA                                     = -1.0;
+unsigned int BSSN_CCZ4_TAU                               = 0;
 double BSSN_TRK0                                         = 0.0;
 double ETA_CONST                                         = 2.0;
 double ETA_R0                                            = 50.0;
@@ -485,6 +489,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER,
          UseInitialValue},
         {"BSSN_CAHD_C", bssn::BSSN_CAHD_C, UseInitialValue},
+        {"BSSN_CCZ4_ETA", bssn::BSSN_CCZ4_ETA, UseInitialValue},
+        {"BSSN_CCZ4_TAU", bssn::BSSN_CCZ4_TAU, UseInitialValue},
         // lambda and xi are added later
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
         {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
@@ -592,6 +598,18 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_LAMBDA_F[1] = parFile["BSSN_LAMBDA_F"][1].as_floating();
     used_params.insert("BSSN_LAMBDA");
     used_params.insert("BSSN_LAMBDA_F");
+
+    if (parFile.contains("BSSN_CCZ4_KAPPA")) {
+        const std::vector<double> kappa_values =
+            toml::find<std::vector<double>>(parFile, "BSSN_CCZ4_KAPPA");
+        if (kappa_values.size() != 6) {
+            throw std::runtime_error(
+                "Parameter BSSN_CCZ4_KAPPA must contain exactly 6 values.");
+        }
+        for (unsigned int i = 0; i < 6; i++)
+            bssn::BSSN_CCZ4_KAPPA[i] = kappa_values[i];
+        used_params.insert("BSSN_CCZ4_KAPPA");
+    }
 
     bssn::BSSN_XI[0] = (unsigned int)parFile["BSSN_XI"][0].as_integer();
     bssn::BSSN_XI[1] = (unsigned int)parFile["BSSN_XI"][1].as_integer();
@@ -1087,6 +1105,8 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_EPSILON_CAKO_GAUGE", bssn::BSSN_EPSILON_CAKO_GAUGE},
             {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER},
             {"BSSN_CAHD_C", bssn::BSSN_CAHD_C},
+            {"BSSN_CCZ4_ETA", bssn::BSSN_CCZ4_ETA},
+            {"BSSN_CCZ4_TAU", bssn::BSSN_CCZ4_TAU},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
@@ -1154,6 +1174,9 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             std::begin(bssn::BSSN_LAMBDA), std::end(bssn::BSSN_LAMBDA)));
         root["BSSN_LAMBDA_F"] = std::vector<double>(
             std::begin(bssn::BSSN_LAMBDA_F), std::end(bssn::BSSN_LAMBDA_F));
+        root["BSSN_CCZ4_KAPPA"] = std::vector<double>(
+            std::begin(bssn::BSSN_CCZ4_KAPPA),
+            std::end(bssn::BSSN_CCZ4_KAPPA));
         root["BSSN_ETA_POWER"] = std::vector<double>(
             std::begin(bssn::BSSN_ETA_POWER), std::end(bssn::BSSN_ETA_POWER));
 
