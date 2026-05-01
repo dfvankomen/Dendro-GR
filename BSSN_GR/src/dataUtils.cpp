@@ -8,6 +8,118 @@
 
 namespace bssn {
 
+namespace {
+
+void computeDerivativeIndicators(const double* u, const unsigned int* sz,
+                                 const double* hx, double& grad_l2,
+                                 double& hess_l2) {
+    const unsigned int nx = sz[0];
+    const unsigned int ny = sz[1];
+    const unsigned int nz = sz[2];
+
+    grad_l2 = 0.0;
+    hess_l2 = 0.0;
+
+    if (nx == 0 || ny == 0 || nz == 0) return;
+
+    const auto idx = [nx, ny](unsigned int i, unsigned int j,
+                              unsigned int k) {
+        return k * nx * ny + j * nx + i;
+    };
+
+    const unsigned int n = nx * ny * nz;
+    double grad_sum      = 0.0;
+    double hess_sum      = 0.0;
+
+    for (unsigned int k = 0; k < nz; k++)
+        for (unsigned int j = 0; j < ny; j++)
+            for (unsigned int i = 0; i < nx; i++) {
+                const double uc = u[idx(i, j, k)];
+
+                double ux = 0.0;
+                if (nx > 1) {
+                    if (i == 0)
+                        ux = (u[idx(i + 1, j, k)] - uc) / hx[0];
+                    else if (i + 1 == nx)
+                        ux = (uc - u[idx(i - 1, j, k)]) / hx[0];
+                    else
+                        ux = (u[idx(i + 1, j, k)] -
+                              u[idx(i - 1, j, k)]) /
+                             (2.0 * hx[0]);
+                }
+
+                double uy = 0.0;
+                if (ny > 1) {
+                    if (j == 0)
+                        uy = (u[idx(i, j + 1, k)] - uc) / hx[1];
+                    else if (j + 1 == ny)
+                        uy = (uc - u[idx(i, j - 1, k)]) / hx[1];
+                    else
+                        uy = (u[idx(i, j + 1, k)] -
+                              u[idx(i, j - 1, k)]) /
+                             (2.0 * hx[1]);
+                }
+
+                double uz = 0.0;
+                if (nz > 1) {
+                    if (k == 0)
+                        uz = (u[idx(i, j, k + 1)] - uc) / hx[2];
+                    else if (k + 1 == nz)
+                        uz = (uc - u[idx(i, j, k - 1)]) / hx[2];
+                    else
+                        uz = (u[idx(i, j, k + 1)] -
+                              u[idx(i, j, k - 1)]) /
+                             (2.0 * hx[2]);
+                }
+
+                grad_sum += ux * ux + uy * uy + uz * uz;
+
+                double uxx = 0.0;
+                if (nx > 2 && i > 0 && i + 1 < nx)
+                    uxx = (u[idx(i + 1, j, k)] - 2.0 * uc +
+                           u[idx(i - 1, j, k)]) /
+                          (hx[0] * hx[0]);
+
+                double uyy = 0.0;
+                if (ny > 2 && j > 0 && j + 1 < ny)
+                    uyy = (u[idx(i, j + 1, k)] - 2.0 * uc +
+                           u[idx(i, j - 1, k)]) /
+                          (hx[1] * hx[1]);
+
+                double uzz = 0.0;
+                if (nz > 2 && k > 0 && k + 1 < nz)
+                    uzz = (u[idx(i, j, k + 1)] - 2.0 * uc +
+                           u[idx(i, j, k - 1)]) /
+                          (hx[2] * hx[2]);
+
+                hess_sum += uxx * uxx + uyy * uyy + uzz * uzz;
+            }
+
+    const double h01 = (hx[0] > hx[1]) ? hx[0] : hx[1];
+    const double h   = (h01 > hx[2]) ? h01 : hx[2];
+    grad_l2 = h * sqrt(grad_sum / static_cast<double>(n));
+    hess_l2 = h * h * sqrt(hess_sum / static_cast<double>(n));
+}
+
+double computeWeightedWaveletIndicator(const double raw_l_max,
+                                       const double* element_vals,
+                                       const unsigned int* sz,
+                                       const double* hx) {
+    if (bssn::BSSN_DERIV_FIRST_WEIGHT == 0.0 &&
+        bssn::BSSN_DERIV_SECOND_WEIGHT == 0.0)
+        return raw_l_max;
+
+    double grad_l2 = 0.0;
+    double hess_l2 = 0.0;
+    computeDerivativeIndicators(element_vals, sz, hx, grad_l2, hess_l2);
+
+    return sqrt(raw_l_max * raw_l_max +
+                bssn::BSSN_DERIV_FIRST_WEIGHT * grad_l2 * grad_l2 +
+                bssn::BSSN_DERIV_SECOND_WEIGHT * hess_l2 * hess_l2);
+}
+
+}  // namespace
+
 void extractBHCoords(const ot::Mesh* pMesh, const DendroScalar* var,
                      double tolerance, const Point* ptIn, unsigned int numPt,
                      Point* ptOut) {
@@ -712,6 +824,8 @@ bool isReMeshWAMR(
                     // renormalize waveleth values as relative to L-infty norm
                     wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
                                      sqrt(wCout.size()) / Linf;
+                    wtol_vals[vid] = computeWeightedWaveletIndicator(
+                        wtol_vals[vid], eVecTmp.data(), isz, hx);
 
                     // early bail if the computed tolerance value is large.
                     if (wtol_vals[vid] > tol_ele) break;
@@ -1310,6 +1424,8 @@ bool addRemeshWAMR(
                     // renormalize wavelet tolerance values
                     wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
                                      sqrt(wCout.size()) / Linf;
+                    wtol_vals[vid] = computeWeightedWaveletIndicator(
+                        wtol_vals[vid], eVecTmp.data(), isz, hx);
 
                     // early bail if the computed tolerance value is large.
                     if (wtol_vals[vid] > tol_ele) break;

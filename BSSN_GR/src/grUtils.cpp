@@ -229,6 +229,10 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_USE_WAVELET_TOL_FUNCTION =
         parFile["BSSN_USE_WAVELET_TOL_FUNCTION"];
     bssn::BSSN_WAVELET_TOL     = parFile["BSSN_WAVELET_TOL"];
+    if (parFile.find("BSSN_DERIV_FIRST_WEIGHT") != parFile.end())
+        bssn::BSSN_DERIV_FIRST_WEIGHT = parFile["BSSN_DERIV_FIRST_WEIGHT"];
+    if (parFile.find("BSSN_DERIV_SECOND_WEIGHT") != parFile.end())
+        bssn::BSSN_DERIV_SECOND_WEIGHT = parFile["BSSN_DERIV_SECOND_WEIGHT"];
     bssn::BSSN_WAVELET_TOL_MAX = parFile["BSSN_WAVELET_TOL_MAX"];
     bssn::BSSN_WAVELET_TOL_FUNCTION_R0 =
         parFile["BSSN_WAVELET_TOL_FUNCTION_R0"];
@@ -560,6 +564,10 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << bssn::BSSN_USE_WAVELET_TOL_FUNCTION << NRM << std::endl;
         sout << YLW << "\tBSSN_WAVELET_TOL :" << bssn::BSSN_WAVELET_TOL << NRM
              << std::endl;
+        sout << YLW << "\tBSSN_DERIV_FIRST_WEIGHT :"
+             << bssn::BSSN_DERIV_FIRST_WEIGHT << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_SECOND_WEIGHT :"
+             << bssn::BSSN_DERIV_SECOND_WEIGHT << NRM << std::endl;
         sout << YLW << "\tBSSN_GW_REFINE_WTOL:" << bssn::BSSN_GW_REFINE_WTOL
              << NRM << std::endl;
         sout << YLW << "\tBSSN_WAVELET_TOL_MAX:" << bssn::BSSN_WAVELET_TOL_MAX
