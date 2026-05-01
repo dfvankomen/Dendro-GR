@@ -149,6 +149,8 @@ unsigned int BSSN_NUM_REFINE_VARS                        = 1;
 unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
     12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+unsigned int BSSN_NUM_SOB_REFINE_VARS = 0;
+unsigned int BSSN_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS] = {};
 
 unsigned int BSSN_NUM_EVOL_VARS_VTU_OUTPUT               = 1;
 unsigned int BSSN_NUM_CONST_VARS_VTU_OUTPUT              = 1;
@@ -409,6 +411,15 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     for (unsigned int i = 0; i < bssn::BSSN_NUM_REFINE_VARS; i++)
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i].as_integer();
+
+    if (parFile.contains("BSSN_NUM_SOB_REFINE_VARS"))
+        bssn::BSSN_NUM_SOB_REFINE_VARS =
+            parFile["BSSN_NUM_SOB_REFINE_VARS"].as_integer();
+
+    if (parFile.contains("BSSN_SOB_REFINE_VARIABLE_INDICES"))
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++)
+            bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i] =
+                parFile["BSSN_SOB_REFINE_VARIABLE_INDICES"][i].as_integer();
 
     bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT =
         parFile["BSSN_NUM_EVOL_VARS_VTU_OUTPUT"].as_integer();
@@ -690,6 +701,12 @@ if (parFile.contains("BSSN_INMATFILT_SECOND_COEFFS")) {
     if (BSSN_NUM_REFINE_VARS > BSSN_NUM_VARS) {
         std::cout << "Error[parameter file]: Number of refine variables should "
                      "be less than number of BSSN_NUM_VARS"
+                  << std::endl;
+        exit(0);
+    }
+    if (BSSN_NUM_SOB_REFINE_VARS > BSSN_NUM_VARS) {
+        std::cout << "Error[parameter file]: Number of Sobolev-refined "
+                     "variables should be less than number of BSSN_NUM_VARS"
                   << std::endl;
         exit(0);
     }

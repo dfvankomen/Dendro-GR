@@ -244,6 +244,15 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i];
 
+    if (parFile.find("BSSN_NUM_SOB_REFINE_VARS") != parFile.end())
+        bssn::BSSN_NUM_SOB_REFINE_VARS =
+            parFile["BSSN_NUM_SOB_REFINE_VARS"];
+
+    if (parFile.find("BSSN_SOB_REFINE_VARIABLE_INDICES") != parFile.end())
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++)
+            bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i] =
+                parFile["BSSN_SOB_REFINE_VARIABLE_INDICES"][i];
+
     bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT =
         parFile["BSSN_NUM_EVOL_VARS_VTU_OUTPUT"];
     bssn::BSSN_NUM_CONST_VARS_VTU_OUTPUT =
@@ -451,6 +460,12 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     if (BSSN_NUM_REFINE_VARS > BSSN_NUM_VARS) {
         std::cout << "Error[parameter file]: Number of refine variables "
                      "should be less than number of BSSN_NUM_VARS"
+                  << std::endl;
+        exit(0);
+    }
+    if (BSSN_NUM_SOB_REFINE_VARS > BSSN_NUM_VARS) {
+        std::cout << "Error[parameter file]: Number of Sobolev-refined "
+                     "variables should be less than number of BSSN_NUM_VARS"
                   << std::endl;
         exit(0);
     }
@@ -684,6 +699,14 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << bssn::BSSN_REFINE_VARIABLE_INDICES[bssn::BSSN_NUM_REFINE_VARS -
                                                    1]
              << "]" << NRM << std::endl;
+        sout << YLW << "\tBSSN_NUM_SOB_REFINE_VARS :"
+             << bssn::BSSN_NUM_SOB_REFINE_VARS << NRM << std::endl;
+        sout << YLW << "\tBSSN_SOB_REFINE_VARIABLE_INDICES :[";
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++) {
+            if (i > 0) sout << ", ";
+            sout << bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i];
+        }
+        sout << "]" << NRM << std::endl;
 
         sout << YLW << "\tBSSN_REFINEMENT_MODE :" << bssn::BSSN_REFINEMENT_MODE
              << NRM << std::endl;

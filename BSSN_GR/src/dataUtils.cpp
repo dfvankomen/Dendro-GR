@@ -101,13 +101,23 @@ void computeDerivativeIndicators(const double* u, const unsigned int* sz,
     hess_l2 = h * h * sqrt(hess_sum / static_cast<double>(n));
 }
 
+bool useSobolevRefineIndicator(const unsigned int var_id) {
+    for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++)
+        if (bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
+            return true;
+
+    return false;
+}
+
 double computeWeightedWaveletIndicator(const double raw_l_max,
                                        const double* element_vals,
                                        const unsigned int* sz,
-                                       const double* hx) {
+                                       const double* hx,
+                                       const unsigned int var_id) {
     if (bssn::BSSN_DERIV_FIRST_WEIGHT == 0.0 &&
         bssn::BSSN_DERIV_SECOND_WEIGHT == 0.0)
         return raw_l_max;
+    if (!useSobolevRefineIndicator(var_id)) return raw_l_max;
 
     double grad_l2 = 0.0;
     double hess_l2 = 0.0;
@@ -825,7 +835,7 @@ bool isReMeshWAMR(
                     wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
                                      sqrt(wCout.size()) / Linf;
                     wtol_vals[vid] = computeWeightedWaveletIndicator(
-                        wtol_vals[vid], eVecTmp.data(), isz, hx);
+                        wtol_vals[vid], eVecTmp.data(), isz, hx, vid);
 
                     // early bail if the computed tolerance value is large.
                     if (wtol_vals[vid] > tol_ele) break;
@@ -1425,7 +1435,7 @@ bool addRemeshWAMR(
                     wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
                                      sqrt(wCout.size()) / Linf;
                     wtol_vals[vid] = computeWeightedWaveletIndicator(
-                        wtol_vals[vid], eVecTmp.data(), isz, hx);
+                        wtol_vals[vid], eVecTmp.data(), isz, hx, vid);
 
                     // early bail if the computed tolerance value is large.
                     if (wtol_vals[vid] > tol_ele) break;
