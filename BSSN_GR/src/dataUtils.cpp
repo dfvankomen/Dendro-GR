@@ -109,23 +109,40 @@ bool useSobolevRefineIndicator(const unsigned int var_id) {
     return false;
 }
 
+bool useWeakSobolevRefineIndicator(const unsigned int var_id) {
+    for (unsigned int i = 0; i < bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS; i++)
+        if (bssn::BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
+            return true;
+
+    return false;
+}
+
 double computeWeightedWaveletIndicator(const double raw_l_max,
                                        const double* element_vals,
                                        const unsigned int* sz,
                                        const double* hx,
                                        const unsigned int var_id) {
-    if (bssn::BSSN_DERIV_FIRST_WEIGHT == 0.0 &&
-        bssn::BSSN_DERIV_SECOND_WEIGHT == 0.0)
+    double first_weight  = 0.0;
+    double second_weight = 0.0;
+
+    if (useSobolevRefineIndicator(var_id)) {
+        first_weight  = bssn::BSSN_DERIV_FIRST_WEIGHT;
+        second_weight = bssn::BSSN_DERIV_SECOND_WEIGHT;
+    } else if (useWeakSobolevRefineIndicator(var_id)) {
+        first_weight  = bssn::BSSN_WEAK_DERIV_FIRST_WEIGHT;
+        second_weight = bssn::BSSN_WEAK_DERIV_SECOND_WEIGHT;
+    } else {
         return raw_l_max;
-    if (!useSobolevRefineIndicator(var_id)) return raw_l_max;
+    }
+
+    if (first_weight == 0.0 && second_weight == 0.0) return raw_l_max;
 
     double grad_l2 = 0.0;
     double hess_l2 = 0.0;
     computeDerivativeIndicators(element_vals, sz, hx, grad_l2, hess_l2);
 
-    return sqrt(raw_l_max * raw_l_max +
-                bssn::BSSN_DERIV_FIRST_WEIGHT * grad_l2 * grad_l2 +
-                bssn::BSSN_DERIV_SECOND_WEIGHT * hess_l2 * hess_l2);
+    return sqrt(raw_l_max * raw_l_max + first_weight * grad_l2 * grad_l2 +
+                second_weight * hess_l2 * hess_l2);
 }
 
 }  // namespace

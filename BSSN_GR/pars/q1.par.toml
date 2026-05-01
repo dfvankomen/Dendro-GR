@@ -97,8 +97,10 @@ BSSN_USE_WAVELET_TOL_FUNCTION = 6
 # Maximum Wavelet Tolerence
 BSSN_WAVELET_TOL_MAX = 1e-3
 
-BSSN_DERIV_FIRST_WEIGHT = 0.0
-BSSN_DERIV_SECOND_WEIGHT = 0.0
+BSSN_DERIV_FIRST_WEIGHT = 1.0
+BSSN_DERIV_SECOND_WEIGHT = 1.0
+BSSN_WEAK_DERIV_FIRST_WEIGHT = 1.0e-4
+BSSN_WEAK_DERIV_SECOND_WEIGHT = 1.0e-6
 
 # Wavelet Tolerence Radius 0 (for "shell" based wavelet)
 BSSN_WAVELET_TOL_FUNCTION_R0 = 3.0
@@ -110,9 +112,13 @@ BSSN_NUM_REFINE_VARS = 24
 # The indices of the variables for refinement, see grDef.h for which variable corresponds to which index
 BSSN_REFINE_VARIABLE_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
 # Number of variables to use Sobolev derivative-weighted refinement; equals length of BSSN_SOB_REFINE_VARIABLE_INDICES
-BSSN_NUM_SOB_REFINE_VARS = 0
+BSSN_NUM_SOB_REFINE_VARS = 13
 # The indices of variables to use Sobolev derivative-weighted refinement
-BSSN_SOB_REFINE_VARIABLE_INDICES = []
+BSSN_SOB_REFINE_VARIABLE_INDICES = [2,3,4,5,9,10,11,18,19,20,21,22,23]
+# Number of variables to use weak Sobolev derivative-weighted refinement; equals length of BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES
+BSSN_NUM_WEAK_SOB_REFINE_VARS = 5
+# The indices of variables to use weak Sobolev derivative-weighted refinement
+BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES = [0,1,12,15,17]
 
 # FD Intergrid transfer mode
 BSSN_USE_FD_GRID_TRANSFER = false
@@ -251,7 +257,6 @@ L_MODE = 2
 M_MODE = 0
 ID_FUNCTIONAL_FORM = 0
 REFINEMENT_R0 = 2.0
-
 
 
 

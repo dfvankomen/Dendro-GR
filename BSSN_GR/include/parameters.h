@@ -148,6 +148,12 @@ extern unsigned int BSSN_NUM_SOB_REFINE_VARS;
 /**@brief indices of refine variables that use Sobolev derivative weighting*/
 extern unsigned int BSSN_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
 
+/**@brief number of refine variables that use weak Sobolev derivative weighting*/
+extern unsigned int BSSN_NUM_WEAK_SOB_REFINE_VARS;
+
+/**@brief indices of refine variables that use weak Sobolev derivative weighting*/
+extern unsigned int BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
+
 /**@brief number of evolution variables written to vtu files*/
 extern unsigned int BSSN_NUM_EVOL_VARS_VTU_OUTPUT;
 
@@ -212,6 +218,12 @@ extern double BSSN_DERIV_FIRST_WEIGHT;
 
 /**@brief second-derivative weight for Sobolev WAMR indicator. */
 extern double BSSN_DERIV_SECOND_WEIGHT;
+
+/**@brief first-derivative weight for weak Sobolev WAMR indicator. */
+extern double BSSN_WEAK_DERIV_FIRST_WEIGHT;
+
+/**@brief second-derivative weight for weak Sobolev WAMR indicator. */
+extern double BSSN_WEAK_DERIV_SECOND_WEIGHT;
 
 /**@brief: wabelet tolernace for GW extration(refinement after the merger)*/
 extern double BSSN_GW_REFINE_WTOL;
