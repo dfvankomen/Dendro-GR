@@ -132,14 +132,16 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
 
         // writes the header
         if (timestep == 0)
-            fileGW << "TimeStep\t" << " time\t" << " bh1_x\t" << " bh1_y\t"
-                   << " bh1_z\t" << " bh2_x\t" << " bh2_y\t" << " bh2_z\t"
+            fileGW << "TimeStep\t" << "time\t" << "bh1_x\t" << "bh1_y\t"
+                   << "bh1_z\t" << "bh2_x\t" << "bh2_y\t" << "bh2_z\t"
                    << std::endl;
 
-        fileGW << timestep << "\t" << time << "\t" << ptLocs[0].x() << "\t"
+        fileGW << std::setprecision(std::numeric_limits<double>::max_digits10)
+               << timestep << "\t" << time << "\t" << ptLocs[0].x() << "\t"
                << ptLocs[0].y() << "\t" << ptLocs[0].z() << "\t"
                << ptLocs[1].x() << "\t" << ptLocs[1].y() << "\t"
                << ptLocs[1].z() << std::endl;
+
         fileGW.close();
         return;
     }
