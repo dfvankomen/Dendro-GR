@@ -181,7 +181,7 @@ std::vector<Point> calculate_relative_position_history(
         double z2 = bh_points.second.z();
 
         // compute the relative angle for x and y
-        rp_history.push_back(Point(x1 - x2, y1 - y2, x1 - x2));
+        rp_history.push_back(Point(x1 - x2, y1 - y2, z1 - z2));
     }
 
     return rp_history;
@@ -421,6 +421,18 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
 
         ////////////////////////////////////////////////////////////////
         // Set up onion parameters
+        
+        // distance btw the black holes
+        const double dBH = (bhLoc[0] - bhLoc[1]).abs();
+        // read in BH masses
+        const double m1 = bssn::BSSN_BH1_MASS;  // mass of BH1
+        const double m2 = bssn::BSSN_BH2_MASS;  // mass of BH2
+        // set up factors to calculate relative distance to each BH
+        const double f1      = m2 / (m1 + m2);
+        const double f2      = m1 / (m1 + m2);
+        const double f       = std::max(f1, f2);
+        const double R_orbit = f * dBH + 8;  // M; resolve scale
+        
         // read in AMR radii
         const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
         // level offset immediately about the BHs
@@ -429,8 +441,6 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
 
         // consider BHs merged if punctures are less than this value
         const double BH_MERGED_SEP_TOL = 0.1;
-        // distance btw the black holes
-        const double dBH               = (bhLoc[0] - bhLoc[1]).abs();
         // lower of two max depths
         const unsigned int refLevMin =
             std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
@@ -533,15 +543,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // if radius r <= r*, keep level l >= l*
             // 9/9/24: change to depend on current BH separation dist.
 
-            // set up orbital scale
-            const double m1      = bssn::BSSN_BH1_MASS;  // mass of BH1
-            const double m2      = bssn::BSSN_BH2_MASS;  // mass of BH2
-            // calculate relative distance to each BH
-            const double f1      = m2 / (m1 + m2);
-            const double f2      = m1 / (m1 + m2);
-            const double f       = std::max(f1, f2);
-            const double R_orbit = f * dBH + 8;  // M; resolve scale
-            const int l_orbit    = 9;  // desired refinement level within
+            const int l_orbit = 9;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
