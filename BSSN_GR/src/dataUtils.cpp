@@ -397,6 +397,67 @@ double get_clean_wavelength(
            alpha * clean_wavelength_history[index];
 }
 
+// Computes the minimum distances from an octree element's corners to each BH
+// and to the grid center. Distances are returned via output references.
+static inline void compute_element_min_distances(
+    const ot::TreeNode& oct, const ot::Mesh* pMesh, const Point* bhLoc,
+    double& r1_min, double& r2_min, double& r_min) {
+    const unsigned int ln = 1u << (m_uiMaxDepth - oct.getLevel());
+    r1_min                = std::numeric_limits<double>::max();
+    r2_min                = std::numeric_limits<double>::max();
+    r_min                 = std::numeric_limits<double>::max();
+    Point temp;
+    for (unsigned int kk = 0; kk < 2; kk++)
+        for (unsigned int jj = 0; jj < 2; jj++)
+            for (unsigned int ii = 0; ii < 2; ii++) {
+                const Point oct_mid = Point(oct.minX() + ii * ln,
+                                            oct.minY() + jj * ln,
+                                            oct.minZ() + kk * ln);
+                pMesh->octCoordToDomainCoord(oct_mid, temp);
+                r1_min = std::min(r1_min, (temp - bhLoc[0]).abs());
+                r2_min = std::min(r2_min, (temp - bhLoc[1]).abs());
+                r_min  = std::min(r_min, temp.abs());
+            }
+}
+
+// Returns the onion refinement level required at the given radius.
+// Levels step down from maxLevel as radius grows beyond r_AMR by factor ratio.
+// Returns 0 if outside the orbital radius; -1 should never be reached.
+static inline int onionLevel(double radius, double r_AMR, int maxLevel,
+                              int l_orbit, double R_orbit,
+                              double ratio = 2.0) {
+    if (radius > R_orbit) {
+        return 0;
+    }
+    double currentRadius = r_AMR;
+    int currentLevel     = maxLevel;
+    while (currentLevel > l_orbit) {
+        if (radius <= currentRadius) {
+            return currentLevel;
+        }
+        currentRadius *= ratio;
+        currentLevel--;
+    }
+    // Shouldn't be here.
+    return -1;
+}
+
+// Drives an element toward exactly targetLevel: SPLIT if below, COARSE if
+// above, NO_CHANGE if at level (accounts for the MAXDEAPTH_LEVEL_DIFF offset).
+static inline void setLevelTarget(std::vector<unsigned int>& refine_flags,
+                                   unsigned int ele, unsigned int eleLocalBegin,
+                                   const ot::TreeNode* pNodes,
+                                   unsigned int targetLevel) {
+    const unsigned int lev =
+        pNodes[ele].getLevel() + MAXDEAPTH_LEVEL_DIFF + 1;
+    if (lev < targetLevel)
+        refine_flags[ele - eleLocalBegin] = OCT_SPLIT;
+    else if (lev > targetLevel)
+        refine_flags[ele - eleLocalBegin] = OCT_COARSE;
+    else
+        refine_flags[ele - eleLocalBegin] = OCT_NO_CHANGE;
+}
+
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const std::vector<std::pair<Point, Point>>& bh_loc_history,
                 const std::vector<double>& bh_loc_history_t) {
@@ -410,7 +471,6 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         // Read in data from mesh
         const unsigned int eleLocalBegin = pMesh->getElementLocalBegin();
         const unsigned int eleLocalEnd   = pMesh->getElementLocalEnd();
-        Point d1, d2, temp;
 
         // initialize refinement flags
         std::vector<unsigned int> refine_flags;
@@ -486,36 +546,9 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
 
         // refine pass: iterate over all elements
         for (unsigned int ele = eleLocalBegin; ele < eleLocalEnd; ele++) {
-            // calculate which region of the grid we're in
-            const unsigned int ln = 1u
-                                    << (m_uiMaxDepth - pNodes[ele].getLevel());
-
-            // Set obnoxiously large values for minimum radii
-            // (to be overwritten) so as we go through box edges
-            // we find minimum distances to BHs and to grid center
-            double r1_min = 100000 * Delta_x;  // distance to BH1
-            double r2_min = 100000 * Delta_x;  // distance to BH2
-            double r_min  = 100000 * Delta_x;  // distance to grid center
-
-            // measure minimum distances between both BHs
-            for (unsigned int kk = 0; kk < 2; kk++)
-                for (unsigned int jj = 0; jj < 2; jj++)
-                    for (unsigned int ii = 0; ii < 2; ii++) {
-                        const double x      = pNodes[ele].minX() + ii * ln;
-                        const double y      = pNodes[ele].minY() + jj * ln;
-                        const double z      = pNodes[ele].minZ() + kk * ln;
-                        const Point oct_mid = Point(x, y, z);
-                        pMesh->octCoordToDomainCoord(oct_mid, temp);
-
-                        // vectors pointing toward each BH
-                        d1     = temp - bhLoc[0];
-                        d2     = temp - bhLoc[1];
-                        // update minimum distance from each BH
-                        r1_min = std::min(r1_min, d1.abs());
-                        r2_min = std::min(r2_min, d2.abs());
-                        // update minimum distance from grid center
-                        r_min  = std::min(r_min, temp.abs());
-                    }
+            double r1_min, r2_min, r_min;
+            compute_element_min_distances(pNodes[ele], pMesh, bhLoc,
+                                          r1_min, r2_min, r_min);
 
             ////////////////////////////////////////////////////////////
             // wkb 5 Sept 2024: make this into nice functions
@@ -550,35 +583,6 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             }
 
             ////////////////////////////////////////////////////////////
-            // wkb 2 Dec 2024: Onion refinement about the BHs
-            auto onionLevel = [R_orbit, l_orbit](double radius, double r_AMR,
-                                                 int maxLevel,
-                                                 double ratio = 2.0) -> int {
-                if (radius > R_orbit) {
-                    // don't enforce onion outside orbital radius
-                    return 0;
-                } else {
-                    // Start with the AMR radius and maximum level
-                    double currentRadius = r_AMR;
-                    int currentLevel     = maxLevel;
-                    // Loop until we reach or go below the orbit level
-                    while (currentLevel > l_orbit) {
-                        // If input radius w/i current radius,
-                        // return current level requirement
-                        if (radius <= currentRadius) {
-                            return currentLevel;
-                        }
-                        // Otherwise increase the radius limit
-                        currentRadius *= ratio;
-                        // and decrement the refinement level
-                        currentLevel--;
-                    }
-                    // Shouldn't be here.
-                    return -1;
-                }
-            };
-
-            ////////////////////////////////////////////////////////////
             // Onion refinement immediately about the black holes
             if (dBH > BH_MERGED_SEP_TOL) {
                 // if not merged yet, handle BHs separately to set up onion
@@ -596,10 +600,12 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 // refinement levels near each BH
                 const int l_goal_0 =
                     onionLevel(r1_min, r_near[0],
-                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift, ratio);
+                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift,
+                               l_orbit, R_orbit, ratio);
                 const int l_goal_1 =
                     onionLevel(r2_min, r_near[1],
-                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift, ratio);
+                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift,
+                               l_orbit, R_orbit, ratio);
                 setLevelFloor(l_goal_0);
                 setLevelFloor(l_goal_1);
             } else {
@@ -619,7 +625,8 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 // could here do l_post = std::min(l_post,bssn::BSSN_MAXDEPTH)
                 // for low-res runs to keep l_post <= max depth
                 const int l_goal =
-                    onionLevel(rBH_min, rBH_lim, l_post - LVL_OFF);
+                    onionLevel(rBH_min, rBH_lim, l_post - LVL_OFF,
+                               l_orbit, R_orbit);
                 // const int l_goal = onionLevel(rBH_min,rBH_lim,refLevMin -
                 // LVL_OFF); set level floor
                 setLevelFloor(l_goal);
@@ -1070,18 +1077,9 @@ bool isReMeshWAMR(
                                     // std::cout<<"d2:
                                     // "<<d2.abs()<<"BHLOC_1:"<<BSSN_BH_LOC[1]<<std::endl;
 
-                                    if ((pNodes[ele].getLevel() +
-                                         MAXDEAPTH_LEVEL_DIFF + 1) < refLevMin)
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_SPLIT;
-                                    else if ((pNodes[ele].getLevel() +
-                                              MAXDEAPTH_LEVEL_DIFF + 1) >
-                                             refLevMin)
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_COARSE;
-                                    else
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_NO_CHANGE;
+                                    setLevelTarget(refine_flags, ele,
+                                                   eleLocalBegin, pNodes,
+                                                   refLevMin);
 
                                     // if( ( pNodes[ele].getLevel() +
                                     // MAXDEAPTH_LEVEL_DIFF +1)== refLevMin )
@@ -1099,19 +1097,9 @@ bool isReMeshWAMR(
                                         // std::cout<<"d1:
                                         // "<<d1.abs()<<"BHLOC_0:"<<BSSN_BH_LOC[0]<<"
                                         // rnear: "<<r_near[0]<<std::endl;
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            bssn::BSSN_BH1_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 bssn::BSSN_BH1_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       bssn::BSSN_BH1_MAX_LEV);
 
                                     } else {
                                         if (refine_flags[ele - eleLocalBegin] ==
@@ -1131,19 +1119,9 @@ bool isReMeshWAMR(
                                     // changes in bh 1 will get overidden by lev
                                     // 2
                                     if (isNearTobh2) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            bssn::BSSN_BH2_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 bssn::BSSN_BH2_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       bssn::BSSN_BH2_MAX_LEV);
                                     }
 
                                 } else {
@@ -1152,19 +1130,9 @@ bool isReMeshWAMR(
                                         // std::cout<<"d1:
                                         // "<<d1.abs()<<"BHLOC_0:"<<BSSN_BH_LOC[0]<<"
                                         // rnear: "<<r_near[0]<<std::endl;
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            bssn::BSSN_BH2_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 bssn::BSSN_BH2_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       bssn::BSSN_BH2_MAX_LEV);
 
                                     } else {
                                         if (refine_flags[ele - eleLocalBegin] ==
@@ -1184,19 +1152,9 @@ bool isReMeshWAMR(
                                     // changes in bh 2 will get overidden by lev
                                     // 1 which is the higher level than bh2.
                                     if (isNearTobh1) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            bssn::BSSN_BH1_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 bssn::BSSN_BH1_MAX_LEV)
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       bssn::BSSN_BH1_MAX_LEV);
                                     }
                                 }
                             }
@@ -1300,21 +1258,10 @@ bool isReMeshBHRadial(ot::Mesh* pMesh) {
                                  rs < NUM_REFINE_SPHERES + 1; rs++) {
                                 if ((rd1 > bh1_amr_r[rs - 1]) &&
                                     (rd1 <= bh1_amr_r[rs])) {
-                                    if ((pNodes[ele].getLevel() +
-                                         MAXDEAPTH_LEVEL_DIFF + 1) <
-                                        std::max(refLevMin - (rs - 1),
-                                                 bssn::BSSN_MINDEPTH))
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_SPLIT;
-                                    else if ((pNodes[ele].getLevel() +
-                                              MAXDEAPTH_LEVEL_DIFF + 1) >
-                                             std::max(refLevMin - (rs - 1),
-                                                      bssn::BSSN_MINDEPTH))
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_COARSE;
-                                    else
-                                        refine_flags[ele - eleLocalBegin] =
-                                            OCT_NO_CHANGE;
+                                    setLevelTarget(refine_flags, ele,
+                                                   eleLocalBegin, pNodes,
+                                                   std::max(refLevMin - (rs - 1),
+                                                            bssn::BSSN_MINDEPTH));
                                 }
                                 if (rd1 >
                                     bh1_amr_r.back())  // note : It is important
@@ -1331,24 +1278,10 @@ bool isReMeshBHRadial(ot::Mesh* pMesh) {
                                      rs < NUM_REFINE_SPHERES + 1; rs++) {
                                     if ((rd1 > bh1_amr_r[rs - 1]) &&
                                         (rd1 <= bh1_amr_r[rs])) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            std::max(bssn::BSSN_BH1_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 std::max(
-                                                     bssn::BSSN_BH1_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       std::max(bssn::BSSN_BH1_MAX_LEV - (rs - 1),
+                                                                bssn::BSSN_MINDEPTH));
 
                                     } else if (rd1 > bh1_amr_r.back())
                                         refine_flags[ele - eleLocalBegin] =
@@ -1358,24 +1291,10 @@ bool isReMeshBHRadial(ot::Mesh* pMesh) {
                                     // from the depth parameter.
                                     if ((rd2 > bh2_amr_r[rs - 1]) &&
                                         (rd2 <= bh2_amr_r[rs])) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            std::max(bssn::BSSN_BH2_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 std::max(
-                                                     bssn::BSSN_BH2_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       std::max(bssn::BSSN_BH2_MAX_LEV - (rs - 1),
+                                                                bssn::BSSN_MINDEPTH));
                                     } else if (rd2 > bh2_amr_r.back())
                                         refine_flags[ele - eleLocalBegin] =
                                             OCT_COARSE;
@@ -1387,24 +1306,10 @@ bool isReMeshBHRadial(ot::Mesh* pMesh) {
                                      rs < NUM_REFINE_SPHERES + 1; rs++) {
                                     if ((rd2 > bh2_amr_r[rs - 1]) &&
                                         (rd2 <= bh2_amr_r[rs])) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            std::max(bssn::BSSN_BH2_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 std::max(
-                                                     bssn::BSSN_BH2_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       std::max(bssn::BSSN_BH2_MAX_LEV - (rs - 1),
+                                                                bssn::BSSN_MINDEPTH));
                                     } else if (rd2 > bh2_amr_r.back())
                                         refine_flags[ele - eleLocalBegin] =
                                             OCT_COARSE;
@@ -1413,24 +1318,10 @@ bool isReMeshBHRadial(ot::Mesh* pMesh) {
                                     // from the depth parameter.
                                     if ((rd1 > bh1_amr_r[rs - 1]) &&
                                         (rd1 <= bh1_amr_r[rs])) {
-                                        if ((pNodes[ele].getLevel() +
-                                             MAXDEAPTH_LEVEL_DIFF + 1) <
-                                            std::max(bssn::BSSN_BH1_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_SPLIT;
-                                        else if ((pNodes[ele].getLevel() +
-                                                  MAXDEAPTH_LEVEL_DIFF + 1) >
-                                                 std::max(
-                                                     bssn::BSSN_BH1_MAX_LEV -
-                                                         (rs - 1),
-                                                     bssn::BSSN_MINDEPTH))
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_COARSE;
-                                        else
-                                            refine_flags[ele - eleLocalBegin] =
-                                                OCT_NO_CHANGE;
+                                        setLevelTarget(refine_flags, ele,
+                                                       eleLocalBegin, pNodes,
+                                                       std::max(bssn::BSSN_BH1_MAX_LEV - (rs - 1),
+                                                                bssn::BSSN_MINDEPTH));
                                     } else if (rd1 > bh1_amr_r.back())
                                         refine_flags[ele - eleLocalBegin] =
                                             OCT_COARSE;
