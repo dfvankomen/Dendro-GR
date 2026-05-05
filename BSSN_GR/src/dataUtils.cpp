@@ -442,6 +442,25 @@ static inline int onionLevel(double radius, double r_AMR, int maxLevel,
     return -1;
 }
 
+// standard logistic transition from y_init to y_final
+// over timescale sigma, centered about given time
+static inline double logisticTransition(double x, double x0, double sigma,
+                                        double y_init=0, double y_final=1) {
+    const double s = 1.0 / (1.0 + std::exp(-(x - x0) / sigma));
+    return y_init + (y_final - y_init) * s;
+}
+
+// logistic transition tuned to gauge wave leaving BHs
+static inline double onionRatioGaugeLogistic(double t, double r,
+                                             double y_final=bssn::BSSN_AMR_R_RATIO,
+                                             double y_init=2.0, 
+                                             double t_transition=20.0,
+                                             double sigma=5.0,
+                                             double gauge_speed=std::sqrt(2.0)) {
+    const double tau = t - r / gauge_speed;
+    return logisticTransition(tau, t_transition, sigma, y_init, y_final);
+}
+
 // Drives an element toward exactly targetLevel: SPLIT if below, COARSE if
 // above, NO_CHANGE if at level (accounts for the MAXDEAPTH_LEVEL_DIFF offset).
 static inline void setLevelTarget(std::vector<unsigned int>& refine_flags,
@@ -482,6 +501,8 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         ////////////////////////////////////////////////////////////////
         // Set up onion parameters
         
+        // current time
+        const double t_current = bssn::BSSN_CURRENT_RK_COORD_TIME;
         // distance btw the black holes
         const double dBH = (bhLoc[0] - bhLoc[1]).abs();
         // read in BH masses
@@ -586,28 +607,21 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // Onion refinement immediately about the black holes
             if (dBH > BH_MERGED_SEP_TOL) {
                 // if not merged yet, handle BHs separately to set up onion
-                double ratio;  // ratio of radii btw concentric layers
-                int shift;
-                // DISABLED: option to boost initial refinement
-                if (bssn::BSSN_CURRENT_RK_COORD_TIME < -10) {
-                    // boost initial refinement, bolstering onion
-                    ratio = 2.0;
-                    shift = 1;
-                } else {  // relax onion later
-                    ratio = bssn::BSSN_AMR_R_RATIO;
-                    shift = 0;
-                }
-                // refinement levels near each BH
-                const int l_goal_0 =
-                    onionLevel(r1_min, r_near[0],
-                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift,
-                               l_orbit, R_orbit, ratio);
+                // set up amr ratios to smoothly approach target values
+                double ratio_1 = onionRatioGaugeLogistic(t_current, r1_min);
+                double ratio_2 = onionRatioGaugeLogistic(t_current, r2_min);
+                // set up cell level requirements of both BHs
                 const int l_goal_1 =
+                    onionLevel(r1_min, r_near[0],
+                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF,
+                               l_orbit, R_orbit, ratio_1);
+                const int l_goal_2 =
                     onionLevel(r2_min, r_near[1],
-                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift,
-                               l_orbit, R_orbit, ratio);
-                setLevelFloor(l_goal_0);
+                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF,
+                               l_orbit, R_orbit, ratio_2);
+                // enforce floor
                 setLevelFloor(l_goal_1);
+                setLevelFloor(l_goal_2);
             } else {
                 // if merged, handle BHs together
                 // calculate minimum distance to either BH
@@ -638,7 +652,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // @wkb 6 Feb 2025
 
             // calculate retarded time
-            const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
+            const double t_ret = t_current - r_min;
             // calculate retarded orbital wavelength
             const double lam_clean =
                 get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength);
@@ -671,7 +685,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double speed       = std::sqrt(2);
             const bool past_of_end =
                 std::abs(r_min - R_GW_max) <
-                speed * (t_disable - bssn::BSSN_CURRENT_RK_COORD_TIME);
+                speed * (t_disable - t_current);
             if (using_nyquist && past_of_end) {
                 // same ell_star everywhere
                 ell_star = get_ell(t_ret, bssn::BSSN_NYQUIST_M);
