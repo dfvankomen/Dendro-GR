@@ -243,7 +243,7 @@ def evolution_rhs_eqns():
         sym.Matrix([sum(
             [beta[kk] * d_(kk, gammat[ii, jj]) for kk in dendrosym.nr.e_i]
                     ) for ii, jj in dendrosym.nr.e_ij]).reshape(3, 3) - \
-                    one_third * kappac * alpha * gammat * sym.ln(dendrosym.nr.trace(gammat))
+                    one_third * kappac * alpha * gammat * sym.ln(sym.det(gammat))
 
     # dendrosym.nr.lie(beta, gammat)
     # == END GAMMA (tilde) RHS
@@ -278,7 +278,7 @@ def evolution_rhs_eqns():
         -dendrosym.nr.DiDj(alpha) + alpha * (R + two_D_sym_Z - 8 * sym.pi * S)
     ) + alpha * (- 2 * AilALj \
          + At * (K_old - 2 * Theta))\
-          + M_ij \
+          + 2 * M_ij \
         - two_thirds * At * div_beta \
         + sym.Matrix([
             sum(
@@ -307,12 +307,12 @@ def evolution_rhs_eqns():
     # NOTE: "covariant divergence" might be incorrect!
     K_rhs = -dendrosym.nr.laplacian(alpha, chi) + alpha * (1 - e_0 * e_0 * s_param) * (
         R_trace + 2 * dendrosym.nr.covariant_divergence(Z) + K_old**2 + \
-            12 * sym.pi + tau) + alpha * K_old * (one_third * e_0**2 * s_param * K_old - \
+            12 * sym.pi * tau) + alpha * K_old * (one_third * e_0**2 * s_param * K_old - \
               2 * (1 - s_param) * Theta) + e_0**2 * s_param * alpha * dendrosym.nr.sqr(At) + \
                4 * sym.pi * alpha * (S_trace + e_0**2 * s_param * tau) + s_param * 1/chi**(p_expo) * \
-                    sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) + \
+                    sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) - \
                         alpha * kappa1 * (s_param * (kappa2 - 1) + 3 * (1- s_param) * (1 + kappa2)) * \
-                          Theta + dendrosym.nr.lie(beta, K) - 4 * sym.pi * alpha * (S_trace - 3 * tau)
+                          Theta + dendrosym.nr.lie(beta, K)
     # == END K RHS ==
 
     # ==========
@@ -323,7 +323,7 @@ def evolution_rhs_eqns():
 
     Theta_rhs = one_half * alpha * e_0**2 * (
         R_trace + 2 * dendrosym.nr.covariant_divergence(Z) + two_thirds * K_old**2 - \
-             dendrosym.nr.sqr(At) - 16 * sym.pi * tau) - alpha * Theta * K_old + one_half * \
+             dendrosym.nr.sqr(At) - 16 * sym.pi * tau) - alpha * Theta * K_old - one_half * \
                 1/chi**(p_expo) * sum([(Gamma_hat[ii] - Gammat[ii]) * d_(ii, alpha) for ii in dendrosym.nr.e_i]) - \
                     alpha * kappa1 * (2 + kappa2) * Theta
     # == END Theta RHS ==
@@ -364,7 +364,7 @@ def evolution_rhs_eqns():
                                                             for ii in dendrosym.nr.e_i]) - \
         one_third * K_old * sym.Matrix([Gamma_hat[ii] - Gammat[ii] for ii in dendrosym.nr.e_i])
                     ) - \
-        2 * alpha * kappa1 * sym.Matrix([Gamma_hat[ii] - Gammat[ii] for ii in dendrosym.nr.e_i])
+        alpha * kappa1 * sym.Matrix([Gamma_hat[ii] - Gammat[ii] for ii in dendrosym.nr.e_i])
     )
     # then force this "matrix" to be a list since it's just a vector, we use the
     # matrix so that it can easily be modified/added/subtracted
@@ -625,10 +625,10 @@ dendroConfigs.add_evolution_constraint(At, "trace_zero")
 dendroConfigs.add_evolution_constraint(chi, "pos_floor")
 dendroConfigs.add_evolution_constraint(alpha, "pos_floor")
 
-#evolution_rhs_code = dendroConfigs.generate_rhs_code("evolution")
+evolution_rhs_code = dendroConfigs.generate_rhs_code("evolution")
 
-#with open("temporary_rhs_output.cpp", "w") as f:
-#   f.write(evolution_rhs_code)
+with open("temporary_rhs_output.cpp", "w") as f:
+   f.write(evolution_rhs_code)
 
 constraint_code = dendroConfigs.generate_rhs_code("constraint", include_rhs_in_name=False)
 
