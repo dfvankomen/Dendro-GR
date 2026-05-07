@@ -340,13 +340,13 @@ int main(int argc, char** argv) {
         if (!rank)
             std::cout << GRN << "Now setting up the uniform time stepper!"
                       << NRM << std::endl;
-        bssn::BSSNCtx* bssnCtx = new bssn::BSSNCtx(mesh);
+        bssn::BSSNCtx* bssnCtx                    = new bssn::BSSNCtx(mesh);
 
         // select time integrator based on BSSN_RK_TYPE:
         //   0=RK3, 1=RK4, 2=RK5 (Butcher 6-stage)
         //   3=MSRK2_1, 4=MSRK2_2, 5=MSRK3 (multistep RK, arXiv:2603.05763)
         // MSRK methods reuse RHS evals from previous steps for ~20-40% speedup.
-        const RKType rkType = (RKType)bssn::BSSN_RK_TYPE;
+        const RKType rkType                       = (RKType)bssn::BSSN_RK_TYPE;
 
         ts::ETS<DendroScalar, bssn::BSSNCtx>* ets = nullptr;
 
@@ -360,8 +360,8 @@ int main(int argc, char** argv) {
             else
                 msrkVariant = ts::ETSType::RK4_MSRK3;
 
-            ets = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(
-                bssnCtx, msrkVariant);
+            ets = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(bssnCtx,
+                                                                msrkVariant);
         } else {
             ets = new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
 
@@ -481,7 +481,8 @@ int main(int argc, char** argv) {
                 }
             }
 
-            if (bssn::BSSN_REMESH_TEST_FREQ > 0 && (step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
+            if (bssn::BSSN_REMESH_TEST_FREQ > 0 &&
+                (step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
                 bool isRemesh = bssnCtx->is_remesh();
                 if (isRemesh) {
                     if (!rank_global)
@@ -553,7 +554,8 @@ int main(int argc, char** argv) {
             }
 
             // print terminal output
-            if (bssn::BSSN_TIME_STEP_OUTPUT_FREQ > 0 && (step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
+            if (bssn::BSSN_TIME_STEP_OUTPUT_FREQ > 0 &&
+                (step % bssn::BSSN_TIME_STEP_OUTPUT_FREQ) == 0) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
                               << NRM << "\tCurrent Step: " << ets->curr_step()
@@ -567,7 +569,8 @@ int main(int argc, char** argv) {
             // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
 
-            if (bssn::BSSN_GW_EXTRACT_FREQ_TRUE > 0 && (step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
+            if (bssn::BSSN_GW_EXTRACT_FREQ_TRUE > 0 &&
+                (step % bssn::BSSN_GW_EXTRACT_FREQ_TRUE) == 0) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
                               << std::endl;
@@ -581,7 +584,8 @@ int main(int argc, char** argv) {
             }
 
             // Write VTU and BHLocation files
-            if (bssn::BSSN_IO_OUTPUT_FREQ_TRUE > 0 && (step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
+            if (bssn::BSSN_IO_OUTPUT_FREQ_TRUE > 0 &&
+                (step % bssn::BSSN_IO_OUTPUT_FREQ_TRUE) == 0) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
 
@@ -600,7 +604,8 @@ int main(int argc, char** argv) {
             ets->evolve();
 
             // Write checkpoint  data
-            if (bssn::BSSN_CHECKPT_FREQ > 0 && (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
+            if (bssn::BSSN_CHECKPT_FREQ > 0 &&
+                (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
                 bssnCtx->write_checkpt();
             }
 
