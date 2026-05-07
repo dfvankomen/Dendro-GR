@@ -365,6 +365,10 @@ int BSSNCtx::initialize() {
                          "initialization due to failed checkpoint restoration."
                       << std::endl;
         }
+
+        // restore_checkpt() brings back the old TIME_END, override it
+        // with whatever the par file says now
+        m_uiTinfo._m_uiTe = bssn::BSSN_RK_TIME_END;
     }
 
     this->init_grid();

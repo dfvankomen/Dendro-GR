@@ -41,7 +41,7 @@ RK_BSSN::RK_BSSN(ot::Mesh *pMesh, DendroScalar pTBegin, DendroScalar pTEnd,
         m_uiNumRKStages = bssn::BSSN_RK3_STAGES;
     else if (m_uiRKType == RKType::RK4)
         m_uiNumRKStages = bssn::BSSN_RK4_STAGES;
-    else if (m_uiRKType == RKType::RK45)
+    else if (m_uiRKType == RKType::RK5)
         m_uiNumRKStages = bssn::BSSN_RK45_STAGES;
     else {
         if (!(pMesh->getMPIRankGlobal()))
@@ -858,7 +858,7 @@ void RK_BSSN::performSingleIteration() {
                 enforce_bssn_constraints(m_uiVar, node);
             }
 
-        } else if (m_uiRKType == RKType::RK45) {  // rk45 solver
+        } else if (m_uiRKType == RKType::RK5) {  // rk45 solver
 
             // std::cout<<"rk45"<<std::endl;
 

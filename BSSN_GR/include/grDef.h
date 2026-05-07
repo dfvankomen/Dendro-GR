@@ -28,7 +28,8 @@
     (((RgZ / Rz) * (zc - bssn::BSSN_COMPD_MIN[2])) + bssn::BSSN_OCTREE_MIN[2])
 
 // type of the rk method.
-enum RKType { RK3, RK4, RK45 };
+// 0=RK3, 1=RK4, 2=RK5(Butcher,6-stage), 3=MSRK2_1, 4=MSRK2_2, 5=MSRK3
+enum RKType { RK3 = 0, RK4, RK5, RK4_MSRK2_1, RK4_MSRK2_2, RK4_MSRK3 };
 
 namespace bssn {
 /**@brief BSSN evolution variables*/
