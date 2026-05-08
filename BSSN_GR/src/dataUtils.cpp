@@ -453,7 +453,7 @@ static inline double logisticTransition(double x, double x0, double sigma,
 // logistic transition tuned to gauge wave leaving BHs
 static inline double onionRatioGaugeLogistic(double t, double r,
                                              double y_final=bssn::BSSN_AMR_R_RATIO,
-                                             double y_init=2.0, 
+                                             double y_init=bssn::BSSN_AMR_R_RATIO_INITIAL, 
                                              double t_transition=20.0,
                                              double sigma=5.0,
                                              double gauge_speed=std::sqrt(2.0)) {

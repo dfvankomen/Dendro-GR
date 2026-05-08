@@ -79,6 +79,8 @@ double BSSN_BH1_AMR_R                     = 2.0;
 double BSSN_BH2_AMR_R                     = 2.0;
 // ratio for the near to far portion, was originally 2.5
 double BSSN_AMR_R_RATIO                   = 2.0;
+// initial ratio before gauge-wave relaxation (transitions to BSSN_AMR_R_RATIO)
+double BSSN_AMR_R_RATIO_INITIAL           = 2.0;
 
 double BSSN_BH1_CONSTRAINT_R              = 5.0;
 double BSSN_BH2_CONSTRAINT_R              = 5.0;
@@ -492,6 +494,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R, UseInitialValue},
         {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R, UseInitialValue},
         {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO, UseInitialValue},
+        {"BSSN_AMR_R_RATIO_INITIAL", bssn::BSSN_AMR_R_RATIO_INITIAL, UseInitialValue},
         {"BSSN_DENDRO_AMR_FAC_POST_MERGER",
          bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER, UseInitialValue},
         {"BSSN_INIT_GRID_ITER", bssn::BSSN_INIT_GRID_ITER, UseInitialValue},
@@ -1069,6 +1072,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R},
             {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R},
             {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO},
+            {"BSSN_AMR_R_RATIO_INITIAL", bssn::BSSN_AMR_R_RATIO_INITIAL},
             {"BSSN_DENDRO_AMR_FAC_POST_MERGER",
              bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER},
             {"BSSN_INIT_GRID_ITER", bssn::BSSN_INIT_GRID_ITER},

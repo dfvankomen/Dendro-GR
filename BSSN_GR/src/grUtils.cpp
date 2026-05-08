@@ -276,6 +276,9 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     if (parFile.find("BSSN_AMR_R_RATIO") != parFile.end())
         bssn::BSSN_AMR_R_RATIO = parFile["BSSN_AMR_R_RATIO"];
 
+    if (parFile.find("BSSN_AMR_R_RATIO_INITIAL") != parFile.end())
+        bssn::BSSN_AMR_R_RATIO_INITIAL = parFile["BSSN_AMR_R_RATIO_INITIAL"];
+
     if (parFile.find("BSSN_BH1_MAX_LEV") != parFile.end())
         bssn::BSSN_BH1_MAX_LEV = parFile["BSSN_BH1_MAX_LEV"];
     else
@@ -657,6 +660,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW << "\tBSSN_BH2_AMR_R: " << bssn::BSSN_BH2_AMR_R << NRM
              << std::endl;
         sout << YLW << "\tBSSN_AMR_R_RATIO: " << bssn::BSSN_AMR_R_RATIO << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_AMR_R_RATIO_INITIAL: " << bssn::BSSN_AMR_R_RATIO_INITIAL << NRM
              << std::endl;
 
         sout << YLW << "\tBSSN_BH1_CONSTRAINT_R:" << bssn::BSSN_BH1_CONSTRAINT_R

@@ -174,6 +174,10 @@ extern double BSSN_BH2_AMR_R;
  * why it's the default **/
 extern double BSSN_AMR_R_RATIO;
 
+/** @brief: Initial AMR onion ratio (before gauge-wave relaxation); transitions
+ * to BSSN_AMR_R_RATIO via logistic sigmoid keyed to the gauge wave. **/
+extern double BSSN_AMR_R_RATIO_INITIAL;
+
 /**@brief: BH Mass. (BH1)*/
 extern double BSSN_BH1_MASS;
 
