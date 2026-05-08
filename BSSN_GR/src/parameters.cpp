@@ -756,7 +756,11 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"NPHI_ARRAY", AEH::NPHI_ARRAY, UseInitialValue},
             {"ENABLE_ETA_VARYING_ALG", AEH::ENABLE_ETA_VARYING_ALG,
              UseInitialValue},
-            {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL, UseInitialValue}};
+            {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL, UseInitialValue},
+            {"BHBH_MIN_SEPARATION", AEH::BHBH_MIN_SEPARATION, UseInitialValue},
+            {"AH3_SANITY_K", AEH::AH3_SANITY_K, UseInitialValue},
+            {"AH3_RADIUS_PADDING", AEH::AH3_RADIUS_PADDING,
+             UseInitialValue}};
 
         // then load the parameters
         for (const auto& param : aehParsList) {
@@ -869,7 +873,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         simpleBHData, AEH::AEH_INDICES, transform, grid_limits, domain_limits,
         bssn::BSSN_IO_OUTPUT_FREQ, AEH::NUM_RESOLUTIONS_AFTER_FIND,
         AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY, AEH::ENABLE_ETA_VARYING_ALG,
-        AEH::VERBOSITY_LEVEL);
+        AEH::VERBOSITY_LEVEL, AEH::BHBH_MIN_SEPARATION, AEH::AH3_SANITY_K,
+        AEH::AH3_RADIUS_PADDING);
 
     // check on the unused parameters to see what we didn't use
     std::unordered_set<std::string> all_params_in_parfile;
@@ -1197,7 +1202,10 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
                 {"NTHETA_ARRAY", AEH::NTHETA_ARRAY},
                 {"NPHI_ARRAY", AEH::NPHI_ARRAY},
                 {"ENABLE_ETA_VARYING_ALG", AEH::ENABLE_ETA_VARYING_ALG},
-                {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL}};
+                {"VERBOSITY_LEVEL", AEH::VERBOSITY_LEVEL},
+                {"BHBH_MIN_SEPARATION", AEH::BHBH_MIN_SEPARATION},
+                {"AH3_SANITY_K", AEH::AH3_SANITY_K},
+                {"AH3_RADIUS_PADDING", AEH::AH3_RADIUS_PADDING}};
             for (const auto& param : aehParsList) {
                 add_param(aeh_root, param);
             }
@@ -1291,6 +1299,10 @@ std::vector<int> NTHETA_ARRAY                   = {8, 16, 32};
 std::vector<int> NPHI_ARRAY                     = {16, 32, 64};
 int ENABLE_ETA_VARYING_ALG                      = 0;
 int VERBOSITY_LEVEL                             = 1;
+
+double BHBH_MIN_SEPARATION                           = 0.01;
+double AH3_SANITY_K                          = 2.0;
+double AH3_RADIUS_PADDING                    = 0.5;
 
 unsigned int AEH_LMAX                           = 6;
 unsigned int AEH_Q_THETA                        = 32;

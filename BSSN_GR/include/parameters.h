@@ -528,6 +528,15 @@ extern std::vector<int> NPHI_ARRAY;
 extern int ENABLE_ETA_VARYING_ALG;
 extern int VERBOSITY_LEVEL;
 
+/**@brief min BH-BH separation (code units) below which AH1/AH2 are disabled */
+extern double BHBH_MIN_SEPARATION;
+
+/**@brief enclosure k-factor for AH3 sanity check: dist(c3,c_i) < k * r3 */
+extern double AH3_SANITY_K;
+
+/**@brief extra radius padding for AH3 geometric reseed */
+extern double AH3_RADIUS_PADDING;
+
 // these indices will be extracted for the AEH solver internally, they MUST
 // match up with the lambda that will be written
 const std::vector<int> AEH_INDICES = {
