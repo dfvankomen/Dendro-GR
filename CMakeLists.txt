@@ -135,7 +135,7 @@ FetchContent_MakeAvailable(toml11)
 
 # settable option for the user on where dendrolib is available
 set(DENDRO_dendrolib_DIR "" CACHE PATH "Path to the local dendrolib source directory (optional)")
-set(DENDRO_dendrolib_GIT_TAG "master" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
+set(DENDRO_dendrolib_GIT_TAG "bssn-quasilocal-measures" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
 
 
 # now include the dendro repository for compiling the library
@@ -147,7 +147,7 @@ else()
   message(STATUS "Dendrolib not found locally, fetching from repository...")
   FetchContent_Declare(
     dendrolib
-    GIT_REPOSITORY "https://github.com/paralab/Dendro-5.01"
+    GIT_REPOSITORY "https://github.com/dfvankomen/Dendro-5.01"
     GIT_TAG ${DENDRO_dendrolib_GIT_TAG}
   )
 
