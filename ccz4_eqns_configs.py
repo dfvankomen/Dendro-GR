@@ -382,7 +382,7 @@ def evolution_rhs_eqns():
         sym.Matrix([sum(
             [beta[kk] * d_(kk, gt[ii, jj]) for kk in dendrosym.nr.e_i]
                     ) for ii, jj in dendrosym.nr.e_ij]).reshape(3, 3) - \
-                    one_third * kappac * alpha * gt * sym.ln(dendrosym.nr.trace(gt))
+                    one_third * kappac * alpha * gt * sym.ln(sym.det.trace(gt))
 
     # dendrosym.nr.lie(beta, gt)
     # == END GAMMA (tilde) RHS

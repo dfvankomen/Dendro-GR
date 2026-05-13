@@ -1346,7 +1346,7 @@ double DENDRO_1342 = 0.5*At4[pp];
 double DENDRO_1343 = DENDRO_0302*DENDRO_1315;
 double DENDRO_1344 = 1.0*DENDRO_1035;
 double DENDRO_1345 = DENDRO_1316*gt5[pp];
-double DENDRO_1346 = DENDRO_1318*log(DENDRO_0256*(-DENDRO_0011*gt0[pp] + 2*DENDRO_0028*gt1[pp] - DENDRO_0036*gt5[pp] - DENDRO_0058*gt3[pp] + 2*DENDRO_0082*gt4[pp] - DENDRO_0316*gt2[pp]));
+double DENDRO_1346 = DENDRO_1318*log(-DENDRO_0039);
 double DENDRO_1347 = 1.0*gt0[pp];
 double DENDRO_1348 = 1.0*gt2[pp];
 double DENDRO_1349 = 1.0*DENDRO_1258;
@@ -1436,8 +1436,8 @@ Gh2_rhs[pp] = -DENDRO_1279;
 // Dendro: END MAIN VARIABLES
 
 // Dendro: INFORMATION
-// Dendro: number of original operations: 3849246 
-// Dendro: number of reduced operations: 6900 
-// Dendro: preprocessing reduced the number of operations by 3842346
-// Dendro: a 99.82074%% reduction
+// Dendro: number of original operations: 3848568 
+// Dendro: number of reduced operations: 6887 
+// Dendro: preprocessing reduced the number of operations by 3841681
+// Dendro: a 99.82105%% reduction
 // Dendro: }}}} End Code Generation 
