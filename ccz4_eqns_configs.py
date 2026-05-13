@@ -382,7 +382,7 @@ def evolution_rhs_eqns():
         sym.Matrix([sum(
             [beta[kk] * d_(kk, gt[ii, jj]) for kk in dendrosym.nr.e_i]
                     ) for ii, jj in dendrosym.nr.e_ij]).reshape(3, 3) - \
-                    one_third * kappac * alpha * gt * sym.ln(sym.det.trace(gt))
+                    one_third * kappac * alpha * gt * sym.ln(sym.det(gt))
 
     # dendrosym.nr.lie(beta, gt)
     # == END GAMMA (tilde) RHS
@@ -798,13 +798,13 @@ dendroConfigs.add_evolution_constraint(alpha, "pos_floor")
 
 
 
-evolution_rhs_code = dendroConfigs.generate_rhs_code("evolution")
-evolution_rhs_code = remap_generated_names_to_dendro_names(evolution_rhs_code)
+#evolution_rhs_code = dendroConfigs.generate_rhs_code("evolution")
+#evolution_rhs_code = remap_generated_names_to_dendro_names(evolution_rhs_code)
 
-with open("temporary_rhs_output.cpp", "w") as f:
-    f.write(evolution_rhs_code)
+#with open("temporary_rhs_output.cpp", "w") as f:
+#    f.write(evolution_rhs_code)
 
-# constraint_code = dendroConfigs.generate_rhs_code("constraint", include_rhs_in_name=False)
+constraint_code = dendroConfigs.generate_rhs_code("constraint", include_rhs_in_name=False)
 
-# with open("constraint_eqn.cpp", "w") as f:
-#      f.write(constraint_code)
+with open("constraint_eqn.cpp", "w") as f:
+     f.write(constraint_code)
