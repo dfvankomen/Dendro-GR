@@ -597,7 +597,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // if radius r <= r*, keep level l >= l*
             // 9/9/24: change to depend on current BH separation dist.
 
-            const int l_orbit = 9;  // desired refinement level within
+            const int l_orbit = 2;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
