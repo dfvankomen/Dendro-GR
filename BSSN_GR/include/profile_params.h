@@ -29,7 +29,9 @@ extern profiler_t t_unzip_async;
 
 extern profiler_t t_deriv;
 extern profiler_t t_rhs;
+extern profiler_t t_rhs_ko;  // KO pass; subset of t_rhs.
 
+// BC-only per-variable; interior RHS is fused per-gridpoint.
 extern profiler_t t_rhs_a;
 extern profiler_t t_rhs_b;
 extern profiler_t t_rhs_gt;
@@ -43,6 +45,7 @@ extern profiler_t t_bdyc;
 
 extern profiler_t t_zip;
 extern profiler_t t_rkStep;
+extern profiler_t t_rkStage[6];
 
 extern profiler_t t_isReMesh;
 extern profiler_t t_gridTransfer;

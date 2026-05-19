@@ -6,6 +6,7 @@
  *
  */
 #include <chrono>
+#include <ctime>  // time_t / time() / ctime() — gcc 15 + <chrono> doesn't drag these in
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -413,9 +414,9 @@ int main(int argc, char** argv) {
         sprintf(fname, "bssnCtx_%d.txt", npes);
         if (!rank) {
             outfile.open(fname, std::ios_base::app);
-            time_t now = time(0);
+            std::time_t now = std::time(nullptr);
             // convert now to string form
-            char* dt   = ctime(&now);
+            char* dt        = std::ctime(&now);
             outfile << "======================================================="
                        "====="
                     << std::endl;
@@ -594,6 +595,24 @@ int main(int argc, char** argv) {
                               << std::endl;
 
                 bssnCtx->terminal_output();
+
+                // RK_BSSN::rkSolve() is deprecated; emit from the ETS loop.
+                // All ranks must call (MPI reduction); only rank 0 writes.
+                bssn::timer::profileInfoIntermediate(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
+                    ets->get_mesh(), step);
+#if defined(__PROFILE_ETS__) && defined(__PROFILE_CTX__)
+                bssn::timer::profileInfoJSON(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
+                    ets->get_mesh(), step,
+                    &ets->m_uiCtxpt, &bssnCtx->m_uiCtxpt);
+                ets->reset_pt();
+#else
+                bssn::timer::profileInfoJSON(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
+                    ets->get_mesh(), step);
+#endif
+                bssn::timer::resetSnapshot();
             }
 
             // wkb: update BH locations always

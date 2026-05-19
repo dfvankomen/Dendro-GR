@@ -29,6 +29,7 @@ profiler_t t_unzip_async;
 
 profiler_t t_deriv;
 profiler_t t_rhs;
+profiler_t t_rhs_ko;
 
 profiler_t t_rhs_a;
 profiler_t t_rhs_b;
@@ -43,6 +44,7 @@ profiler_t t_bdyc;
 
 profiler_t t_zip;
 profiler_t t_rkStep;
+profiler_t t_rkStage[6];
 
 profiler_t t_isReMesh;
 profiler_t t_gridTransfer;

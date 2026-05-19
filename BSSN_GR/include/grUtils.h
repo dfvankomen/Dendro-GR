@@ -319,6 +319,15 @@ void profileInfo(const char* filePrefix, const ot::Mesh* pMesh);
 void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
                              const unsigned int currentStep);
 
+/** @brief Append one JSONL record to <filePrefix>_steps.jsonl with
+ *  min/mean/max-across-ranks timings. Optional ets_ctxpt / app_ctxpt source
+ *  per-stage and unzip/zip/rhs from dendrolib's m_uiCtxpt; the legacy
+ *  bssn::timer hooks are dead under the ETS evolve path. */
+void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
+                     const unsigned int currentStep,
+                     const std::vector<profiler_t>* ets_ctxpt = nullptr,
+                     const std::vector<profiler_t>* app_ctxpt = nullptr);
+
 }  // namespace timer
 
 }  // namespace bssn

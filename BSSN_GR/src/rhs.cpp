@@ -356,37 +356,55 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
+    // t_rhs_* measure per-variable BC application only; interior RHS is a
+    // single fused per-gridpoint loop over all 24 outputs sharing CSE temps
+    // and cannot be split per-variable without re-emitting the eqs file.
     if (bflag != 0) {
         bssn::timer::t_bdyc.start();
 
+        bssn::timer::t_rhs_a.start();
         bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, pmin,
                  pmax, 1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_a.stop();
+
+        bssn::timer::t_rhs_chi.start();
         bssn_bcs(chi_rhs, chi, grad_0_chi, grad_1_chi, grad_2_chi, pmin, pmax,
                  1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_chi.stop();
+
+        bssn::timer::t_rhs_K.start();
         bssn_bcs(K_rhs, K, grad_0_K, grad_1_K, grad_2_K, pmin, pmax, 1.0, 0.0,
                  sz, bflag);
+        bssn::timer::t_rhs_K.stop();
 
+        bssn::timer::t_rhs_b.start();
         bssn_bcs(b_rhs0, beta0, grad_0_beta0, grad_1_beta0, grad_2_beta0, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
         bssn_bcs(b_rhs1, beta1, grad_0_beta1, grad_1_beta1, grad_2_beta1, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
         bssn_bcs(b_rhs2, beta2, grad_0_beta2, grad_1_beta2, grad_2_beta2, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_b.stop();
 
+        bssn::timer::t_rhs_Gt.start();
         bssn_bcs(Gt_rhs0, Gt0, grad_0_Gt0, grad_1_Gt0, grad_2_Gt0, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(Gt_rhs1, Gt1, grad_0_Gt1, grad_1_Gt1, grad_2_Gt1, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(Gt_rhs2, Gt2, grad_0_Gt2, grad_1_Gt2, grad_2_Gt2, pmin, pmax,
                  2.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_Gt.stop();
 
+        bssn::timer::t_rhs_B.start();
         bssn_bcs(B_rhs0, B0, grad_0_B0, grad_1_B0, grad_2_B0, pmin, pmax, 1.0,
                  0.0, sz, bflag);
         bssn_bcs(B_rhs1, B1, grad_0_B1, grad_1_B1, grad_2_B1, pmin, pmax, 1.0,
                  0.0, sz, bflag);
         bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin, pmax, 1.0,
                  0.0, sz, bflag);
+        bssn::timer::t_rhs_B.stop();
 
+        bssn::timer::t_rhs_At.start();
         bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(At_rhs01, At1, grad_0_At1, grad_1_At1, grad_2_At1, pmin, pmax,
@@ -399,7 +417,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(At_rhs22, At5, grad_0_At5, grad_1_At5, grad_2_At5, pmin, pmax,
                  2.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_At.stop();
 
+        bssn::timer::t_rhs_gt.start();
         bssn_bcs(gt_rhs00, gt0, grad_0_gt0, grad_1_gt0, grad_2_gt0, pmin, pmax,
                  1.0, 1.0, sz, bflag);
         bssn_bcs(gt_rhs01, gt1, grad_0_gt1, grad_1_gt1, grad_2_gt1, pmin, pmax,
@@ -412,6 +432,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                  1.0, 0.0, sz, bflag);
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
                  1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_gt.stop();
 
         bssn::timer::t_bdyc.stop();
     }
@@ -420,7 +441,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #include "bssnrhs_ko_derivs.h"
     bssn::timer::t_deriv.stop();
 
+    // t_rhs lumps interior + KO; t_rhs_ko isolates KO so plotter can derive
+    // interior-only as (t_rhs - t_rhs_ko).
     bssn::timer::t_rhs.start();
+    bssn::timer::t_rhs_ko.start();
 
     double sigma = KO_DISS_SIGMA;
 
@@ -578,6 +602,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         }
     }
 
+    bssn::timer::t_rhs_ko.stop();
     bssn::timer::t_rhs.stop();
 
     bssn::timer::t_deriv.start();

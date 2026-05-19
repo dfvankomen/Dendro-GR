@@ -908,6 +908,7 @@ void RK_BSSN::performSingleIteration() {
 
                     for (unsigned int stage = 0;
                          stage < (bssn::BSSN_RK45_STAGES - 1); stage++) {
+                        bssn::timer::t_rkStage[stage].start();
 #ifdef DEBUG_RK_SOLVER
                         if (!rank)
                             std::cout << " stage: " << stage
@@ -973,8 +974,10 @@ void RK_BSSN::performSingleIteration() {
                         performGhostExchangeVars(m_uiVarIm);
                         unzipVars(m_uiVarIm, m_uiUnzipVar);
 #endif
+                        bssn::timer::t_rkStage[stage].stop();
                     }
 
+                    bssn::timer::t_rkStage[bssn::BSSN_RK45_STAGES - 1].start();
                     current_t_adv =
                         current_t + RK_T[(bssn::BSSN_RK45_STAGES - 1)];
 
@@ -1038,6 +1041,7 @@ void RK_BSSN::performSingleIteration() {
                         enforce_bssn_constraints(m_uiVarIm, node);
                         enforce_bssn_constraints(m_uiVar, node);
                     }
+                    bssn::timer::t_rkStage[bssn::BSSN_RK45_STAGES - 1].stop();
 
                     // update the m_uiTh bases on the normed diff between
                     // m_uiVarIm, m_uiVar.
@@ -1247,6 +1251,9 @@ void RK_BSSN::rkSolve() {
             }
 
             bssn::timer::profileInfoIntermediate(
+                bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), m_uiMesh,
+                m_uiCurrentStep);
+            bssn::timer::profileInfoJSON(
                 bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), m_uiMesh,
                 m_uiCurrentStep);
         }

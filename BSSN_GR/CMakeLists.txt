@@ -41,8 +41,13 @@ option(BSSN_ENABLE_SSL_HD "Enable SSL and HD formalism modifications" ON)
 option(BSSN_USE_CASCADE "Use bilinear cascade RHS from vikr (experimental, replaces CSE)" OFF)
 option(BSSN_USE_CASCADE_AVX "Use AVX2-batched cascade RHS (4-lane __m256d, requires AVX2+FMA)" OFF)
 option(BSSN_USE_CASCADE_AVX_FUSED "Use AVX2 cascade with inline deriv stencils (fused)" OFF)
-option(BSSN_USE_CASCADE_AVX512 "Use AVX-512 cascade RHS (8-lane __m512d)" OFF)
-option(BSSN_USE_CASCADE_AVX512_FUSED "Use AVX-512 cascade with inline deriv stencils (fused)" OFF)
+option(BSSN_USE_CASCADE_AVX512 "Use AVX-512 cascade RHS (8-lane __m512d). Requires CPU_ARCH with AVX-512 support (e.g. skylake-avx512, icelake-server, znver4, native on capable CPUs)." OFF)
+option(BSSN_USE_CASCADE_AVX512_FUSED "Use AVX-512 cascade with inline deriv stencils (fused). Requires CPU_ARCH with AVX-512 support." OFF)
+
+# Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
+# provide the ISA, compile will fail on the intrinsics (clear error). The
+# runtime CPU check in bssngr_main.cpp catches the login-node vs compute-node
+# case where the binary compiles OK but the run-time CPU lacks the feature.
 
 option(BSSN_USE_4TH_ORDER_DERIVS "use 4th order derivs" OFF)
 option(BSSN_USE_6TH_ORDER_DERIVS "use 6th order derivs" ON)
