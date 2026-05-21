@@ -699,14 +699,8 @@ int main(int argc, char** argv) {
             const double t_zip_g          = max_over_ranks(bssn::timer::t_zip.seconds);
             const double t_ioVtu_g        = max_over_ranks(bssn::timer::t_ioVtu.seconds);
             if (!(ets->get_global_rank())) {
-                // Phase breakdown for the ETS path. unzip_sync already
-                // includes the ghost-exchange (Ctx::unzip wraps
-                // readFromGhostBegin/End around the per-block layout
-                // transform), so a separate ghostExchge line would be a
-                // misleading zero; same story for unzip_async (we use the
-                // sync flag). For the finer-grained ctx profile (separate
-                // UNZIP vs UNZIP_WCOMM), see the JSONL emitted by
-                // profileInfoJSON under __PROFILE_CTX__.
+                // unzip_sync includes ghost-exchange (bundled in Ctx::unzip).
+                // Per-step + UNZIP_WCOMM/UNZIP split available in the JSONL.
                 std::cout << " ---- phase breakdown (max over ranks, s) ----" << std::endl;
                 std::cout << "   rkStep       : " << t_rkStep_g << std::endl;
                 std::cout << "     deriv      : " << t_deriv_g << std::endl;
@@ -718,9 +712,11 @@ int main(int argc, char** argv) {
             }
         }
 
-        delete bssnCtx->get_mesh();
-        delete bssnCtx;
+        // BSSNCtx::~BSSNCtx() dereferences m_uiMesh, so mesh must outlive it.
+        ot::Mesh* mesh = bssnCtx->get_mesh();
         delete ets;
+        delete bssnCtx;
+        delete mesh;
 
     } else {
         std::cout << RED << "Not starting solver, ts_mode needs to be set to 1!"
