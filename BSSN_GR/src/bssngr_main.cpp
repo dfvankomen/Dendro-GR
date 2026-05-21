@@ -23,7 +23,6 @@
 #include "mpi.h"
 #include "octUtils.h"
 #include "parameters.h"
-#include "rkBSSN.h"
 #include "sdc.h"
 
 int main(int argc, char** argv) {
@@ -596,7 +595,7 @@ int main(int argc, char** argv) {
 
                 bssnCtx->terminal_output();
 
-                // RK_BSSN::rkSolve() is deprecated; emit from the ETS loop.
+                // Per-step profile snapshot from the ETS loop.
                 // All ranks must call (MPI reduction); only rank 0 writes.
                 bssn::timer::profileInfoIntermediate(
                     bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
@@ -696,20 +695,24 @@ int main(int argc, char** argv) {
             const double t_deriv_g        = max_over_ranks(bssn::timer::t_deriv.seconds);
             const double t_bdyc_g         = max_over_ranks(bssn::timer::t_bdyc.seconds);
             const double t_rkStep_g       = max_over_ranks(bssn::timer::t_rkStep.seconds);
-            const double t_ghostEx_g      = max_over_ranks(bssn::timer::t_ghostEx_sync.seconds);
             const double t_unzip_sync_g   = max_over_ranks(bssn::timer::t_unzip_sync.seconds);
-            const double t_unzip_async_g  = max_over_ranks(bssn::timer::t_unzip_async.seconds);
             const double t_zip_g          = max_over_ranks(bssn::timer::t_zip.seconds);
             const double t_ioVtu_g        = max_over_ranks(bssn::timer::t_ioVtu.seconds);
             if (!(ets->get_global_rank())) {
+                // Phase breakdown for the ETS path. unzip_sync already
+                // includes the ghost-exchange (Ctx::unzip wraps
+                // readFromGhostBegin/End around the per-block layout
+                // transform), so a separate ghostExchge line would be a
+                // misleading zero; same story for unzip_async (we use the
+                // sync flag). For the finer-grained ctx profile (separate
+                // UNZIP vs UNZIP_WCOMM), see the JSONL emitted by
+                // profileInfoJSON under __PROFILE_CTX__.
                 std::cout << " ---- phase breakdown (max over ranks, s) ----" << std::endl;
                 std::cout << "   rkStep       : " << t_rkStep_g << std::endl;
                 std::cout << "     deriv      : " << t_deriv_g << std::endl;
                 std::cout << "     rhs        : " << t_rhs_g << std::endl;
                 std::cout << "     bdyc       : " << t_bdyc_g << std::endl;
-                std::cout << "   ghostExchge  : " << t_ghostEx_g << std::endl;
                 std::cout << "   unzip_sync   : " << t_unzip_sync_g << std::endl;
-                std::cout << "   unzip_async  : " << t_unzip_async_g << std::endl;
                 std::cout << "   zip          : " << t_zip_g << std::endl;
                 std::cout << "   ioVtu        : " << t_ioVtu_g << std::endl;
             }

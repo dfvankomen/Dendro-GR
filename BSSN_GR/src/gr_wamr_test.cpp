@@ -19,7 +19,6 @@
 #include "meshUtils.h"
 #include "mpi.h"
 #include "octUtils.h"
-#include "rkBSSN.h"
 
 int main(int argc, char** argv) {
     if (argc < 2)
