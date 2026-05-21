@@ -76,12 +76,16 @@ BSSNCtx::~BSSNCtx() {
 }
 
 int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
-    // all the variables should be packed together.
-    // assert(sz==1);
-    // DendroScalar * sVar[BSSN_NUM_VARS];
-    // in->to_2d(sVar);
-
+    // Wire up the bssn::timer::* phase timers in the ETS path. These were
+    // historically populated only inside the deprecated RK_BSSN::rkSolve()
+    // and stayed at zero under ETS, making the end-of-run "phase breakdown"
+    // print misleading (unzip/zip/rkStep all read 0 even though the work
+    // happened). This wraps the equivalent calls so the timers reflect what
+    // ETS actually executes; t_rhs is already incremented inside bssnRHS().
+    bssn::timer::t_rkStep.start();
+    bssn::timer::t_unzip_sync.start();
     this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K);
+    bssn::timer::t_unzip_sync.stop();
 
     // AT THIS POINT THE CONSTRAINT VARIABLES SHOULD BE CALCULATED.
     // Just need to set up the proper variable representation.
@@ -109,7 +113,10 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     this->m_uiCtxpt[ts::CTXPROFILE::RHS].stop();
 #endif
 
+    bssn::timer::t_zip.start();
     this->zip(m_var[CPU_EV_UZ_OUT], *out);
+    bssn::timer::t_zip.stop();
+    bssn::timer::t_rkStep.stop();
 
     return 0;
 }
