@@ -329,6 +329,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #ifdef BSSN_USE_CASCADE
   #pragma message("BSSN: using bilinear cascade RHS (experimental, vikr)")
   #include "bssneqs_cascade.cpp"
+#elif defined(BSSN_USE_NAIVE)
+  #pragma message("BSSN: using math-faithful naive RHS (no CSE, vikr)")
+  #include "bssneqs_naive.cpp"
 #elif defined(BSSN_ENABLE_SSL_HD)
   #pragma message("BSSN: enabling both SSL and CAHD")
   // #include "bssn_eqns_SSL_HD.cpp"
