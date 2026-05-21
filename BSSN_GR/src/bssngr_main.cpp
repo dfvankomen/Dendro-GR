@@ -626,9 +626,19 @@ int main(int argc, char** argv) {
                 // evolving the black holes always stores the updated
                 // information
                 bssnCtx->extract_constraints();
+                if (!rank_global && step <= 1)
+                    std::cout << "[trace step=" << step
+                              << "] extract_constraints done" << std::endl;
                 bssnCtx->extract_gravitational_waves();
+                if (!rank_global && step <= 1)
+                    std::cout << "[trace step=" << step
+                              << "] extract_gravitational_waves done"
+                              << std::endl;
                 // write bh coordinates at GW extraction time
                 bssnCtx->write_bh_coords();
+                if (!rank_global && step <= 1)
+                    std::cout << "[trace step=" << step
+                              << "] write_bh_coords done" << std::endl;
             }
 
             // Write VTU and BHLocation files
@@ -648,7 +658,13 @@ int main(int argc, char** argv) {
                 bssnCtx->findAH();
             }
 
+            if (!rank_global && step <= 1)
+                std::cout << "[trace step=" << step
+                          << "] entering ets->evolve()" << std::endl;
             ets->evolve();
+            if (!rank_global && step <= 1)
+                std::cout << "[trace step=" << step
+                          << "] ets->evolve() returned" << std::endl;
 
             // Write checkpoint  data
             if (bssn::BSSN_CHECKPT_FREQ > 0 && (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
