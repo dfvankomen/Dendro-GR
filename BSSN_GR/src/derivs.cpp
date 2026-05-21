@@ -141,7 +141,7 @@ void set_appropriate_derivs(const unsigned pw) {
     if (pw == 4) {
         deriv_x    = deriv8642_x;
         deriv_y    = deriv8642_y;
-        deriv_z    = deriv8642_x;
+        deriv_z    = deriv8642_z;
 
         deriv_xx   = deriv8642_xx;
         deriv_yy   = deriv8642_yy;

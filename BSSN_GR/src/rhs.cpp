@@ -20,6 +20,20 @@ using namespace bssn;
 void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
              const ot::Block *blkList, unsigned int numBlocks,
              const double curr_time, const double **uZipConstVars) {
+    // First-call trace: prints once per process at first entry so the
+    // colleague can confirm the cascade RHS is actually reached at scale.
+    {
+        static bool s_first_rhs_call = true;
+        if (s_first_rhs_call) {
+            int rank_global = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank_global);
+            if (!rank_global)
+                std::cout << "[trace] bssnRHS first call (t=" << curr_time
+                          << ", numBlocks=" << numBlocks << ")" << std::endl;
+            s_first_rhs_call = false;
+        }
+    }
+
     unsigned int offset;
     double ptmin[3], ptmax[3];
     unsigned int sz[3];

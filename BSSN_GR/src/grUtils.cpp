@@ -3080,6 +3080,15 @@ void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
 
 void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
                              const unsigned int currentStep) {
+    // Inactive ranks bail out: the function does MPI collectives on the
+    // active comm below, and prior to this guard `commActive` was left
+    // uninitialised on inactive ranks (only assigned inside the
+    // `if (pMesh->isActive())` branch). At large rank counts where the
+    // load balancer leaves some ranks empty, that uninitialised comm
+    // produces undefined behaviour (often MPI_ERR_ROOT). Match the
+    // active-rank guard that profileInfoJSON uses.
+    if (!pMesh->isActive()) return;
+
     int activeRank, activeNpes, globalRank, globalNpes;
 
     MPI_Comm commActive;
