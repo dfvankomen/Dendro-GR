@@ -76,9 +76,7 @@ BSSNCtx::~BSSNCtx() {
 }
 
 int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
-    // Wire up bssn::timer::* phase timers around the ETS-path unzip/zip
-    // and the whole rkStep span; t_rhs is already incremented inside
-    // bssnRHS(). Keeps the end-of-run phase-breakdown print honest.
+    // Phase timers for the ETS path; t_rhs is incremented inside bssnRHS().
     bssn::timer::t_rkStep.start();
     bssn::timer::t_unzip_sync.start();
     this->unzip(*in, m_var[VL::CPU_EV_UZ_IN], bssn::BSSN_ASYNC_COMM_K);

@@ -373,9 +373,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
-    // t_rhs_* measure per-variable BC application only; interior RHS is a
-    // single fused per-gridpoint loop over all 24 outputs sharing CSE temps
-    // and cannot be split per-variable without re-emitting the eqs file.
     if (bflag != 0) {
         bssn::timer::t_bdyc.start();
 
@@ -632,11 +629,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif
 }
 
-/*----------------------------------------------------------------------;
- *
- *
- *
- *----------------------------------------------------------------------*/
 void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
               const double *dyf, const double *dzf, const double *pmin,
               const double *pmax, const double f_falloff,
@@ -663,11 +655,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
     unsigned int pp;
     double inv_r;
 
-    // std::cout<<"boundary bssnrhs: size [ "<<nx<<", "<<ny<<", "<<nz<<"
-    // ]"<<std::endl; std::cout<<"boundary bssnrhs: pmin [ "<<pmin[0]<<",
-    // "<<pmin[1]<<", "<<pmin[2]<<" ]"<<std::endl; std::cout<<"boundary bssnrhs:
-    // pmax [ "<<pmax[0]<<", "<<pmax[1]<<", "<<pmax[2]<<" ]"<<std::endl;
-
     if (bflag & (1u << OCT_DIR_LEFT)) {
         double x = pmin[0] + ib * hx;
         for (unsigned int k = kb; k < ke; k++) {
@@ -676,13 +663,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 y         = pmin[1] + j * hy;
                 pp        = IDX(ib, j, k);
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_RIGHT)) {
         x = pmin[0] + (ie - 1) * hx;
         for (unsigned int k = kb; k < ke; k++) {
@@ -691,13 +676,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 y         = pmin[1] + j * hy;
                 pp        = IDX((ie - 1), j, k);
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_DOWN)) {
         y = pmin[1] + jb * hy;
         for (unsigned int k = kb; k < ke; k++) {
@@ -706,13 +689,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, jb, k);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_UP)) {
         y = pmin[1] + (je - 1) * hy;
         for (unsigned int k = kb; k < ke; k++) {
@@ -721,13 +702,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, (je - 1), k);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_BACK)) {
         z = pmin[2] + kb * hz;
         for (unsigned int j = jb; j < je; j++) {
@@ -736,13 +715,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, j, kb);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_FRONT)) {
         z = pmin[2] + (ke - 1) * hz;
         for (unsigned int j = jb; j < je; j++) {
@@ -751,7 +728,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, j, (ke - 1));
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
@@ -759,11 +735,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
     }
 }
 
-/*----------------------------------------------------------------------;
- *
- *
- *
- *----------------------------------------------------------------------*/
 void max_spacetime_speeds(double *const lambda1max, double *const lambda2max,
                           double *const lambda3max, const double *const alpha,
                           const double *const beta1, const double *const beta2,
