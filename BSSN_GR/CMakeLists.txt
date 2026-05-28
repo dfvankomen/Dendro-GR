@@ -82,6 +82,7 @@ set(BSSN_SRC_FILES
   src/parameters.cpp
   src/grUtils.cpp
   src/rhs.cpp
+  src/sommerfeld_bcs.cpp
   src/derivs.cpp
   src/physcon.cpp
   src/profile_params.cpp
