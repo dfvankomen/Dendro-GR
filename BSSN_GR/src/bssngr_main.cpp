@@ -462,7 +462,9 @@ int main(int argc, char** argv) {
                 bssnCtx->compute_constraint_variables();
 
                 // make sure we write about the grid size at time 0
+#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
                 bssnCtx->write_grid_summary_data();
+#endif
 
                 if (!rank_global) {
                     std::cout << BLU
@@ -581,7 +583,9 @@ int main(int argc, char** argv) {
                 }
 
                 // write grid summary data whether the remesh happened
+#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
                 bssnCtx->write_grid_summary_data();
+#endif
             }
 
             // print terminal output
@@ -595,8 +599,9 @@ int main(int argc, char** argv) {
 
                 bssnCtx->terminal_output();
 
-                // Per-step profile snapshot from the ETS loop.
-                // All ranks must call (MPI reduction); only rank 0 writes.
+                // Per-step profile snapshot (MPI reduction; rank 0 writes).
+                // Gated so a non-profiling build does no profile IO.
+#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
                 bssn::timer::profileInfoIntermediate(
                     bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
                     ets->get_mesh(), step);
@@ -612,6 +617,7 @@ int main(int argc, char** argv) {
                     ets->get_mesh(), step);
 #endif
                 bssn::timer::resetSnapshot();
+#endif  // ENABLE_DENDRO_PROFILE_COUNTERS
             }
 
             // wkb: update BH locations always

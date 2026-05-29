@@ -1,16 +1,7 @@
-// rhs_experimental.cpp -- vikr's experimental BSSN RHS translation unit.
-//
-// This is the churn target. It is a superset of the pristine production
-// src/rhs.cpp: identical prod scalar path, plus all vikr dispatch (cascade /
-// naive / AVX2 / AVX-512, fused and non-fused) selected by compile-time flags.
-//
-// The build compiles EITHER this file OR src/rhs.cpp, never both -- see the
-// BSSN_RHS_SRC selection in BSSN_GR/CMakeLists.txt. Any of BSSN_USE_CASCADE,
-// BSSN_USE_NAIVE, BSSN_USE_CASCADE_AVX[ _FUSED ], BSSN_USE_CASCADE_AVX512[ _FUSED ]
-// routes the build here; with none set, the build uses pristine src/rhs.cpp.
-//
-// Keep src/rhs.cpp byte-identical to upstream prod so it stays cleanly
-// diffable; land all experiments here.
+// rhs_experimental.cpp -- experimental BSSN RHS: prod path + all dispatch
+// (cascade/naive/AVX*) behind compile flags, for anything being actively
+// tested. Built instead of src/rhs.cpp when any such flag is set (CMake
+// BSSN_RHS_SRC). Keep src/rhs.cpp pristine prod.
 
 #include "rhs.h"
 
@@ -266,7 +257,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     bssn::timer::t_rhs.start();
 #ifdef BSSN_USE_CASCADE_AVX512_FUSED
-#pragma message("BSSN: using AVX-512 fused cascade (vikr, 8-wide)")
+#pragma message("BSSN: using AVX-512 fused cascade (8-wide)")
     if (bflag == 0 && (nx - 2 * PW) >= 8) {
 // Wide interior: 8-wide AVX-512 fused
 #include "bssn_cascade_avx512_fused_interior.inc.cpp"
@@ -280,7 +271,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     }
 #elif defined(BSSN_USE_CASCADE_AVX_FUSED)
 #pragma message( \
-    "BSSN: using AVX2-batched cascade with inline deriv stencils (vikr, fused)")
+    "BSSN: using AVX2-batched cascade with inline deriv stencils (fused)")
     if (bflag == 0) {
 #include "bssn_cascade_avx_fused_interior.inc.cpp"
     } else {
@@ -290,10 +281,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #include "bssn_cascade_avx_interior.inc.cpp"
     }
 #elif defined(BSSN_USE_CASCADE_AVX)
-#pragma message("BSSN: using AVX2-batched cascade RHS (vikr)")
+#pragma message("BSSN: using AVX2-batched cascade RHS")
 #include "bssn_cascade_avx_interior.inc.cpp"
 #elif defined(BSSN_USE_CASCADE_AVX512)
-#pragma message("BSSN: using AVX-512-batched cascade RHS (vikr, 8-wide)")
+#pragma message("BSSN: using AVX-512-batched cascade RHS (8-wide)")
     // Non-fused AVX-512: reads the full 138-array deriv workspace populated by
     // the (#else) pre-pass above, so it is valid for both interior and
     // boundary blocks. Wide blocks (interior x-extent >= 8) use the 8-wide
@@ -352,10 +343,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
                 // clang-format off
 #ifdef BSSN_USE_CASCADE
-  #pragma message("BSSN: using bilinear cascade RHS (experimental, vikr)")
+  #pragma message("BSSN: using cascade RHS (experimental)")
   #include "bssneqs_cascade.cpp"
 #elif defined(BSSN_USE_NAIVE)
-  #pragma message("BSSN: using math-faithful naive RHS (no CSE, vikr)")
+  #pragma message("BSSN: using math-faithful naive RHS (no CSE)")
   #include "bssneqs_naive.cpp"
 #elif defined(BSSN_ENABLE_SSL_HD)
   #pragma message("BSSN: enabling both SSL and CAHD")

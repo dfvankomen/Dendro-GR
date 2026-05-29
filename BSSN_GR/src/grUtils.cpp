@@ -4110,7 +4110,7 @@ void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
 
 // JSONL profile emitter: one self-contained record per call to
 // <prefix>_steps.jsonl. All ranks must call (MPI reduction inside); only
-// active rank 0 writes. Consumer: vikr/scripts/plot_profile.py.
+// active rank 0 writes. Consumer: plot_profile.py.
 //
 // ghost-comm is derivable as (unzip_wcomm - unzip) in the plotter.
 #define BSSN_PROFILE_JSONL_SCHEMA_VERSION 1

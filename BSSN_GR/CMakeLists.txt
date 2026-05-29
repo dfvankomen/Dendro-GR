@@ -38,8 +38,8 @@ option(BSSN_REFINE_BASE_EH "enable refine based on BH event horizons" OFF)
 option(BSSN_EXTRACT_GRAVITATIONAL_WAVES "extract GW waves" ON)
 option(BSSN_VERBOSE_LOGGING "Enable more verbose logging (only useful during debug)" OFF)
 option(BSSN_ENABLE_SSL_HD "Enable SSL and HD formalism modifications" ON)
-option(BSSN_USE_CASCADE "Use bilinear cascade RHS from vikr (experimental, replaces CSE)" OFF)
-option(BSSN_USE_NAIVE "Use math-faithful naive RHS from vikr (no CSE; named intermediates per layer)" OFF)
+option(BSSN_USE_CASCADE "Use cascade RHS (experimental, replaces CSE)" OFF)
+option(BSSN_USE_NAIVE "Use math-faithful naive RHS (no CSE; named intermediates per layer)" OFF)
 option(BSSN_USE_CASCADE_AVX "Use AVX2-batched cascade RHS (4-lane __m256d, requires AVX2+FMA)" OFF)
 option(BSSN_USE_CASCADE_AVX_FUSED "Use AVX2 cascade with inline deriv stencils (fused)" OFF)
 option(BSSN_USE_CASCADE_AVX512 "Use AVX-512 cascade RHS (8-lane __m512d). Requires CPU_ARCH with AVX-512 support (e.g. skylake-avx512, icelake-server, znver4, native on capable CPUs)." OFF)
@@ -78,12 +78,8 @@ elseif(BSSN_USE_8TH_ORDER_DERIVS)
   set(BSSN_USE_6TH_ORDER_DERIVS OFF)
 endif()
 
-# RHS translation unit: keep src/rhs.cpp pristine (== upstream prod) and route
-# every experimental build (cascade / naive / AVX*) to src/rhs_experimental.cpp,
-# which carries all the vikr dispatch behind compile-time flags. Exactly one of
-# the two defines bssnRHS/bssnrhs, selected here, so there is never a collision.
-# This keeps rhs.cpp diffable against upstream and confines churn to the
-# experimental TU.
+# Pick the RHS TU: pristine src/rhs.cpp for prod, src/rhs_experimental.cpp when
+# any cascade/naive flag is set. Only one defines bssnRHS, so no collision.
 if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
    BSSN_USE_CASCADE_AVX_FUSED OR BSSN_USE_CASCADE_AVX512 OR
    BSSN_USE_CASCADE_AVX512_FUSED)
