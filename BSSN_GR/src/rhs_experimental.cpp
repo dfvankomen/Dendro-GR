@@ -1,8 +1,32 @@
+// rhs_experimental.cpp -- vikr's experimental BSSN RHS translation unit.
+//
+// This is the churn target. It is a superset of the pristine production
+// src/rhs.cpp: identical prod scalar path, plus all vikr dispatch (cascade /
+// naive / AVX2 / AVX-512, fused and non-fused) selected by compile-time flags.
+//
+// The build compiles EITHER this file OR src/rhs.cpp, never both -- see the
+// BSSN_RHS_SRC selection in BSSN_GR/CMakeLists.txt. Any of BSSN_USE_CASCADE,
+// BSSN_USE_NAIVE, BSSN_USE_CASCADE_AVX[ _FUSED ], BSSN_USE_CASCADE_AVX512[ _FUSED ]
+// routes the build here; with none set, the build uses pristine src/rhs.cpp.
+//
+// Keep src/rhs.cpp byte-identical to upstream prod so it stays cleanly
+// diffable; land all experiments here.
+
 #include "rhs.h"
 
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
+
+#if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
+    defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+// Generated cascade bodies define their own VEC typedef (scoped to their
+// body {}) and #undef/#define the macros before use, so AVX2 and AVX-512
+// variants can coexist in the same TU.
+#include <immintrin.h>
+
+#include <cmath>
+#endif
 
 using namespace std;
 using namespace bssn;
@@ -10,6 +34,20 @@ using namespace bssn;
 void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
              const ot::Block *blkList, unsigned int numBlocks,
              const double curr_time, const double **uZipConstVars) {
+    // First-call trace: prints once per process at first entry so the
+    // colleague can confirm the cascade RHS is actually reached at scale.
+    {
+        static bool s_first_rhs_call = true;
+        if (s_first_rhs_call) {
+            int rank_global = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank_global);
+            if (!rank_global)
+                std::cout << "[trace] bssnRHS first call (t=" << curr_time
+                          << ", numBlocks=" << numBlocks << ")" << std::endl;
+            s_first_rhs_call = false;
+        }
+    }
+
     unsigned int offset;
     double ptmin[3], ptmax[3];
     unsigned int sz[3];
@@ -185,8 +223,29 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     // clang-format off
     #include "bssnrhs_evar_derivs.h"
+#if defined(BSSN_USE_CASCADE_AVX512_FUSED)
+    // AVX-512 fused: for bflag==0 blocks (interior), use mixed-only
+    // precompute — both the 8-wide AVX-512 kernel (wide blocks) and the
+    // 4-wide AVX2-fused kernel (narrow blocks) work from mixed-only arrays.
+    // Only bflag!=0 (boundary) blocks need the full 138-array workspace.
+    if (bflag == 0) {
+        #include "bssnrhs_derivs_mixed_only.h"
+    } else {
+        #include "bssnrhs_derivs.h"
+        #include "bssnrhs_derivs_adv.h"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX_FUSED)
+    // AVX2 fused: bflag==0 → mixed-only precompute; else full precompute
+    if (bflag == 0) {
+        #include "bssnrhs_derivs_mixed_only.h"
+    } else {
+        #include "bssnrhs_derivs.h"
+        #include "bssnrhs_derivs_adv.h"
+    }
+#else
     #include "bssnrhs_derivs.h"
     #include "bssnrhs_derivs_adv.h"
+#endif
     // clang-format on
 
     bssn::timer::t_deriv.stop();
@@ -206,6 +265,45 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double sig_ssl = bssn::BSSN_SSL_SIGMA;
 
     bssn::timer::t_rhs.start();
+#ifdef BSSN_USE_CASCADE_AVX512_FUSED
+#pragma message("BSSN: using AVX-512 fused cascade (vikr, 8-wide)")
+    if (bflag == 0 && (nx - 2 * PW) >= 8) {
+// Wide interior: 8-wide AVX-512 fused
+#include "bssn_cascade_avx512_fused_interior.inc.cpp"
+    } else if (bflag == 0) {
+// Narrow interior (width < 8): 4-wide AVX2 fused (reads mixed-only)
+#include "bssn_cascade_avx_fused_interior.inc.cpp"
+    } else {
+// Boundary block (bflag != 0): full precompute already done,
+// use non-fused AVX2 (reads full 138-array workspace)
+#include "bssn_cascade_avx_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX_FUSED)
+#pragma message( \
+    "BSSN: using AVX2-batched cascade with inline deriv stencils (vikr, fused)")
+    if (bflag == 0) {
+#include "bssn_cascade_avx_fused_interior.inc.cpp"
+    } else {
+// Boundary block: fused centered stencils are wrong at the 3 outer
+// points; fall back to non-fused AVX cascade (reads the full 138-
+// array workspace that bflag-aware deriv code populated above).
+#include "bssn_cascade_avx_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_AVX)
+#pragma message("BSSN: using AVX2-batched cascade RHS (vikr)")
+#include "bssn_cascade_avx_interior.inc.cpp"
+#elif defined(BSSN_USE_CASCADE_AVX512)
+#pragma message("BSSN: using AVX-512-batched cascade RHS (vikr, 8-wide)")
+    // Non-fused AVX-512: reads the full 138-array deriv workspace populated by
+    // the (#else) pre-pass above, so it is valid for both interior and
+    // boundary blocks. Wide blocks (interior x-extent >= 8) use the 8-wide
+    // kernel; narrower blocks fall back to the 4-wide AVX2 non-fused kernel.
+    if ((nx - 2 * PW) >= 8) {
+#include "bssn_cascade_avx512_interior.inc.cpp"
+    } else {
+#include "bssn_cascade_avx_interior.inc.cpp"
+    }
+#else
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
             // clang-format off
@@ -234,8 +332,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 const double dr2 =
                     sqrt((x - bh2x) * (x - bh2x) + (y - bh2y) * (y - bh2y) +
                          (z - bh2z) * (z - bh2z));
-// eta formulation
-// clang-format off
+                // eta formulation
+                // clang-format off
                 // const double eta = bssn::ETA_CONST; // constant damping
                 #include "eta_RIT.inc.cpp" // RIT's prescription
                 // #include "eta_linear_inverse.inc.cpp"
@@ -253,7 +351,13 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 // clang-format on
 
                 // clang-format off
-#ifdef BSSN_ENABLE_SSL_HD
+#ifdef BSSN_USE_CASCADE
+  #pragma message("BSSN: using bilinear cascade RHS (experimental, vikr)")
+  #include "bssneqs_cascade.cpp"
+#elif defined(BSSN_USE_NAIVE)
+  #pragma message("BSSN: using math-faithful naive RHS (no CSE, vikr)")
+  #include "bssneqs_naive.cpp"
+#elif defined(BSSN_ENABLE_SSL_HD)
   #pragma message("BSSN: enabling both SSL and CAHD")
   // #include "bssn_eqns_SSL_HD.cpp"
   // #include "bssn_eqns_SSL_HD_HAM_INCLUDED.inc.cpp"
@@ -291,39 +395,55 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             }
         }
     }
+#endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
     if (bflag != 0) {
         bssn::timer::t_bdyc.start();
 
+        bssn::timer::t_rhs_a.start();
         bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, pmin,
                  pmax, 1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_a.stop();
+
+        bssn::timer::t_rhs_chi.start();
         bssn_bcs(chi_rhs, chi, grad_0_chi, grad_1_chi, grad_2_chi, pmin, pmax,
                  1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_chi.stop();
+
+        bssn::timer::t_rhs_K.start();
         bssn_bcs(K_rhs, K, grad_0_K, grad_1_K, grad_2_K, pmin, pmax, 1.0, 0.0,
                  sz, bflag);
+        bssn::timer::t_rhs_K.stop();
 
+        bssn::timer::t_rhs_b.start();
         bssn_bcs(b_rhs0, beta0, grad_0_beta0, grad_1_beta0, grad_2_beta0, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
         bssn_bcs(b_rhs1, beta1, grad_0_beta1, grad_1_beta1, grad_2_beta1, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
         bssn_bcs(b_rhs2, beta2, grad_0_beta2, grad_1_beta2, grad_2_beta2, pmin,
                  pmax, 1.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_b.stop();
 
+        bssn::timer::t_rhs_Gt.start();
         bssn_bcs(Gt_rhs0, Gt0, grad_0_Gt0, grad_1_Gt0, grad_2_Gt0, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(Gt_rhs1, Gt1, grad_0_Gt1, grad_1_Gt1, grad_2_Gt1, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(Gt_rhs2, Gt2, grad_0_Gt2, grad_1_Gt2, grad_2_Gt2, pmin, pmax,
                  2.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_Gt.stop();
 
+        bssn::timer::t_rhs_B.start();
         bssn_bcs(B_rhs0, B0, grad_0_B0, grad_1_B0, grad_2_B0, pmin, pmax, 1.0,
                  0.0, sz, bflag);
         bssn_bcs(B_rhs1, B1, grad_0_B1, grad_1_B1, grad_2_B1, pmin, pmax, 1.0,
                  0.0, sz, bflag);
         bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin, pmax, 1.0,
                  0.0, sz, bflag);
+        bssn::timer::t_rhs_B.stop();
 
+        bssn::timer::t_rhs_At.start();
         bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0, pmin, pmax,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(At_rhs01, At1, grad_0_At1, grad_1_At1, grad_2_At1, pmin, pmax,
@@ -336,7 +456,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                  2.0, 0.0, sz, bflag);
         bssn_bcs(At_rhs22, At5, grad_0_At5, grad_1_At5, grad_2_At5, pmin, pmax,
                  2.0, 0.0, sz, bflag);
+        bssn::timer::t_rhs_At.stop();
 
+        bssn::timer::t_rhs_gt.start();
         bssn_bcs(gt_rhs00, gt0, grad_0_gt0, grad_1_gt0, grad_2_gt0, pmin, pmax,
                  1.0, 1.0, sz, bflag);
         bssn_bcs(gt_rhs01, gt1, grad_0_gt1, grad_1_gt1, grad_2_gt1, pmin, pmax,
@@ -349,6 +471,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                  1.0, 0.0, sz, bflag);
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
                  1.0, 1.0, sz, bflag);
+        bssn::timer::t_rhs_gt.stop();
 
         bssn::timer::t_bdyc.stop();
     }
@@ -357,7 +480,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #include "bssnrhs_ko_derivs.h"
     bssn::timer::t_deriv.stop();
 
+    // t_rhs lumps interior + KO; t_rhs_ko isolates KO so plotter can derive
+    // interior-only as (t_rhs - t_rhs_ko).
     bssn::timer::t_rhs.start();
+    bssn::timer::t_rhs_ko.start();
 
     double sigma = KO_DISS_SIGMA;
 
@@ -515,6 +641,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         }
     }
 
+    bssn::timer::t_rhs_ko.stop();
     bssn::timer::t_rhs.stop();
 
     bssn::timer::t_deriv.start();
@@ -527,11 +654,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif
 }
 
-/*----------------------------------------------------------------------;
- *
- *
- *
- *----------------------------------------------------------------------*/
 void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
               const double *dyf, const double *dzf, const double *pmin,
               const double *pmax, const double f_falloff,
@@ -558,11 +680,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
     unsigned int pp;
     double inv_r;
 
-    // std::cout<<"boundary bssnrhs: size [ "<<nx<<", "<<ny<<", "<<nz<<"
-    // ]"<<std::endl; std::cout<<"boundary bssnrhs: pmin [ "<<pmin[0]<<",
-    // "<<pmin[1]<<", "<<pmin[2]<<" ]"<<std::endl; std::cout<<"boundary bssnrhs:
-    // pmax [ "<<pmax[0]<<", "<<pmax[1]<<", "<<pmax[2]<<" ]"<<std::endl;
-
     if (bflag & (1u << OCT_DIR_LEFT)) {
         double x = pmin[0] + ib * hx;
         for (unsigned int k = kb; k < ke; k++) {
@@ -571,13 +688,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 y         = pmin[1] + j * hy;
                 pp        = IDX(ib, j, k);
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_RIGHT)) {
         x = pmin[0] + (ie - 1) * hx;
         for (unsigned int k = kb; k < ke; k++) {
@@ -586,13 +701,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 y         = pmin[1] + j * hy;
                 pp        = IDX((ie - 1), j, k);
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_DOWN)) {
         y = pmin[1] + jb * hy;
         for (unsigned int k = kb; k < ke; k++) {
@@ -601,13 +714,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, jb, k);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_UP)) {
         y = pmin[1] + (je - 1) * hy;
         for (unsigned int k = kb; k < ke; k++) {
@@ -616,13 +727,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, (je - 1), k);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_BACK)) {
         z = pmin[2] + kb * hz;
         for (unsigned int j = jb; j < je; j++) {
@@ -631,13 +740,11 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, j, kb);
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
         }
     }
-
     if (bflag & (1u << OCT_DIR_FRONT)) {
         z = pmin[2] + (ke - 1) * hz;
         for (unsigned int j = jb; j < je; j++) {
@@ -646,7 +753,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
                 x         = pmin[0] + i * hx;
                 inv_r     = 1.0 / sqrt(x * x + y * y + z * z);
                 pp        = IDX(i, j, (ke - 1));
-
                 f_rhs[pp] = -inv_r * (x * dxf[pp] + y * dyf[pp] + z * dzf[pp] +
                                       f_falloff * (f[pp] - f_asymptotic));
             }
@@ -654,11 +760,6 @@ void bssn_bcs(double *f_rhs, const double *f, const double *dxf,
     }
 }
 
-/*----------------------------------------------------------------------;
- *
- *
- *
- *----------------------------------------------------------------------*/
 void max_spacetime_speeds(double *const lambda1max, double *const lambda2max,
                           double *const lambda3max, const double *const alpha,
                           const double *const beta1, const double *const beta2,

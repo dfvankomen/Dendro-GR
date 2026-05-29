@@ -78,10 +78,26 @@ elseif(BSSN_USE_8TH_ORDER_DERIVS)
   set(BSSN_USE_6TH_ORDER_DERIVS OFF)
 endif()
 
+# RHS translation unit: keep src/rhs.cpp pristine (== upstream prod) and route
+# every experimental build (cascade / naive / AVX*) to src/rhs_experimental.cpp,
+# which carries all the vikr dispatch behind compile-time flags. Exactly one of
+# the two defines bssnRHS/bssnrhs, selected here, so there is never a collision.
+# This keeps rhs.cpp diffable against upstream and confines churn to the
+# experimental TU.
+if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
+   BSSN_USE_CASCADE_AVX_FUSED OR BSSN_USE_CASCADE_AVX512 OR
+   BSSN_USE_CASCADE_AVX512_FUSED)
+  set(BSSN_RHS_SRC src/rhs_experimental.cpp)
+  message(STATUS "BSSN RHS source: src/rhs_experimental.cpp (experimental flags set)")
+else()
+  set(BSSN_RHS_SRC src/rhs.cpp)
+  message(STATUS "BSSN RHS source: src/rhs.cpp (pristine production)")
+endif()
+
 set(BSSN_SRC_FILES
   src/parameters.cpp
   src/grUtils.cpp
-  src/rhs.cpp
+  ${BSSN_RHS_SRC}
   src/sommerfeld_bcs.cpp
   src/derivs.cpp
   src/physcon.cpp
