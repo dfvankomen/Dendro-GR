@@ -105,9 +105,9 @@ void set_appropriate_derivs(const unsigned pw) {
         deriv_y    = deriv644_y;
         deriv_z    = deriv644_z;
 
-        deriv_xx   = deriv42_xx;
-        deriv_yy   = deriv42_yy;
-        deriv_zz   = deriv42_zz;
+        deriv_xx   = deriv644_xx;
+        deriv_yy   = deriv644_yy;
+        deriv_zz   = deriv644_zz;
 
         ko_deriv_x = ko_deriv42_x;
         ko_deriv_y = ko_deriv42_y;
