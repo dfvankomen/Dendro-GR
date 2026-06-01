@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <tuple>
 
 #include "TwoPunctures.h"
@@ -58,9 +59,8 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     Point m_uiBHLoc[2];
 
-    // keep track of both black holes
-    std::vector<std::pair<Point, Point>> m_uiBHLocHistory;
-    std::vector<double> m_uiBHTimeHistory;
+    // reusable BH history/kinematics tracker + latest per-horizon QoIs
+    std::unique_ptr<dendro_bh::BHHistory> m_bhHistory;
 
    private:
     // TODO: move these into the main Ctx object and have the remesh logic work
@@ -90,31 +90,16 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         m_bBHEvolved           = false;
     }
 
-    const std::vector<std::pair<Point, Point>>& get_bh_loc_history() const {
-        return m_uiBHLocHistory;
-    }
+    /** @brief access the BH history / kinematics tracker */
+    dendro_bh::BHHistory& get_bh_history() { return *m_bhHistory; }
+    const dendro_bh::BHHistory& get_bh_history() const { return *m_bhHistory; }
 
     const std::vector<double>& get_bh_loc_time_history() const {
-        return m_uiBHTimeHistory;
+        return m_bhHistory->times();
     }
 
-    const std::vector<double> get_bh_angle_history() {
-        std::vector<double> angle_history;
-
-        for (auto& bh_points : m_uiBHLocHistory) {
-            double x1 = bh_points.first.x();
-            double y1 = bh_points.first.y();
-            double z1 = bh_points.first.z();
-
-            double x2 = bh_points.second.x();
-            double y2 = bh_points.second.y();
-            double z2 = bh_points.second.z();
-
-            // compute the relative angle for x and y
-            angle_history.push_back(atan2(y1 - y2, x1 - x2));
-        }
-
-        return angle_history;
+    const std::vector<double>& get_bh_angle_history() const {
+        return m_bhHistory->angle_history();
     }
 
     /** @brief get bh locations*/
@@ -373,6 +358,14 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         AEH::ah_bah->find_horizons(m_uiMesh, (const double**)eVar,
                                    m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
                                    bh_locations);
+
+        // mirror the latest QoIs into the history object (find_horizons already
+        // broadcast them to all active ranks)
+        if (m_bhHistory) {
+            for (unsigned int h = 0; h < AEH::ah_bah->get_num_horizons(); ++h)
+                m_bhHistory->set_horizon_qoi(h,
+                                             AEH::ah_bah->get_horizon_qoi(h));
+        }
     }
 };
 

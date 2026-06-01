@@ -145,263 +145,20 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
     }
 }
 
-std::vector<double> calculate_bh_angle(
-    const std::vector<std::pair<Point, Point>>& bh_loc_history) {
-    std::vector<double> angle_history;
-
-    for (auto& bh_points : bh_loc_history) {
-        double x1 = bh_points.first.x();
-        double y1 = bh_points.first.y();
-        double z1 = bh_points.first.z();
-
-        double x2 = bh_points.second.x();
-        double y2 = bh_points.second.y();
-        double z2 = bh_points.second.z();
-
-        // compute the relative angle for x and y
-        angle_history.push_back(atan2(y1 - y2, x1 - x2));
-    }
-
-    return angle_history;
-}
-
-std::vector<Point> calculate_relative_position_history(
-    const std::vector<std::pair<Point, Point>>& bh_loc_history) {
-    std::vector<Point> rp_history;
-
-    for (auto& bh_points : bh_loc_history) {
-        double x1 = bh_points.first.x();
-        double y1 = bh_points.first.y();
-        double z1 = bh_points.first.z();
-
-        double x2 = bh_points.second.x();
-        double y2 = bh_points.second.y();
-        double z2 = bh_points.second.z();
-
-        // compute the relative angle for x and y
-        rp_history.push_back(Point(x1 - x2, y1 - y2, x1 - x2));
-    }
-
-    return rp_history;
-}
-
-std::vector<Point> calculate_relative_velocity_history(
-    const std::vector<Point>& bh_rp_history,
-    const std::vector<double>& bh_loc_history_t) {
-    std::vector<Point> vel_history;
-
-    if (bh_rp_history.size() < 2) {
-        // TODO: instead just return initial value from par file
-        // (make sure to convert from momentum to velocity!)
-        return std::vector<Point>{Point(0, 0, 0)};
-    }
-
-    vel_history.reserve(bh_rp_history.size() - 1);
-
-    for (size_t i = 0; i < bh_rp_history.size() - 1; i++) {
-        double xvel = bh_rp_history[i + 1].x() - bh_rp_history[i].x();
-        double yvel = bh_rp_history[i + 1].y() - bh_rp_history[i].y();
-        double zvel = bh_rp_history[i + 1].z() - bh_rp_history[i].z();
-
-        double dt   = bh_loc_history_t[i + 1] - bh_loc_history_t[i];
-
-        // compute the relative angle for x and y
-        vel_history.push_back(Point(xvel / dt, yvel / dt, zvel / dt));
-    }
-
-    // reminder it will be one minus the original size
-    return vel_history;
-}
-
-std::vector<Point> calculate_relative_velocity_history(
-    const std::vector<std::pair<Point, Point>>& bh_loc_history,
-    const std::vector<double>& bh_loc_history_t) {
-    std::vector<Point> vel_history;
-
-    if (bh_loc_history.size() < 2) {
-        // TODO: instead just return initial value from par file
-        // (make sure to convert from momentum to velocity!)
-        return std::vector<Point>{Point(0, 0, 0)};
-    }
-
-    auto rp_history = calculate_relative_position_history(bh_loc_history);
-
-    vel_history.reserve(bh_loc_history.size() - 1);
-
-    for (size_t i = 0; i < rp_history.size() - 1; i++) {
-        double xvel = rp_history[i + 1].x() - rp_history[i].x();
-        double yvel = rp_history[i + 1].y() - rp_history[i].y();
-        double zvel = rp_history[i + 1].z() - rp_history[i].z();
-
-        double dt   = bh_loc_history_t[i + 1] - bh_loc_history_t[i];
-
-        // compute the relative angle for x and y
-        vel_history.push_back(Point(xvel / dt, yvel / dt, zvel / dt));
-    }
-
-    // reminder it will be one minus the original size
-    return vel_history;
-}
-
-/**
- * Calculates the angular velocity given relative position and velocity.
- * Returns null vector if separation distance < epsilon.
- *
- * @param r Relative position vector
- * @param v Relative velocity vector
- * @return Angular velocity vector
- */
-Point calculate_angular_velocity(const Point& r, const Point& v) {
-    // Calculate the square of the magnitude of r
-    double r2 = r.x() * r.x() + r.y() * r.y() + r.z() * r.z();
-
-    // Handle potential division by zero
-    if (r2 < std::numeric_limits<double>::epsilon()) {
-        // If r is too close to zero, return zero angular velocity
-        return Point(0, 0, 0);
-    }
-
-    // Calculate and return the angular velocity vector
-    // Angular velocity = (r × v) / |r|^2
-    return Point((r.y() * v.z() - r.z() * v.y()) / r2,
-                 (r.z() * v.x() - r.x() * v.z()) / r2,
-                 (r.x() * v.y() - r.y() * v.x()) / r2);
-}
-
-/**
- * Calculates the history of angular velocities for a binary black hole system.
- * The angular velocity is flattened after the black holes merge.
- *
- * @param bh_rp_history Vector of relative position history
- * @param bh_rv_history Vector of relative velocity history
- * @return Vector of angular velocity history
- */
-std::vector<Point> calculate_angular_velocity_history(
-    const std::vector<Point>& bh_rp_history,
-    const std::vector<Point>& bh_rv_history) {
-    std::vector<Point> angular_velocity_history;
-    const double BH_MERGED_SEP_TOL = 1.0;  // best value in my tests
-    size_t index_pre_merge         = 0;
-
-    ////////////////////////////////////////////////////////////////////
-    // Calculate initial angular velocity from parameter file
-    Point Dq = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
-    Point Dv = bssn::BH2.getV() - bssn::BH1.getV();
-    // Add the initial angular velocity to the history
-    angular_velocity_history.push_back(calculate_angular_velocity(Dq, Dv));
-
-    ////////////////////////////////////////////////////////////////////
-    // If we have enough history, calculate the rest of the angular velocities
-    if (bh_rp_history.size() >= 2 && !bh_rv_history.empty()) {
-        // Reserve space to avoid reallocation
-        angular_velocity_history.reserve(bh_rv_history.size());
-
-        // Calculate angular velocities for each point in the history
-        for (size_t i = 0; i < bh_rv_history.size(); i++) {
-            Point r = bh_rp_history[i + 1];  // Use i+1 for relative position
-
-            if (r.abs() > BH_MERGED_SEP_TOL) {
-                // Not merged yet
-                Point v = bh_rv_history[i];
-                angular_velocity_history.push_back(
-                    calculate_angular_velocity(r, v));
-                index_pre_merge = i;
-            } else {
-                // Use the last pre-merge angular velocity
-                angular_velocity_history.push_back(
-                    angular_velocity_history[index_pre_merge]);
-            }
-        }
-    }
-
-    return angular_velocity_history;
-}
-
-/**
- * @brief Calculates and cleans wavelengths from angular velocity history.
- *
- * This function takes a history of angular velocities, calculates the
- * corresponding wavelengths, and then applies a cleaning step to ensure
- * the wavelengths are monotonically decreasing as we move forward through
- * the vector.
- *
- * The wavelength is calculated using the formula: λ = 2πc / |ω|, where
- * c is assumed to be 1.0. If the magnitude of angular velocity is very
- * close to zero, the wavelength is set to the maximum possible double value.
- *
- * @param angular_velocity_history A vector of Point objects representing
- *                                 the history of angular velocities.
- * @return A vector of doubles representing the cleaned wavelengths.
- *         The returned vector has the same size as the input vector.
- */
-std::vector<double> calculate_clean_wavelength(
-    const std::vector<Point>& angular_velocity_history) {
-    std::vector<double> wavelength;
-    wavelength.reserve(angular_velocity_history.size());
-    const double two_pi_c = 2.0 * M_PI * 1.0;  // 2π * c, where c = 1.0
-
-    // Calculate wavelength
-    for (const auto& omega : angular_velocity_history) {
-        double omega_mag = std::hypot(omega.x(), omega.y(), omega.z());
-        wavelength.push_back(omega_mag < std::numeric_limits<double>::epsilon()
-                                 ? std::numeric_limits<double>::max()
-                                 : two_pi_c / omega_mag);
-    }
-
-    // Clean up wavelength (force monotonicity)
-    for (size_t i = 1; i < wavelength.size(); ++i) {
-        // ensure the next one is <= the last one
-        wavelength[i] = std::min(wavelength[i], wavelength[i - 1]);
-    }
-
-    return wavelength;
-}
-
-/**
- * @brief Calculates cleaned wavelength at a given retarded time.
- *
- * This function reads in a retarded time, along with histories,
- * and returns the interpolated cleaned wavelength at that time.
- *
- * @param t_ret retarded time at which we should sample
- * @param time_history history of time values
- * @param clean_wavelength_history cleaned wavelength history
- * @return lam_clean cleaned, interpolated, retarded time wavelength.
- */
-double get_clean_wavelength(
-    double t_ret, const std::vector<double>& time_history,
-    const std::vector<double>& clean_wavelength_history) {
-    // Handle t_ret before the start of the history
-    if (t_ret <= bssn::BSSN_RK_TIME_BEGIN) {
-        // return the first value
-        return clean_wavelength_history.front();
-    }
-
-    // Find the appropriate interval in the history
-    auto it = std::lower_bound(time_history.begin(), time_history.end(), t_ret);
-    size_t index = std::distance(time_history.begin(), it);
-
-    // Handle t_ret after the end of the history
-    if (index == time_history.size()) {
-        return clean_wavelength_history.back();
-    }
-
-    // Interpolate wavelength
-    double t0    = time_history[index - 1];
-    double t1    = time_history[index];
-    double alpha = (t_ret - t0) / (t1 - t0);
-
-    return (1 - alpha) * clean_wavelength_history[index - 1] +
-           alpha * clean_wavelength_history[index];
-}
+// The BH-derived kinematics that used to live here as free functions now live
+// in dendro_bh::BHHistory (dendrolib, include/bh_history.h), which maintains
+// them incrementally. isRemeshBH consumes that object directly.
 
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
-                const std::vector<std::pair<Point, Point>>& bh_loc_history,
-                const std::vector<double>& bh_loc_history_t) {
+                const dendro_bh::BHHistory& bhHistory,
+                const dendro_aeh::AEH_BHaHAHA* ahFinder) {
     ////////////////////////////////////////////////////////////////////
     // set up booleans to check whether the grid has changed
     bool isOctChange   = false;
     bool isOctChange_g = false;
+
+    // wired through for future use (see HOOK below); unused by current policy
+    (void)ahFinder;
 
     if (pMesh->isActive()) {
         ////////////////////////////////////////////////////////////////
@@ -456,21 +213,8 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         const ot::TreeNode* pNodes = pMesh->getAllElements().data();
         refine_flags.resize(pMesh->getNumLocalMeshElements(), OCT_NO_CHANGE);
 
-        // calculate the bh_angle_history
-        std::vector<double> bh_angle_history =
-            calculate_bh_angle(bh_loc_history);
-        std::vector<Point> bh_relative_position_history =
-            calculate_relative_position_history(bh_loc_history);
-        // Velocity and Angular Velocity are **1** point smaller
-        std::vector<Point> bh_relative_velocity_history =
-            calculate_relative_velocity_history(bh_relative_position_history,
-                                                bh_loc_history_t);
-        std::vector<Point> bh_angular_velocity_history =
-            calculate_angular_velocity_history(bh_relative_position_history,
-                                               bh_relative_velocity_history);
-        //
-        std::vector<double> clean_wavelength =
-            calculate_clean_wavelength(bh_angular_velocity_history);
+        // kinematics come from the incremental BHHistory; only the clean
+        // orbital wavelength is consumed below
 
         // refine pass: iterate over all elements
         for (unsigned int ele = eleLocalBegin; ele < eleLocalEnd; ele++) {
@@ -604,6 +348,11 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const double rBH_min = std::min(r1_min, r2_min);
                 // calculate outer radius to which we should refine
                 // ensure it captures both BHs and is >= than before
+                //
+                // HOOK for redesigning this target with the measured radius:
+                //   if (ahFinder && ahFinder->common_horizon_found())
+                //       r_meas = ahFinder->get_common_horizon_mean_radius();
+                // left as the mass-based proxy for now (behavior unchanged).
                 const double rBH_lim =
                     std::max(std::max(r_near[0], r_near[1]), 1.55 * (m1 + m2));
                 // calculate level floor due to onion structure
@@ -629,8 +378,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             // calculate retarded time
             const double t_ret = bssn::BSSN_CURRENT_RK_COORD_TIME - r_min;
             // calculate retarded orbital wavelength
-            const double lam_clean =
-                get_clean_wavelength(t_ret, bh_loc_history_t, clean_wavelength);
+            const double lam_clean = bhHistory.clean_wavelength_at(t_ret);
 
             // calculate wavelength goal based on goal sph. har. order m
             auto get_ell = [lam_clean, Delta_x, n_order](

@@ -82,6 +82,18 @@ BSSNCtxGPU::BSSNCtxGPU(ot::Mesh* pMesh) : Ctx() {
     device::alloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx_device,
                                         BSSN_NUM_VARS, BSSN_ASYNC_COMM_K);
 
+    // set up the BH history tracker (seeded from par-file initial data); see
+    // the CPU BSSNCtx constructor for details.
+    {
+        dendro_bh::BHHistoryConfig cfg;
+        cfg.num_bodies           = 2;
+        cfg.t_begin              = bssn::BSSN_RK_TIME_BEGIN;
+        cfg.initial_rel_position = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
+        cfg.initial_rel_velocity = bssn::BH2.getV() - bssn::BH1.getV();
+        cfg.merged_sep_tol       = 1.0;
+        m_bhHistory = std::make_unique<dendro_bh::BHHistory>(cfg);
+    }
+
     return;
 }
 
@@ -1015,9 +1027,8 @@ bool BSSNCtxGPU::is_remesh() {
 
         isRefine = (isR1 || isR2);
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
-        isRefine =
-            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
-                             this->get_bh_loc_time_history());
+        isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_history(),
+                                    AEH::ah_bah.get());
     }
 
     return isRefine;
@@ -1131,7 +1142,7 @@ void BSSNCtxGPU::evolve_bh_loc() {
 
     // compute how long it's been since the last time we calculatd it, thanks to
     // storing history!
-    const double dt = m_uiTinfo._m_uiT - m_uiBHTimeHistory.back();
+    const double dt = m_uiTinfo._m_uiT - m_bhHistory->times().back();
     DVec sIn        = this->get_evolution_vars();
 
     // m_uiMesh->readFromGhostBegin(sIn.GetVecArray()+ VAR::U_BETA0 *
@@ -1181,9 +1192,8 @@ void BSSNCtxGPU::evolve_bh_loc() {
 
 void BSSNCtxGPU::store_bh_loc_history() {
     // simple call that stores bh loc history based on bssn::BSSN_BH_LOC
-    m_uiBHLocHistory.push_back(
-        std::make_pair(bssn::BSSN_BH_LOC[0], bssn::BSSN_BH_LOC[1]));
-    m_uiBHTimeHistory.push_back(m_uiTinfo._m_uiT);
+    m_bhHistory->append(bssn::BSSN_BH_LOC[0], bssn::BSSN_BH_LOC[1],
+                        m_uiTinfo._m_uiT);
 }
 
 }  // namespace bssn

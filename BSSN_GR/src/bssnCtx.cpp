@@ -64,6 +64,18 @@ BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     ot::alloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
 
+    // set up the BH history tracker, seeding the angular-velocity history from
+    // the par-file initial data (Dq = BH2 - BH1, Dv = BH2.V - BH1.V)
+    {
+        dendro_bh::BHHistoryConfig cfg;
+        cfg.num_bodies           = 2;
+        cfg.t_begin              = bssn::BSSN_RK_TIME_BEGIN;
+        cfg.initial_rel_position = bssn::BH2.getBHCoord() - bssn::BH1.getBHCoord();
+        cfg.initial_rel_velocity = bssn::BH2.getV() - bssn::BH1.getV();
+        cfg.merged_sep_tol       = 1.0;
+        m_bhHistory = std::make_unique<dendro_bh::BHHistory>(cfg);
+    }
+
     return;
 }
 
@@ -963,17 +975,8 @@ int BSSNCtx::write_checkpt() {
         checkPoint["DENDRO_BSSN_BH_MERGE_TIME"] = m_dMergeTime;
         checkPoint["DENDRO_BSSN_BH_MERGE_STEP"] = m_uiMergeStep;
 
-        // then also the BH time history
-        checkPoint["DENDRO_BSSN_BH_LOC_TIMES"]  = m_uiBHTimeHistory;
-        // then the X, Y, Z points for the BSSN BH locations
-
-        std::tuple<std::string, std::string, std::string> temp =
-            encode_bh_locs(m_uiBHLocHistory, m_uiBHTimeHistory);
-        auto [bh1_str, bh2_str, time_str]   = temp;
-
-        checkPoint["DENDRO_BSSN_BH_LOC_T"]  = time_str;
-        checkPoint["DENDRO_BSSN_BH_LOC_B1"] = bh1_str;
-        checkPoint["DENDRO_BSSN_BH_LOC_B2"] = bh2_str;
+        // BH history + QoIs (base91); replaces the old encode_bh_locs path
+        checkPoint["DENDRO_BSSN_BH_HISTORY"] = m_bhHistory->encode();
 
         outfile << std::setw(4) << checkPoint << std::endl;
         outfile.close();
@@ -999,6 +1002,52 @@ int BSSNCtx::write_checkpt() {
     dendro::logger::info("Finished writing checkpoint file");
 
     return 0;
+}
+
+// Restore the BH history tracker, preferring the new BHHistory blob and falling
+// back to the two legacy formats (replayed via append into the empty tracker).
+static void restore_bh_history_(dendro_bh::BHHistory* hist,
+                                const json& checkPoint) {
+    if (hist == nullptr) return;
+
+    // preferred: new combined BHHistory blob
+    if (checkPoint.contains("DENDRO_BSSN_BH_HISTORY")) {
+        hist->restore(checkPoint["DENDRO_BSSN_BH_HISTORY"].get<std::string>());
+        return;
+    }
+
+    // legacy base91 (decode_bh_locs) form
+    if (checkPoint.contains("DENDRO_BSSN_BH_LOC_T")) {
+        auto bh_decoded = decode_bh_locs(
+            checkPoint["DENDRO_BSSN_BH_LOC_B1"].get<std::string>(),
+            checkPoint["DENDRO_BSSN_BH_LOC_B2"].get<std::string>(),
+            checkPoint["DENDRO_BSSN_BH_LOC_T"].get<std::string>());
+        const auto& locs  = std::get<0>(bh_decoded);
+        const auto& times = std::get<1>(bh_decoded);
+        for (size_t i = 0; i < locs.size() && i < times.size(); ++i)
+            hist->append(locs[i].first, locs[i].second, times[i]);
+        return;
+    }
+
+    // oldest per-pair JSON array form
+    if (checkPoint.contains("DENDRO_BSSN_BH_LOC_TIMES") &&
+        checkPoint.contains("DENDRO_BSSN_BH_LOC_HISTORY")) {
+        auto times =
+            checkPoint["DENDRO_BSSN_BH_LOC_TIMES"].get<std::vector<double>>();
+        size_t i = 0;
+        for (const auto& pair_json :
+             checkPoint["DENDRO_BSSN_BH_LOC_HISTORY"]) {
+            Point bh1pt(pair_json["bh1"]["x"].get<double>(),
+                        pair_json["bh1"]["y"].get<double>(),
+                        pair_json["bh1"]["z"].get<double>());
+            Point bh2pt(pair_json["bh2"]["x"].get<double>(),
+                        pair_json["bh2"]["y"].get<double>(),
+                        pair_json["bh2"]["z"].get<double>());
+            if (i < times.size())
+                hist->append(bh1pt, bh2pt, times[i]);
+            ++i;
+        }
+    }
 }
 
 int BSSNCtx::restore_checkpt() {
@@ -1091,45 +1140,8 @@ int BSSNCtx::restore_checkpt() {
                     set_bh_merge_time(mergeTime, mergeStep);
                 }
 
-                // OLD: DEPRECIATED
-                if (checkPoint.find("DENDRO_BSSN_BH_LOC_TIMES") !=
-                    checkPoint.end()) {
-                    // restore bh location data
-
-                    // clear bhLocHistory vector to start fresh
-                    m_uiBHLocHistory.clear();
-
-                    for (const auto& pair_json :
-                         checkPoint["DENDRO_BSSN_BH_LOC_HISTORY"]) {
-                        Point bh1pt =
-                            Point(pair_json["bh1"]["x"].get<double>(),
-                                  pair_json["bh1"]["y"].get<double>(),
-                                  pair_json["bh1"]["z"].get<double>());
-                        Point bh2pt =
-                            Point(pair_json["bh2"]["x"].get<double>(),
-                                  pair_json["bh2"]["y"].get<double>(),
-                                  pair_json["bh2"]["z"].get<double>());
-
-                        m_uiBHLocHistory.emplace_back(bh1pt, bh2pt);
-                    }
-
-                    // then restore the times the bh's were output
-                    m_uiBHTimeHistory = checkPoint["DENDRO_BSSN_BH_LOC_TIMES"]
-                                            .get<std::vector<double>>();
-                }
-
-                if (checkPoint.find("DENDRO_BSSN_BH_LOC_T") !=
-                    checkPoint.end()) {
-                    auto bh_decoded = decode_bh_locs(
-                        checkPoint["DENDRO_BSSN_BH_LOC_B1"].get<std::string>(),
-                        checkPoint["DENDRO_BSSN_BH_LOC_B2"].get<std::string>(),
-                        checkPoint["DENDRO_BSSN_BH_LOC_T"].get<std::string>());
-
-                    m_uiBHLocHistory.clear();
-
-                    m_uiBHLocHistory  = std::get<0>(bh_decoded);
-                    m_uiBHTimeHistory = std::get<1>(bh_decoded);
-                }
+                // restore BH location/QoI history (new blob or legacy formats)
+                restore_bh_history_(m_bhHistory.get(), checkPoint);
 
                 restoreStep[cpIndex] = m_uiTinfo._m_uiStep;
             }
@@ -1216,41 +1228,8 @@ int BSSNCtx::restore_checkpt() {
                 set_bh_merge_time(mergeTime, mergeStep);
             }
 
-            if (checkPoint.find("DENDRO_BSSN_BH_LOC_TIMES") !=
-                checkPoint.end()) {
-                // restore bh location data
-
-                // make sure BHLocHistory is completely empty upon reading!
-                m_uiBHLocHistory.clear();
-
-                for (const auto& pair_json :
-                     checkPoint["DENDRO_BSSN_BH_LOC_HISTORY"]) {
-                    Point bh1pt = Point(pair_json["bh1"]["x"].get<double>(),
-                                        pair_json["bh1"]["y"].get<double>(),
-                                        pair_json["bh1"]["z"].get<double>());
-                    Point bh2pt = Point(pair_json["bh2"]["x"].get<double>(),
-                                        pair_json["bh2"]["y"].get<double>(),
-                                        pair_json["bh2"]["z"].get<double>());
-
-                    m_uiBHLocHistory.emplace_back(bh1pt, bh2pt);
-                }
-
-                // then restore the times the bh's were output
-                m_uiBHTimeHistory = checkPoint["DENDRO_BSSN_BH_LOC_TIMES"]
-                                        .get<std::vector<double>>();
-            }
-
-            if (checkPoint.find("DENDRO_BSSN_BH_LOC_T") != checkPoint.end()) {
-                auto bh_decoded = decode_bh_locs(
-                    checkPoint["DENDRO_BSSN_BH_LOC_B1"].get<std::string>(),
-                    checkPoint["DENDRO_BSSN_BH_LOC_B2"].get<std::string>(),
-                    checkPoint["DENDRO_BSSN_BH_LOC_T"].get<std::string>());
-
-                m_uiBHLocHistory.clear();
-
-                m_uiBHLocHistory  = std::get<0>(bh_decoded);
-                m_uiBHTimeHistory = std::get<1>(bh_decoded);
-            }
+            // restore BH location/QoI history (new blob or legacy formats)
+            restore_bh_history_(m_bhHistory.get(), checkPoint);
 
             restoreStep[restoreFileIndex] = m_uiTinfo._m_uiStep;
         }
@@ -1406,6 +1385,12 @@ int BSSNCtx::restore_checkpt() {
 
     AEH::ah_bah->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
 
+    // re-sync QoIs from the restored AH finder so it stays authoritative
+    if (m_bhHistory && m_uiMesh->isActive()) {
+        for (unsigned int h = 0; h < AEH::ah_bah->get_num_horizons(); ++h)
+            m_bhHistory->set_horizon_qoi(h, AEH::ah_bah->get_horizon_qoi(h));
+    }
+
     if (!rank) {
         std::cout << "Finished restoring AEH solver!" << std::endl;
     }
@@ -1500,14 +1485,12 @@ bool BSSNCtx::is_remesh() {
 
         isRefine = (isR1 || isR2);
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
-        isRefine =
-            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
-                             this->get_bh_loc_time_history());
+        isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_history(),
+                                    AEH::ah_bah.get());
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_WAMR) {
         // BHLB refinement for baseline
-        const bool isR1 =
-            bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_loc_history(),
-                             this->get_bh_loc_time_history());
+        const bool isR1 = bssn::isRemeshBH(
+            m_uiMesh, m_uiBHLoc, this->get_bh_history(), AEH::ah_bah.get());
         // WAMR for additional refinement
         const bool isR2 = bssn::addRemeshWAMR(
             m_uiMesh, (const double**)unzipVar, refineVarIds,
@@ -1744,7 +1727,7 @@ void BSSNCtx::evolve_bh_loc() {
 
     // compute how long it's been since the last time we calculatd it, thanks to
     // storing history!
-    const double dt = m_uiTinfo._m_uiT - m_uiBHTimeHistory.back();
+    const double dt = m_uiTinfo._m_uiT - m_bhHistory->times().back();
     DVec sIn        = this->get_evolution_vars();
 
     // m_uiMesh->readFromGhostBegin(sIn.GetVecArray()+ VAR::U_BETA0 *
@@ -1794,9 +1777,8 @@ void BSSNCtx::evolve_bh_loc() {
 
 void BSSNCtx::store_bh_loc_history() {
     // simple call that stores bh loc history based on bssn::BSSN_BH_LOC
-    m_uiBHLocHistory.push_back(
-        std::make_pair(bssn::BSSN_BH_LOC[0], bssn::BSSN_BH_LOC[1]));
-    m_uiBHTimeHistory.push_back(m_uiTinfo._m_uiT);
+    m_bhHistory->append(bssn::BSSN_BH_LOC[0], bssn::BSSN_BH_LOC[1],
+                        m_uiTinfo._m_uiT);
 }
 
 int BSSNCtx::aeh_expansion(const Point& origin, aeh::AEH_VARS* m_aeh_vars,

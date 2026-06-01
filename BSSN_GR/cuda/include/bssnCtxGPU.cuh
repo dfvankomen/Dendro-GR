@@ -9,6 +9,7 @@
  */
 
 #pragma once
+#include <memory>
 #include <vector>
 
 #include "TwoPunctures.h"
@@ -59,9 +60,8 @@ class BSSNCtxGPU : public ts::Ctx<BSSNCtxGPU, DendroScalar, unsigned int> {
 
     Point m_uiBHLoc[2];
 
-    // keeping track of history
-    std::vector<std::pair<Point, Point>> m_uiBHLocHistory;
-    std::vector<double> m_uiBHTimeHistory;
+    // reusable BH history/kinematics tracker (dendrolib); see CPU BSSNCtx.
+    std::unique_ptr<dendro_bh::BHHistory> m_bhHistory;
 
     BSSN_EVAR_DERIVS* m_deriv_evars                       = nullptr;
     BSSN_EVAR_DERIVS* m_dptr_deriv_evars                  = nullptr;
@@ -88,33 +88,17 @@ class BSSNCtxGPU : public ts::Ctx<BSSNCtxGPU, DendroScalar, unsigned int> {
     ~BSSNCtxGPU();
 
     // TODO: prep for next iter
-    const std::vector<std::pair<Point, Point>>& get_bh_loc_history() const {
-        return m_uiBHLocHistory;
-    }
+    dendro_bh::BHHistory& get_bh_history() { return *m_bhHistory; }
+    const dendro_bh::BHHistory& get_bh_history() const { return *m_bhHistory; }
 
     const std::vector<double>& get_bh_loc_time_history() const {
-        return m_uiBHTimeHistory;
+        return m_bhHistory->times();
     }
 
     void store_bh_loc_history();
 
-    const std::vector<double> get_bh_angle_history() {
-        std::vector<double> angle_history;
-
-        for (auto& bh_points : m_uiBHLocHistory) {
-            double x1 = bh_points.first.x();
-            double y1 = bh_points.first.y();
-            double z1 = bh_points.first.z();
-
-            double x2 = bh_points.second.x();
-            double y2 = bh_points.second.y();
-            double z2 = bh_points.second.z();
-
-            // compute the relative angle for x and y
-            angle_history.push_back(atan2(y1 - y2, x1 - x2));
-        }
-
-        return angle_history;
+    const std::vector<double>& get_bh_angle_history() const {
+        return m_bhHistory->angle_history();
     }
 
     /** @brief get bh locations*/

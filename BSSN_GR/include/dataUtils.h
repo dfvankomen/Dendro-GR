@@ -14,6 +14,8 @@
 #define DENDRO_5_0_DATAUTILS_H
 
 #include "TreeNode.h"
+#include "aeh_bhahaha.h"
+#include "bh_history.h"
 #include "grDef.h"
 #include "mesh.h"
 #include "parameters.h"
@@ -51,8 +53,8 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
  * @param[in] bhLoc : BH location
  */
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
-                const std::vector<std::pair<Point, Point>>& bh_loc_history,
-                const std::vector<double>& bh_loc_history_t);
+                const dendro_bh::BHHistory& bhHistory,
+                const dendro_aeh::AEH_BHaHAHA* ahFinder = nullptr);
 
 /**
  * @brief refine only based on the alpha variable event horizon.
