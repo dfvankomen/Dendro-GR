@@ -142,6 +142,21 @@ double ETA_DAMPING_EXP                                   = 1.0;
 double CHI_FLOOR                                         = 0.1;
 double KO_DISS_SIGMA                                     = 0.01;
 
+#ifdef DENDRO_USE_NEW_DERIVS
+// Defaults reproduce the legacy central-difference behavior at eO=6.
+std::string BSSN_DERIVTYPE_FIRST                         = "E6";
+std::string BSSN_DERIVTYPE_SECOND                        = "E6";
+std::vector<double> BSSN_DERIV_FIRST_COEFFS              = {};
+std::vector<double> BSSN_DERIV_SECOND_COEFFS             = {};
+unsigned int BSSN_DERIV_FIRST_MATID                      = 0;
+unsigned int BSSN_DERIV_SECOND_MATID                     = 0;
+std::string BSSN_DERIV_INMATFILT_FIRST                   = "none";
+std::string BSSN_DERIV_INMATFILT_SECOND                  = "none";
+std::vector<double> BSSN_DERIV_INMATFILT_FIRST_COEFFS    = {};
+std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS   = {};
+dendroderivs::DendroDerivatives* BSSN_DERIVS             = nullptr;
+#endif
+
 unsigned int RIT_ETA_FUNCTION                            = 1;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
@@ -420,6 +435,26 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"CHI_FLOOR", bssn::CHI_FLOOR},
         {"BSSN_TRK0", bssn::BSSN_TRK0},
         {"KO_DISS_SIGMA", bssn::KO_DISS_SIGMA},
+#ifdef DENDRO_USE_NEW_DERIVS
+        {"BSSN_DERIVTYPE_FIRST", bssn::BSSN_DERIVTYPE_FIRST, UseInitialValue},
+        {"BSSN_DERIVTYPE_SECOND", bssn::BSSN_DERIVTYPE_SECOND, UseInitialValue},
+        {"BSSN_DERIV_FIRST_COEFFS", bssn::BSSN_DERIV_FIRST_COEFFS,
+         UseInitialValue},
+        {"BSSN_DERIV_SECOND_COEFFS", bssn::BSSN_DERIV_SECOND_COEFFS,
+         UseInitialValue},
+        {"BSSN_DERIV_FIRST_MATID", bssn::BSSN_DERIV_FIRST_MATID,
+         UseInitialValue},
+        {"BSSN_DERIV_SECOND_MATID", bssn::BSSN_DERIV_SECOND_MATID,
+         UseInitialValue},
+        {"BSSN_DERIV_INMATFILT_FIRST", bssn::BSSN_DERIV_INMATFILT_FIRST,
+         UseInitialValue},
+        {"BSSN_DERIV_INMATFILT_SECOND", bssn::BSSN_DERIV_INMATFILT_SECOND,
+         UseInitialValue},
+        {"BSSN_DERIV_INMATFILT_FIRST_COEFFS",
+         bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS, UseInitialValue},
+        {"BSSN_DERIV_INMATFILT_SECOND_COEFFS",
+         bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS, UseInitialValue},
+#endif
         {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
         // eta power 0 is added later
         {"BSSN_USE_WAVELET_TOL_FUNCTION", bssn::BSSN_USE_WAVELET_TOL_FUNCTION},

@@ -4,6 +4,44 @@
 #include <iostream>
 #include <stdexcept>
 
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "derivatives.h"
+#include "parameters.h"
+
+/**
+ * @brief Thin wrappers routing the C-style derivative function pointers to the
+ * BSSNCtx-owned dendroderivs::DendroDerivatives object via the global bridge
+ * pointer bssn::BSSN_DERIVS. Their signatures match the function-pointer type,
+ * so every existing deriv_x(...)/deriv_xx(...) call site is reused unchanged.
+ */
+namespace {
+void new_deriv_x(double *const du, const double *const u, const double dx,
+                 const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_x(du, u, dx, sz, bflag);
+}
+void new_deriv_y(double *const du, const double *const u, const double dy,
+                 const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_y(du, u, dy, sz, bflag);
+}
+void new_deriv_z(double *const du, const double *const u, const double dz,
+                 const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_z(du, u, dz, sz, bflag);
+}
+void new_deriv_xx(double *const du, const double *const u, const double dx,
+                  const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_xx(du, u, dx, sz, bflag);
+}
+void new_deriv_yy(double *const du, const double *const u, const double dy,
+                  const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_yy(du, u, dy, sz, bflag);
+}
+void new_deriv_zz(double *const du, const double *const u, const double dz,
+                  const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_zz(du, u, dz, sz, bflag);
+}
+}  // namespace
+#endif
+
 void (*deriv_x)(double *const, const double *const, const double,
                 const unsigned int *, unsigned);
 void (*deriv_y)(double *const, const double *const, const double,
@@ -156,6 +194,21 @@ void set_appropriate_derivs(const unsigned pw) {
             "There is currently no support for 8th order derivatives with a "
             "padding region that is not 4!");
     }
+#endif
+
+#ifdef DENDRO_USE_NEW_DERIVS
+    // Override the central 1st/2nd derivative operators with the dendrolib
+    // DendroDerivatives object. ko_deriv_* keep their order-based targets set
+    // above; KO dissipation in new-derivs mode is applied via
+    // DendroDerivatives::filter_cako() in the experimental RHS. The wrappers
+    // dereference bssn::BSSN_DERIVS at call time, so the object must be
+    // constructed (and the bridge pointer set) before the first RHS eval.
+    deriv_x  = new_deriv_x;
+    deriv_y  = new_deriv_y;
+    deriv_z  = new_deriv_z;
+    deriv_xx = new_deriv_xx;
+    deriv_yy = new_deriv_yy;
+    deriv_zz = new_deriv_zz;
 #endif
 }
 

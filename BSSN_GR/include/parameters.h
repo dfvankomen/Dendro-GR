@@ -21,6 +21,38 @@
 
 namespace bssn {
 
+#ifdef DENDRO_USE_NEW_DERIVS
+/**
+ * @brief Configuration for the object-based derivatives (dendrolib's
+ * dendroderivs::DendroDerivatives), selected at compile time via
+ * -DDENDRO_USE_NEW_DERIVS. The scheme-name strings pick the operator (e.g.
+ * "E6", "JTT6", "KIM4"); see derivs_factory.h for the registry.
+ */
+extern std::string BSSN_DERIVTYPE_FIRST;          // 1st-derivative scheme
+extern std::string BSSN_DERIVTYPE_SECOND;         // 2nd-derivative scheme
+extern std::vector<double> BSSN_DERIV_FIRST_COEFFS;
+extern std::vector<double> BSSN_DERIV_SECOND_COEFFS;
+extern unsigned int BSSN_DERIV_FIRST_MATID;
+extern unsigned int BSSN_DERIV_SECOND_MATID;
+extern std::string BSSN_DERIV_INMATFILT_FIRST;    // in-matrix filter type
+extern std::string BSSN_DERIV_INMATFILT_SECOND;
+extern std::vector<double> BSSN_DERIV_INMATFILT_FIRST_COEFFS;
+extern std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS;
+
+/**
+ * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instance, set
+ * at ctx init. Used by the derivative function-pointer wrappers in derivs.cpp
+ * and by the experimental RHS. The type is forward-declared to keep this header
+ * light.
+ */
+}  // namespace bssn
+namespace dendroderivs {
+class DendroDerivatives;
+}
+namespace bssn {
+extern dendroderivs::DendroDerivatives* BSSN_DERIVS;
+#endif
+
 extern mem::memory_pool<double> BSSN_MEM_POOL;
 /**@brief element order*/
 extern unsigned int BSSN_ELE_ORDER;

@@ -19,6 +19,11 @@
 #include "oct2vtk.h"
 #include "octUtils.h"
 
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "derivatives.h"
+#include "parameters.h"
+#endif
+
 #define NUM_VARS 10
 
 #define FX    0
@@ -289,6 +294,32 @@ int main(int argc, char** argv) {
 
     unsigned int bflag;
 
+    // Route the derivative function pointers to whatever this build uses: with
+    // DENDRO_USE_NEW_DERIVS, set_appropriate_derivs binds them to wrappers
+    // around the dendrolib DendroDerivatives object below; otherwise to the
+    // hand-written stencils. Lets checkDerivs measure the configured operators.
+#ifdef DENDRO_USE_NEW_DERIVS
+    static dendroderivs::DendroDerivatives chk_derivs(
+        bssn::BSSN_DERIVTYPE_FIRST, bssn::BSSN_DERIVTYPE_SECOND, eOrder,
+        bssn::BSSN_DERIV_FIRST_COEFFS, bssn::BSSN_DERIV_SECOND_COEFFS,
+        bssn::BSSN_DERIV_FIRST_MATID, bssn::BSSN_DERIV_SECOND_MATID,
+        bssn::BSSN_DERIV_INMATFILT_FIRST, bssn::BSSN_DERIV_INMATFILT_SECOND,
+        bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
+        bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS);
+    bssn::BSSN_DERIVS = &chk_derivs;
+    {
+        unsigned int mbs = 0;
+        for (unsigned int b = 0; b < blockList.size(); b++) {
+            const unsigned int n = blockList[b].getAllocationSzX() *
+                                   blockList[b].getAllocationSzY() *
+                                   blockList[b].getAllocationSzZ();
+            if (n > mbs) mbs = n;
+        }
+        if (mbs > 0) chk_derivs.set_maximum_block_size(mbs);
+    }
+#endif
+    set_appropriate_derivs(eOrder >> 1);
+
     for (unsigned int blk = 0; blk < blockList.size(); blk++) {
         offset = blockList[blk].getOffset();
         bflag  = blockList[blk].getBlkNodeFlag();
@@ -305,18 +336,18 @@ int main(int argc, char** argv) {
         h[1]=blockList[blk].computeGridDy();
         h[2]=blockList[blk].computeGridDz();*/
 
-        deriv42_x(unzipVarSFx[Dx_FX] + offset, unzipVarSFx[FX] + offset, h[0],
+        deriv_x(unzipVarSFx[Dx_FX] + offset, unzipVarSFx[FX] + offset, h[0],
                   sz, bflag);
-        deriv42_y(unzipVarSFx[Dy_FX] + offset, unzipVarSFx[FX] + offset, h[1],
+        deriv_y(unzipVarSFx[Dy_FX] + offset, unzipVarSFx[FX] + offset, h[1],
                   sz, bflag);
-        deriv42_z(unzipVarSFx[Dz_FX] + offset, unzipVarSFx[FX] + offset, h[2],
+        deriv_z(unzipVarSFx[Dz_FX] + offset, unzipVarSFx[FX] + offset, h[2],
                   sz, bflag);
 
-        deriv42_xx(unzipVarSFx[DxDx_FX] + offset, unzipVarSFx[FX] + offset,
+        deriv_xx(unzipVarSFx[DxDx_FX] + offset, unzipVarSFx[FX] + offset,
                    h[0], sz, bflag);
-        deriv42_yy(unzipVarSFx[DyDy_FX] + offset, unzipVarSFx[FX] + offset,
+        deriv_yy(unzipVarSFx[DyDy_FX] + offset, unzipVarSFx[FX] + offset,
                    h[1], sz, bflag);
-        deriv42_zz(unzipVarSFx[DzDz_FX] + offset, unzipVarSFx[FX] + offset,
+        deriv_zz(unzipVarSFx[DzDz_FX] + offset, unzipVarSFx[FX] + offset,
                    h[2], sz, bflag);
     }
 
@@ -336,11 +367,11 @@ int main(int argc, char** argv) {
         h[1]=blockList[blk].computeGridDy();
         h[2]=blockList[blk].computeGridDz();*/
 
-        deriv42_y(unzipVarSFx[DxDy_FX] + offset, unzipVarSFx[Dx_FX] + offset,
+        deriv_y(unzipVarSFx[DxDy_FX] + offset, unzipVarSFx[Dx_FX] + offset,
                   h[1], sz, bflag);
-        deriv42_z(unzipVarSFx[DxDz_FX] + offset, unzipVarSFx[Dx_FX] + offset,
+        deriv_z(unzipVarSFx[DxDz_FX] + offset, unzipVarSFx[Dx_FX] + offset,
                   h[2], sz, bflag);
-        deriv42_z(unzipVarSFx[DyDz_FX] + offset, unzipVarSFx[Dy_FX] + offset,
+        deriv_z(unzipVarSFx[DyDz_FX] + offset, unzipVarSFx[Dy_FX] + offset,
                   h[2], sz, bflag);
     }
 

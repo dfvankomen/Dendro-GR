@@ -8,6 +8,9 @@
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "derivatives.h"  // full DendroDerivatives type for filter_cako()
+#endif
 
 #if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
     defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
@@ -468,7 +471,11 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     }
 
     bssn::timer::t_deriv.start();
+#ifndef DENDRO_USE_NEW_DERIVS
+    // Old path: precompute per-direction KO derivatives into the grad_* slots.
+    // With DENDRO_USE_NEW_DERIVS, filter_cako computes them internally instead.
 #include "bssnrhs_ko_derivs.h"
+#endif
     bssn::timer::t_deriv.stop();
 
     // t_rhs lumps interior + KO; t_rhs_ko isolates KO so plotter can derive
@@ -478,6 +485,84 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     double sigma = KO_DISS_SIGMA;
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    // KO dissipation through dendrolib's DendroDerivatives::filter_cako: it
+    // computes the KO derivative of each variable internally and accumulates
+    // coeff_field * (KOx + KOy + KOz) into the corresponding *_rhs. CAKO is
+    // reproduced by passing a per-point sqrt(chi)*epsilon field (gauge vs
+    // other); otherwise a uniform KO_DISS_SIGMA field. Scratch buffers are the
+    // (now-free) interior-RHS derivative slots — never aliased with an evolved
+    // variable or its *_rhs.
+    {
+        const unsigned int npts = nx * ny * nz;
+        double* kf = grad_0_K;    // per-point coefficient field
+        double* wx = grad_1_K;    // KO workspaces
+        double* wy = grad_2_K;
+        double* wz = grad_0_Gt0;
+        auto ko_apply = [&](const double* const in, double* const rhs) {
+            bssn::BSSN_DERIVS->filter_cako(in, rhs, wx, wy, wz, hx, hy, hz, kf,
+                                           sz, bflag);
+        };
+
+        if (bssn::BSSN_CAKO_ENABLED) {
+            for (unsigned int p = 0; p < npts; p++)
+                kf[p] = sqrt(chi[p]) * bssn::BSSN_EPSILON_CAKO_GAUGE;
+            ko_apply(alpha, a_rhs);
+            ko_apply(beta0, b_rhs0);
+            ko_apply(beta1, b_rhs1);
+            ko_apply(beta2, b_rhs2);
+            ko_apply(B0, B_rhs0);
+            ko_apply(B1, B_rhs1);
+            ko_apply(B2, B_rhs2);
+
+            for (unsigned int p = 0; p < npts; p++)
+                kf[p] = sqrt(chi[p]) * bssn::BSSN_EPSILON_CAKO_OTHER;
+            ko_apply(gt0, gt_rhs00);
+            ko_apply(gt1, gt_rhs01);
+            ko_apply(gt2, gt_rhs02);
+            ko_apply(gt3, gt_rhs11);
+            ko_apply(gt4, gt_rhs12);
+            ko_apply(gt5, gt_rhs22);
+            ko_apply(chi, chi_rhs);
+            ko_apply(At0, At_rhs00);
+            ko_apply(At1, At_rhs01);
+            ko_apply(At2, At_rhs02);
+            ko_apply(At3, At_rhs11);
+            ko_apply(At4, At_rhs12);
+            ko_apply(At5, At_rhs22);
+            ko_apply(K, K_rhs);
+            ko_apply(Gt0, Gt_rhs0);
+            ko_apply(Gt1, Gt_rhs1);
+            ko_apply(Gt2, Gt_rhs2);
+        } else {
+            for (unsigned int p = 0; p < npts; p++) kf[p] = sigma;
+            ko_apply(alpha, a_rhs);
+            ko_apply(beta0, b_rhs0);
+            ko_apply(beta1, b_rhs1);
+            ko_apply(beta2, b_rhs2);
+            ko_apply(B0, B_rhs0);
+            ko_apply(B1, B_rhs1);
+            ko_apply(B2, B_rhs2);
+            ko_apply(gt0, gt_rhs00);
+            ko_apply(gt1, gt_rhs01);
+            ko_apply(gt2, gt_rhs02);
+            ko_apply(gt3, gt_rhs11);
+            ko_apply(gt4, gt_rhs12);
+            ko_apply(gt5, gt_rhs22);
+            ko_apply(chi, chi_rhs);
+            ko_apply(At0, At_rhs00);
+            ko_apply(At1, At_rhs01);
+            ko_apply(At2, At_rhs02);
+            ko_apply(At3, At_rhs11);
+            ko_apply(At4, At_rhs12);
+            ko_apply(At5, At_rhs22);
+            ko_apply(K, K_rhs);
+            ko_apply(Gt0, Gt_rhs0);
+            ko_apply(Gt1, Gt_rhs1);
+            ko_apply(Gt2, Gt_rhs2);
+        }
+    }
+#else
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
 #ifdef BSSN_ENABLE_AVX
@@ -631,6 +716,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             }
         }
     }
+#endif  // DENDRO_USE_NEW_DERIVS (KO via filter_cako vs explicit loop)
 
     bssn::timer::t_rhs_ko.stop();
     bssn::timer::t_rhs.stop();

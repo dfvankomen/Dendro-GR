@@ -54,6 +54,11 @@ option(BSSN_USE_4TH_ORDER_DERIVS "use 4th order derivs" OFF)
 option(BSSN_USE_6TH_ORDER_DERIVS "use 6th order derivs" ON)
 option(BSSN_USE_8TH_ORDER_DERIVS "use 8th order derivs" OFF)
 
+# Use the dendrolib object-based derivatives (dendroderivs::DendroDerivatives)
+# for the central 1st/2nd derivatives instead of the hand-written stencils.
+# The new path lives in src/rhs_experimental.cpp; OFF = pristine production.
+option(DENDRO_USE_NEW_DERIVS "Use dendrolib DendroDerivatives objects for BSSN derivatives" OFF)
+
 option(BSSN_ENABLE_AVX "use vectorized computation for RHS (intel compilers only)" OFF)
 
 
@@ -78,11 +83,17 @@ elseif(BSSN_USE_8TH_ORDER_DERIVS)
   set(BSSN_USE_6TH_ORDER_DERIVS OFF)
 endif()
 
+if(DENDRO_USE_NEW_DERIVS)
+  add_definitions(-DDENDRO_USE_NEW_DERIVS)
+  message(STATUS "BSSN: dendrolib DendroDerivatives objects ENABLED (new derivs)")
+endif()
+
 # Pick the RHS TU: pristine src/rhs.cpp for prod, src/rhs_experimental.cpp when
-# any cascade/naive flag is set. Only one defines bssnRHS, so no collision.
+# any cascade/naive flag is set OR the new dendrolib derivatives are enabled.
+# Only one defines bssnRHS, so no collision.
 if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
    BSSN_USE_CASCADE_AVX_FUSED OR BSSN_USE_CASCADE_AVX512 OR
-   BSSN_USE_CASCADE_AVX512_FUSED)
+   BSSN_USE_CASCADE_AVX512_FUSED OR DENDRO_USE_NEW_DERIVS)
   set(BSSN_RHS_SRC src/rhs_experimental.cpp)
   message(STATUS "BSSN RHS source: src/rhs_experimental.cpp (experimental flags set)")
 else()

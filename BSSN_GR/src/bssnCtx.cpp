@@ -23,6 +23,46 @@
 #include "parUtils.h"
 #include "parameters.h"
 
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "derivatives.h"
+
+namespace {
+/**
+ * @brief Lazily construct the DendroDerivatives object from the BSSN_DERIV_*
+ * parameters, publish it through the global bridge pointer (bssn::BSSN_DERIVS),
+ * and size its workspace to the largest block on the current mesh. Called right
+ * before each set_appropriate_derivs() so the function-pointer wrappers have a
+ * live object before the first RHS evaluation.
+ */
+void bssn_setup_new_derivs(
+    std::unique_ptr<dendroderivs::DendroDerivatives>& derivs,
+    const ot::Mesh* mesh) {
+    if (!derivs) {
+        derivs = std::make_unique<dendroderivs::DendroDerivatives>(
+            bssn::BSSN_DERIVTYPE_FIRST, bssn::BSSN_DERIVTYPE_SECOND,
+            bssn::BSSN_ELE_ORDER, bssn::BSSN_DERIV_FIRST_COEFFS,
+            bssn::BSSN_DERIV_SECOND_COEFFS, bssn::BSSN_DERIV_FIRST_MATID,
+            bssn::BSSN_DERIV_SECOND_MATID, bssn::BSSN_DERIV_INMATFILT_FIRST,
+            bssn::BSSN_DERIV_INMATFILT_SECOND,
+            bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
+            bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS);
+    }
+    bssn::BSSN_DERIVS = derivs.get();
+    if (mesh && mesh->isActive()) {
+        unsigned int max_blk_sz = 0;
+        const std::vector<ot::Block>& blkList = mesh->getLocalBlockList();
+        for (unsigned int i = 0; i < blkList.size(); i++) {
+            const unsigned int n = blkList[i].getAllocationSzX() *
+                                   blkList[i].getAllocationSzY() *
+                                   blkList[i].getAllocationSzZ();
+            if (n > max_blk_sz) max_blk_sz = n;
+        }
+        if (max_blk_sz > 0) derivs->set_maximum_block_size(max_blk_sz);
+    }
+}
+}  // namespace
+#endif
+
 namespace bssn {
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     m_uiMesh = pMesh;
@@ -549,6 +589,9 @@ int BSSNCtx::initialize() {
                   << std::endl;
     }
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    bssn_setup_new_derivs(m_derivs, m_uiMesh);
+#endif
     set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
     return 0;
@@ -1414,6 +1457,9 @@ int BSSNCtx::restore_checkpt() {
     dendro::logger::info("Finished restoring checkpoint!");
 
     // make sure derivatives are set
+#ifdef DENDRO_USE_NEW_DERIVS
+    bssn_setup_new_derivs(m_derivs, m_uiMesh);
+#endif
     set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
     return 0;

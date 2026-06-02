@@ -77,6 +77,12 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     bool m_bConstraintsComputed  = false;
     bool m_bBHEvolved            = false;
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    /** @brief: object-based central derivatives (dendrolib); bridged to the
+     * C-style function pointers via bssn::BSSN_DERIVS. */
+    std::unique_ptr<dendroderivs::DendroDerivatives> m_derivs;
+#endif
+
    public:
     /** @brief: default constructor*/
     BSSNCtx(ot::Mesh* pMesh);
