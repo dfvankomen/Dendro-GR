@@ -616,6 +616,22 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CAKO_ENABLED = true;
     }
 
+    // per-BH refinement is capped by the global octree depth, so a BH max level
+    // deeper than BSSN_MAXDEPTH can never actually be reached. Warn (don't
+    // error) -- easy to bump the BH levels and forget to raise the global one.
+    if (!rank && (bssn::BSSN_BH1_MAX_LEV > bssn::BSSN_MAXDEPTH ||
+                  bssn::BSSN_BH2_MAX_LEV > bssn::BSSN_MAXDEPTH)) {
+        std::cout << YLW
+                  << "WARNING: a per-BH max refinement level is deeper than the "
+                     "global BSSN_MAXDEPTH ("
+                  << bssn::BSSN_MAXDEPTH
+                  << "): BSSN_BH1_MAX_LEV=" << bssn::BSSN_BH1_MAX_LEV
+                  << ", BSSN_BH2_MAX_LEV=" << bssn::BSSN_BH2_MAX_LEV
+                  << ". Refinement is capped at BSSN_MAXDEPTH -- did you forget "
+                     "to also raise BSSN_MAXDEPTH?"
+                  << NRM << std::endl;
+    }
+
     // these ones are a bit trickier than set_param, and require indexing into
     // required dicts
     bssn::BSSN_LAMBDA[0]   = parFile["BSSN_LAMBDA"][0].as_integer();
