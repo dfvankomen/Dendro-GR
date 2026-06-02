@@ -821,6 +821,45 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << NRM << std::endl;
         sout << YLW << "\t\tVERBOSITY_LEVEL: " << AEH::VERBOSITY_LEVEL << NRM
              << std::endl;
+
+#ifdef DENDRO_USE_NEW_DERIVS
+        // new-derivs scheme selection (only compiled in with DENDRO_USE_NEW_DERIVS)
+        sout << GRN << "\t----- DERIVATIVE OPTIONS (new derivs) -----" << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_DERIVTYPE_FIRST :" << bssn::BSSN_DERIVTYPE_FIRST
+             << NRM << std::endl;
+        sout << YLW
+             << "\tBSSN_DERIVTYPE_SECOND :" << bssn::BSSN_DERIVTYPE_SECOND << NRM
+             << std::endl;
+        sout << YLW
+             << "\tBSSN_DERIV_FIRST_MATID :" << bssn::BSSN_DERIV_FIRST_MATID
+             << NRM << std::endl;
+        sout << YLW
+             << "\tBSSN_DERIV_SECOND_MATID :" << bssn::BSSN_DERIV_SECOND_MATID
+             << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_INMATFILT_FIRST :"
+             << bssn::BSSN_DERIV_INMATFILT_FIRST << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_INMATFILT_SECOND :"
+             << bssn::BSSN_DERIV_INMATFILT_SECOND << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_FIRST_COEFFS :[";
+        for (unsigned int i = 0; i < bssn::BSSN_DERIV_FIRST_COEFFS.size(); i++)
+            sout << bssn::BSSN_DERIV_FIRST_COEFFS[i] << ", ";
+        sout << "]" << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_SECOND_COEFFS :[";
+        for (unsigned int i = 0; i < bssn::BSSN_DERIV_SECOND_COEFFS.size(); i++)
+            sout << bssn::BSSN_DERIV_SECOND_COEFFS[i] << ", ";
+        sout << "]" << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_INMATFILT_FIRST_COEFFS :[";
+        for (unsigned int i = 0;
+             i < bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS.size(); i++)
+            sout << bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS[i] << ", ";
+        sout << "]" << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_INMATFILT_SECOND_COEFFS :[";
+        for (unsigned int i = 0;
+             i < bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS.size(); i++)
+            sout << bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS[i] << ", ";
+        sout << "]" << NRM << std::endl;
+#endif
     }
 }
 
