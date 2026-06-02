@@ -474,10 +474,8 @@ int main(int argc, char** argv) {
                 // constraints are computed and handled
                 bssnCtx->compute_constraint_variables();
 
-                // make sure we write about the grid size at time 0
-#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
+                // grid summary .dat always written (not profiling telemetry)
                 bssnCtx->write_grid_summary_data();
-#endif
 
                 if (!rank_global) {
                     std::cout << BLU
@@ -595,10 +593,8 @@ int main(int argc, char** argv) {
                     bssnCtx->compute_constraint_variables();
                 }
 
-                // write grid summary data whether the remesh happened
-#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
+                // grid summary .dat always written, even after a remesh
                 bssnCtx->write_grid_summary_data();
-#endif
             }
 
             // print terminal output
