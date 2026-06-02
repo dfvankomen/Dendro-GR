@@ -48,12 +48,25 @@ int main(int argc, char** argv) {
 
     if (argc > 2) ts_mode = std::atoi(argv[2]);
 
-    MPI_Init(&argc, &argv);
+    // Hybrid OpenMP/MPI needs at least FUNNELED: only the master thread calls
+    // MPI (threading happens inside compute regions, not around MPI calls).
+    // Requested unconditionally -- harmless for pure-MPI runs.
+    int mpi_required = MPI_THREAD_FUNNELED;
+    int mpi_provided = 0;
+    MPI_Init_thread(&argc, &argv, mpi_required, &mpi_provided);
     MPI_Comm comm = MPI_COMM_WORLD;
 
     int rank, npes;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &npes);
+
+    if (!rank && mpi_provided < mpi_required) {
+        std::cout << YLW
+                  << "WARNING: MPI provided thread level " << mpi_provided
+                  << " < requested MPI_THREAD_FUNNELED; the hybrid OpenMP/MPI "
+                     "path may be unsafe with this MPI build."
+                  << NRM << std::endl;
+    }
 
     // --- CPU capability gate -----------------------------------------
     // If this binary was compiled for AVX2/AVX-512 but the runtime CPU
