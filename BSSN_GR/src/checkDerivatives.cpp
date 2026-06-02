@@ -306,7 +306,7 @@ int main(int argc, char** argv) {
         bssn::BSSN_DERIV_INMATFILT_FIRST, bssn::BSSN_DERIV_INMATFILT_SECOND,
         bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
         bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS);
-    bssn::BSSN_DERIVS = &chk_derivs;
+    bssn::BSSN_DERIVS_POOL = {&chk_derivs};  // single-threaded test: one entry
     {
         unsigned int mbs = 0;
         for (unsigned int b = 0; b < blockList.size(); b++) {

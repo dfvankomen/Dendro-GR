@@ -2574,8 +2574,18 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac) {
         bssn::BSSN_DERIV_WORKSPACE = nullptr;
     }
 
+    // One workspace slab per thread so the RHS block loop can be threaded under
+    // DENDRO_HYBRID_OMP; each thread indexes WORKSPACE + tid * stride. Without
+    // the flag this is a single slab (n_threads = 1) -> identical to before.
+    bssn::BSSN_DERIV_WORKSPACE_STRIDE =
+        (size_t)s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS;
+#ifdef DENDRO_HYBRID_OMP
+    const unsigned int n_threads = (unsigned int)omp_get_max_threads();
+#else
+    const unsigned int n_threads = 1;
+#endif
     bssn::BSSN_DERIV_WORKSPACE =
-        new double[s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS];
+        new double[(size_t)n_threads * bssn::BSSN_DERIV_WORKSPACE_STRIDE];
 }
 
 void deallocate_bssn_deriv_workspace() {

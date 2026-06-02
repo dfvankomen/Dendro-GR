@@ -47,6 +47,13 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
                      (const double **)uZipConstVars);
 #else
 
+    // Hybrid path: blocks are independent (disjoint output via offset; each
+    // thread uses its own deriv workspace slab). Old-style stencils are
+    // stateless, so threading the block loop here is race-free.
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic) \
+    private(offset, sz, bflag, dx, dy, dz, ptmin, ptmax)
+#endif
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
         offset   = blkList[blk].getOffset();
         sz[0]    = blkList[blk].getAllocationSzX();
@@ -181,7 +188,12 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     bssn::timer::t_deriv.start();
 
     const unsigned int BLK_SZ = n;
-    double *const deriv_base  = bssn::BSSN_DERIV_WORKSPACE;
+    // each thread gets its own workspace slab so the block loop can be threaded
+    double *const deriv_base  = bssn::BSSN_DERIV_WORKSPACE
+#ifdef DENDRO_HYBRID_OMP
+        + (size_t)omp_get_thread_num() * bssn::BSSN_DERIV_WORKSPACE_STRIDE
+#endif
+        ;
 
     // clang-format off
     #include "bssnrhs_evar_derivs.h"

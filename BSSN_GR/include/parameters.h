@@ -13,6 +13,10 @@
 #include <iostream>
 #include <toml.hpp>
 
+#ifdef DENDRO_HYBRID_OMP
+#include <omp.h>  // omp_get_max_threads / omp_get_thread_num for the hybrid path
+#endif
+
 #include "aeh_bhahaha.h"
 #include "bh.h"
 #include "dendro.h"
@@ -47,17 +51,28 @@ extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST;
 extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND;
 
 /**
- * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instance, set
- * at ctx init. Used by the derivative function-pointer wrappers in derivs.cpp
- * and by the experimental RHS. The type is forward-declared to keep this header
- * light.
+ * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instances:
+ * one per OpenMP thread so the RHS block loop can thread under the hybrid path
+ * (a single Derivs object is not safe for concurrent use; each thread needs its
+ * own clone). Index 0 is used when not threaded. The type is forward-declared
+ * to keep this header light.
  */
 }  // namespace bssn
 namespace dendroderivs {
 class DendroDerivatives;
 }
 namespace bssn {
-extern dendroderivs::DendroDerivatives* BSSN_DERIVS;
+extern std::vector<dendroderivs::DendroDerivatives*> BSSN_DERIVS_POOL;
+
+/** @brief: the calling thread's derivative object (per-thread under
+ * DENDRO_HYBRID_OMP; index 0 otherwise). */
+inline dendroderivs::DendroDerivatives* active_derivs() {
+#ifdef DENDRO_HYBRID_OMP
+    return BSSN_DERIVS_POOL[omp_get_thread_num()];
+#else
+    return BSSN_DERIVS_POOL[0];
+#endif
+}
 #endif
 
 extern mem::memory_pool<double> BSSN_MEM_POOL;
@@ -417,6 +432,11 @@ extern unsigned int BSSN_CURRENT_RK_STEP;
 
 /***@brief: derivs workspace*/
 extern double* BSSN_DERIV_WORKSPACE;
+
+/**@brief: per-thread stride into BSSN_DERIV_WORKSPACE. Under DENDRO_HYBRID_OMP
+ * the workspace holds one such slab per OpenMP thread so the RHS block loop can
+ * be threaded; each thread uses BSSN_DERIV_WORKSPACE + tid * stride. */
+extern size_t BSSN_DERIV_WORKSPACE_STRIDE;
 
 /** @brief: Nyquist goal for nyquist-based refinement **/
 extern unsigned int BSSN_NYQUIST_M;

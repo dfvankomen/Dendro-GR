@@ -78,9 +78,10 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     bool m_bBHEvolved            = false;
 
 #ifdef DENDRO_USE_NEW_DERIVS
-    /** @brief: object-based central derivatives (dendrolib); bridged to the
-     * C-style function pointers via bssn::BSSN_DERIVS. */
-    std::unique_ptr<dendroderivs::DendroDerivatives> m_derivs;
+    /** @brief: per-thread pool of object-based derivatives (dendrolib); one
+     * clone per OpenMP thread (so the RHS block loop can thread), bridged to the
+     * C-style function pointers via bssn::BSSN_DERIVS_POOL. */
+    std::vector<std::unique_ptr<dendroderivs::DendroDerivatives>> m_derivs_pool;
 #endif
 
    public:

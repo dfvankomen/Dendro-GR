@@ -15,56 +15,53 @@
  * so every existing deriv_x(...)/deriv_xx(...) call site is reused unchanged.
  */
 namespace {
+// Per-thread selector for the puncture-block explicit fallback. Toggled per
+// block by set_block_explicit_derivs(); thread_local so the threaded RHS block
+// loop (DENDRO_HYBRID_OMP) never races on a shared deriv pointer. Each wrapper
+// branches on it instead of swapping the shared global deriv_* pointers.
+thread_local bool s_block_explicit_derivs = false;
+
 void new_deriv_x(double *const du, const double *const u, const double dx,
                  const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_x(du, u, dx, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_x_explicit(du, u, dx, sz, bflag);
+    else
+        bssn::active_derivs()->grad_x(du, u, dx, sz, bflag);
 }
 void new_deriv_y(double *const du, const double *const u, const double dy,
                  const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_y(du, u, dy, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_y_explicit(du, u, dy, sz, bflag);
+    else
+        bssn::active_derivs()->grad_y(du, u, dy, sz, bflag);
 }
 void new_deriv_z(double *const du, const double *const u, const double dz,
                  const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_z(du, u, dz, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_z_explicit(du, u, dz, sz, bflag);
+    else
+        bssn::active_derivs()->grad_z(du, u, dz, sz, bflag);
 }
 void new_deriv_xx(double *const du, const double *const u, const double dx,
                   const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_xx(du, u, dx, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_xx_explicit(du, u, dx, sz, bflag);
+    else
+        bssn::active_derivs()->grad_xx(du, u, dx, sz, bflag);
 }
 void new_deriv_yy(double *const du, const double *const u, const double dy,
                   const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_yy(du, u, dy, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_yy_explicit(du, u, dy, sz, bflag);
+    else
+        bssn::active_derivs()->grad_yy(du, u, dy, sz, bflag);
 }
 void new_deriv_zz(double *const du, const double *const u, const double dz,
                   const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_zz(du, u, dz, sz, bflag);
-}
-
-// Explicit-fallback wrappers for puncture blocks (selected via
-// set_block_explicit_derivs).
-void new_deriv_x_exp(double *const du, const double *const u, const double dx,
-                     const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_x_explicit(du, u, dx, sz, bflag);
-}
-void new_deriv_y_exp(double *const du, const double *const u, const double dy,
-                     const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_y_explicit(du, u, dy, sz, bflag);
-}
-void new_deriv_z_exp(double *const du, const double *const u, const double dz,
-                     const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_z_explicit(du, u, dz, sz, bflag);
-}
-void new_deriv_xx_exp(double *const du, const double *const u, const double dx,
-                      const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_xx_explicit(du, u, dx, sz, bflag);
-}
-void new_deriv_yy_exp(double *const du, const double *const u, const double dy,
-                      const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_yy_explicit(du, u, dy, sz, bflag);
-}
-void new_deriv_zz_exp(double *const du, const double *const u, const double dz,
-                      const unsigned int *sz, unsigned bflag) {
-    bssn::BSSN_DERIVS->grad_zz_explicit(du, u, dz, sz, bflag);
+    if (s_block_explicit_derivs)
+        bssn::active_derivs()->grad_zz_explicit(du, u, dz, sz, bflag);
+    else
+        bssn::active_derivs()->grad_zz(du, u, dz, sz, bflag);
 }
 }  // namespace
 #endif
@@ -241,12 +238,11 @@ void set_appropriate_derivs(const unsigned pw) {
 
 #ifdef DENDRO_USE_NEW_DERIVS
 void set_block_explicit_derivs(bool on) {
-    deriv_x  = on ? new_deriv_x_exp : new_deriv_x;
-    deriv_y  = on ? new_deriv_y_exp : new_deriv_y;
-    deriv_z  = on ? new_deriv_z_exp : new_deriv_z;
-    deriv_xx = on ? new_deriv_xx_exp : new_deriv_xx;
-    deriv_yy = on ? new_deriv_yy_exp : new_deriv_yy;
-    deriv_zz = on ? new_deriv_zz_exp : new_deriv_zz;
+    // Thread-local toggle (see s_block_explicit_derivs): safe to call per block
+    // from inside the threaded RHS loop -- it does not touch the shared global
+    // deriv_* pointers, so concurrent blocks never race. The new_deriv_*
+    // wrappers branch on this flag to pick grad_*_explicit vs grad_*.
+    s_block_explicit_derivs = on;
 }
 #endif
 

@@ -28,17 +28,28 @@
 
 namespace {
 /**
- * @brief Lazily construct the DendroDerivatives object from the BSSN_DERIV_*
- * parameters, publish it through the global bridge pointer (bssn::BSSN_DERIVS),
- * and size its workspace to the largest block on the current mesh. Called right
- * before each set_appropriate_derivs() so the function-pointer wrappers have a
- * live object before the first RHS evaluation.
+ * @brief Build (once) a per-thread pool of DendroDerivatives clones from the
+ * BSSN_DERIV_* parameters, publish their raw pointers through
+ * bssn::BSSN_DERIVS_POOL, and size each clone's workspace to the largest block
+ * on the current mesh. Under DENDRO_HYBRID_OMP the pool has one entry per
+ * OpenMP thread (a single Derivs object is not safe for concurrent use), so the
+ * RHS block loop can be threaded; otherwise it is a single entry. Called right
+ * before each set_appropriate_derivs() so the wrappers have live objects before
+ * the first RHS evaluation.
  */
 void bssn_setup_new_derivs(
-    std::unique_ptr<dendroderivs::DendroDerivatives>& derivs,
+    std::vector<std::unique_ptr<dendroderivs::DendroDerivatives>>& pool,
     const ot::Mesh* mesh) {
-    if (!derivs) {
-        derivs = std::make_unique<dendroderivs::DendroDerivatives>(
+#ifdef DENDRO_HYBRID_OMP
+    const unsigned int n_threads = (unsigned int)omp_get_max_threads();
+#else
+    const unsigned int n_threads = 1;
+#endif
+    if (pool.size() != n_threads) {
+        pool.clear();
+        // construct the prototype, then clone it for the remaining threads
+        // (DendroDerivatives' copy ctor clones the internal operators).
+        pool.push_back(std::make_unique<dendroderivs::DendroDerivatives>(
             bssn::BSSN_DERIVTYPE_FIRST, bssn::BSSN_DERIVTYPE_SECOND,
             bssn::BSSN_ELE_ORDER, bssn::BSSN_DERIV_FIRST_COEFFS,
             bssn::BSSN_DERIV_SECOND_COEFFS, bssn::BSSN_DERIV_FIRST_MATID,
@@ -47,9 +58,17 @@ void bssn_setup_new_derivs(
             bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
             bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS, "default",
             bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST,
-            bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND);
+            bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND));
+        for (unsigned int t = 1; t < n_threads; t++)
+            pool.push_back(std::make_unique<dendroderivs::DendroDerivatives>(
+                *pool[0]));
     }
-    bssn::BSSN_DERIVS = derivs.get();
+
+    // publish raw (non-owning) pointers for the wrappers / experimental RHS
+    bssn::BSSN_DERIVS_POOL.resize(pool.size());
+    for (size_t t = 0; t < pool.size(); t++)
+        bssn::BSSN_DERIVS_POOL[t] = pool[t].get();
+
     if (mesh && mesh->isActive()) {
         unsigned int max_blk_sz = 0;
         const std::vector<ot::Block>& blkList = mesh->getLocalBlockList();
@@ -59,7 +78,8 @@ void bssn_setup_new_derivs(
                                    blkList[i].getAllocationSzZ();
             if (n > max_blk_sz) max_blk_sz = n;
         }
-        if (max_blk_sz > 0) derivs->set_maximum_block_size(max_blk_sz);
+        if (max_blk_sz > 0)
+            for (auto& d : pool) d->set_maximum_block_size(max_blk_sz);
     }
 }
 }  // namespace
@@ -592,7 +612,7 @@ int BSSNCtx::initialize() {
     }
 
 #ifdef DENDRO_USE_NEW_DERIVS
-    bssn_setup_new_derivs(m_derivs, m_uiMesh);
+    bssn_setup_new_derivs(m_derivs_pool, m_uiMesh);
 #endif
     set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 
@@ -1460,7 +1480,7 @@ int BSSNCtx::restore_checkpt() {
 
     // make sure derivatives are set
 #ifdef DENDRO_USE_NEW_DERIVS
-    bssn_setup_new_derivs(m_derivs, m_uiMesh);
+    bssn_setup_new_derivs(m_derivs_pool, m_uiMesh);
 #endif
     set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
 

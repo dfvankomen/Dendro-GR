@@ -154,7 +154,7 @@ std::string BSSN_DERIV_INMATFILT_FIRST                   = "none";
 std::string BSSN_DERIV_INMATFILT_SECOND                  = "none";
 std::vector<double> BSSN_DERIV_INMATFILT_FIRST_COEFFS    = {};
 std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS   = {};
-dendroderivs::DendroDerivatives* BSSN_DERIVS             = nullptr;
+std::vector<dendroderivs::DendroDerivatives*> BSSN_DERIVS_POOL;
 // Puncture-block explicit fallback (default ON, just the containing blocks).
 unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS       = 1;
 std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST          = "auto";
@@ -225,6 +225,7 @@ double BSSN_SSL_SIGMA                           = 20.0;
 
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
+size_t BSSN_DERIV_WORKSPACE_STRIDE             = 0;
 
 ////    log file parameters    /////////////////////////////////////////
 // dendro log file output filename base
