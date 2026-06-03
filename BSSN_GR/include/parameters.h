@@ -39,6 +39,13 @@ extern std::string BSSN_DERIV_INMATFILT_SECOND;
 extern std::vector<double> BSSN_DERIV_INMATFILT_FIRST_COEFFS;
 extern std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS;
 
+// Puncture-block explicit fallback. NBLOCKS: 0 = off, N>=1 = explicit derivs on
+// blocks within N-1 block-widths of a puncture. FALLBACK_*: "auto" matches the
+// configured scheme's order, else an explicit scheme name (e.g. "E6").
+extern unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
+extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST;
+extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND;
+
 /**
  * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instance, set
  * at ctx init. Used by the derivative function-pointer wrappers in derivs.cpp

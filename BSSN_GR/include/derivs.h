@@ -38,6 +38,15 @@ extern void (*ko_deriv_z)(double *const, const double *const, const double,
 
 void set_appropriate_derivs(const unsigned pw);
 
+#ifdef DENDRO_USE_NEW_DERIVS
+/**
+ * @brief Swap the central 1st/2nd-derivative pointers to the explicit
+ * puncture-block fallbacks (on=true) or back (on=false). Called per block, not
+ * per derivative; relies on the serial per-block RHS loop.
+ */
+void set_block_explicit_derivs(bool on);
+#endif
+
 void deriv42_x_wrapper(double *const Dxu, const double *const u,
                        const double dx, const unsigned int *sz, unsigned bflag,
                        const unsigned pw);

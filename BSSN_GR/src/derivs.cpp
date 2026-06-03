@@ -39,6 +39,33 @@ void new_deriv_zz(double *const du, const double *const u, const double dz,
                   const unsigned int *sz, unsigned bflag) {
     bssn::BSSN_DERIVS->grad_zz(du, u, dz, sz, bflag);
 }
+
+// Explicit-fallback wrappers for puncture blocks (selected via
+// set_block_explicit_derivs).
+void new_deriv_x_exp(double *const du, const double *const u, const double dx,
+                     const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_x_explicit(du, u, dx, sz, bflag);
+}
+void new_deriv_y_exp(double *const du, const double *const u, const double dy,
+                     const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_y_explicit(du, u, dy, sz, bflag);
+}
+void new_deriv_z_exp(double *const du, const double *const u, const double dz,
+                     const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_z_explicit(du, u, dz, sz, bflag);
+}
+void new_deriv_xx_exp(double *const du, const double *const u, const double dx,
+                      const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_xx_explicit(du, u, dx, sz, bflag);
+}
+void new_deriv_yy_exp(double *const du, const double *const u, const double dy,
+                      const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_yy_explicit(du, u, dy, sz, bflag);
+}
+void new_deriv_zz_exp(double *const du, const double *const u, const double dz,
+                      const unsigned int *sz, unsigned bflag) {
+    bssn::BSSN_DERIVS->grad_zz_explicit(du, u, dz, sz, bflag);
+}
 }  // namespace
 #endif
 
@@ -211,6 +238,17 @@ void set_appropriate_derivs(const unsigned pw) {
     deriv_zz = new_deriv_zz;
 #endif
 }
+
+#ifdef DENDRO_USE_NEW_DERIVS
+void set_block_explicit_derivs(bool on) {
+    deriv_x  = on ? new_deriv_x_exp : new_deriv_x;
+    deriv_y  = on ? new_deriv_y_exp : new_deriv_y;
+    deriv_z  = on ? new_deriv_z_exp : new_deriv_z;
+    deriv_xx = on ? new_deriv_xx_exp : new_deriv_xx;
+    deriv_yy = on ? new_deriv_yy_exp : new_deriv_yy;
+    deriv_zz = on ? new_deriv_zz_exp : new_deriv_zz;
+}
+#endif
 
 void deriv42_x_wrapper(double *const Dxu, const double *const u,
                        const double dx, const unsigned int *sz, unsigned bflag,

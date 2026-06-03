@@ -859,6 +859,14 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              i < bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS.size(); i++)
             sout << bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS[i] << ", ";
         sout << "]" << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS :"
+             << bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS
+             << (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS == 0 ? " (off)" : "")
+             << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_PUNCTURE_FALLBACK_FIRST :"
+             << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST << NRM << std::endl;
+        sout << YLW << "\tBSSN_DERIV_PUNCTURE_FALLBACK_SECOND :"
+             << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND << NRM << std::endl;
 #endif
     }
 }

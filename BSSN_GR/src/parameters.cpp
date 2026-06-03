@@ -155,6 +155,10 @@ std::string BSSN_DERIV_INMATFILT_SECOND                  = "none";
 std::vector<double> BSSN_DERIV_INMATFILT_FIRST_COEFFS    = {};
 std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS   = {};
 dendroderivs::DendroDerivatives* BSSN_DERIVS             = nullptr;
+// Puncture-block explicit fallback (default ON, just the containing blocks).
+unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS       = 1;
+std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST          = "auto";
+std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND         = "auto";
 #endif
 
 unsigned int RIT_ETA_FUNCTION                            = 1;
@@ -454,6 +458,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
          bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS, UseInitialValue},
         {"BSSN_DERIV_INMATFILT_SECOND_COEFFS",
          bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS, UseInitialValue},
+        {"BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS",
+         bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS, UseInitialValue},
+        {"BSSN_DERIV_PUNCTURE_FALLBACK_FIRST",
+         bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST, UseInitialValue},
+        {"BSSN_DERIV_PUNCTURE_FALLBACK_SECOND",
+         bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND, UseInitialValue},
 #endif
         {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
         // eta power 0 is added later

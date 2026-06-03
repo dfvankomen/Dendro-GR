@@ -210,6 +210,30 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
     const unsigned int n                 = sz[0] * sz[1] * sz[2];
 
+#ifdef DENDRO_USE_NEW_DERIVS
+    // Decide once per block: does a puncture lie within it (interior bounds
+    // expanded by NBLOCKS-1 block-widths)? If so, route this block's derivs
+    // through the explicit fallback below. NBLOCKS==0 disables.
+    bool puncture_block = false;
+    if (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS > 0) {
+        const unsigned int Nb = bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
+        for (unsigned int b = 0; b < 2 && !puncture_block; ++b) {
+            const double bc[3] = {bssn::BSSN_BH_LOC[b].x(),
+                                  bssn::BSSN_BH_LOC[b].y(),
+                                  bssn::BSSN_BH_LOC[b].z()};
+            bool inside = true;
+            for (unsigned int d = 0; d < 3 && inside; ++d) {
+                const double h_d  = (pmax[d] - pmin[d]) / (sz[d] - 1);
+                const double lo_i = pmin[d] + PW * h_d;       // interior min
+                const double hi_i = pmax[d] - PW * h_d;       // interior max
+                const double mrg  = (Nb - 1) * (hi_i - lo_i);  // block-width margin
+                if (bc[d] < lo_i - mrg || bc[d] > hi_i + mrg) inside = false;
+            }
+            puncture_block = inside;
+        }
+    }
+#endif
+
     bssn::timer::t_deriv.start();
 
     const unsigned int BLK_SZ = n;
@@ -217,6 +241,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     // clang-format off
     #include "bssnrhs_evar_derivs.h"
+#ifdef DENDRO_USE_NEW_DERIVS
+    if (puncture_block) set_block_explicit_derivs(true);
+#endif
 #if defined(BSSN_USE_CASCADE_AVX512_FUSED)
     // AVX-512 fused: for bflag==0 blocks (interior), use mixed-only
     // precompute — both the 8-wide AVX-512 kernel (wide blocks) and the
@@ -239,6 +266,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #else
     #include "bssnrhs_derivs.h"
     #include "bssnrhs_derivs_adv.h"
+#endif
+#ifdef DENDRO_USE_NEW_DERIVS
+    // restore configured operators before KO/algebra (KO uses BSSN_DERIVS directly)
+    if (puncture_block) set_block_explicit_derivs(false);
 #endif
     // clang-format on
 
