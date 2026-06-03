@@ -1,6 +1,9 @@
 #include "physcon.h"
 
 #include "gr.h"
+#ifdef DENDRO_HYBRID_OMP
+#include <omp.h>
+#endif
 
 using namespace bssn;
 
@@ -56,7 +59,13 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     const unsigned int PW     = bssn::BSSN_PADDING_WIDTH;
 
     const unsigned int BLK_SZ = n;
-    double *const deriv_base  = bssn::BSSN_DERIV_WORKSPACE;
+    // Each thread uses its own deriv workspace slab so the constraint block loop
+    // can be threaded under DENDRO_HYBRID_OMP (mirrors bssnrhs).
+    double *const deriv_base  = bssn::BSSN_DERIV_WORKSPACE
+#ifdef DENDRO_HYBRID_OMP
+        + (size_t)omp_get_thread_num() * bssn::BSSN_DERIV_WORKSPACE_STRIDE
+#endif
+        ;
     // clang-format off
 #include "bssnrhs_evar_derivs.h"
 #include "constraint_derivs.h"

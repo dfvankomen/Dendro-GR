@@ -226,6 +226,7 @@ double BSSN_SSL_SIGMA                           = 20.0;
 /***@brief: derivs workspace*/
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 size_t BSSN_DERIV_WORKSPACE_STRIDE             = 0;
+unsigned int BSSN_HYBRID_NTHREADS               = 1;
 
 ////    log file parameters    /////////////////////////////////////////
 // dendro log file output filename base

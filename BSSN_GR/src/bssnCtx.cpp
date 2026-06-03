@@ -757,6 +757,15 @@ void BSSNCtx::compute_constraint_variables() {
                        bssn::BSSN_COMPD_MAX[2]);
     const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
 
+    // Blocks are independent (disjoint constraint-output writes); each thread
+    // uses its own deriv workspace slab + DendroDerivatives clone, so this
+    // mirrors the threaded RHS block loop. num_threads pins to the allocated
+    // slab/pool count (see BSSN_HYBRID_NTHREADS).
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 1) \
+    num_threads(bssn::BSSN_HYBRID_NTHREADS)   \
+    private(offset, sz, bflag, dx, dy, dz, ptmin, ptmax)
+#endif
     for (unsigned int blk = 0; blk < blkList.size(); blk++) {
         offset   = blkList[blk].getOffset();
         sz[0]    = blkList[blk].getAllocationSzX();

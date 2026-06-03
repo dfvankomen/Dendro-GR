@@ -438,6 +438,13 @@ extern double* BSSN_DERIV_WORKSPACE;
  * be threaded; each thread uses BSSN_DERIV_WORKSPACE + tid * stride. */
 extern size_t BSSN_DERIV_WORKSPACE_STRIDE;
 
+/**@brief: number of per-thread deriv-workspace slabs / DendroDerivatives pool
+ * clones allocated under DENDRO_HYBRID_OMP (= omp_get_max_threads() captured at
+ * workspace allocation). Every tid-indexed parallel region (RHS, constraints)
+ * pins num_threads() to this so omp_get_thread_num() can never index past the
+ * allocated slabs/pool. Stays 1 when the flag is off. */
+extern unsigned int BSSN_HYBRID_NTHREADS;
+
 /** @brief: Nyquist goal for nyquist-based refinement **/
 extern unsigned int BSSN_NYQUIST_M;
 
