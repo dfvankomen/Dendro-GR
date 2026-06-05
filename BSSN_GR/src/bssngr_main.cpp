@@ -538,6 +538,10 @@ int main(int argc, char** argv) {
                                                      bssn::BSSN_SPLIT_FIX);
                     bssn::deallocate_bssn_deriv_workspace();
                     bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+                    // Rebuild/resize the per-thread deriv pool + pre-build all
+                    // libxsmm kernels and D-matrices for the new mesh, so the
+                    // threaded RHS never lazily creates deriv state (races).
+                    bssnCtx->reinit_derivs_pool();
                     ets->sync_with_mesh();
                     bssnCtx->calculate_full_grid_size();
 

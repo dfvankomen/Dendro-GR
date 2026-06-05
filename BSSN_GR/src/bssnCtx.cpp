@@ -15,7 +15,9 @@
 #include <mpi.h>
 #include <sys/types.h>
 
+#include <array>
 #include <cstdint>
+#include <set>
 #include <string>
 
 #include "grUtils.h"
@@ -25,6 +27,7 @@
 
 #ifdef DENDRO_USE_NEW_DERIVS
 #include "derivatives.h"
+#include "derivatives/derivs_utils.h"  // prewarm_kernel_cache, BlockShape
 
 namespace {
 /**
@@ -70,22 +73,51 @@ void bssn_setup_new_derivs(
         bssn::BSSN_DERIVS_POOL[t] = pool[t].get();
 
     if (mesh && mesh->isActive()) {
-        unsigned int max_blk_sz = 0;
+        unsigned int max_blk_sz               = 0;
         const std::vector<ot::Block>& blkList = mesh->getLocalBlockList();
+        // Dedup block shapes + 1D sizes so the prewarm is cheap on big meshes
+        // (thousands of blocks but only a handful of distinct shapes).
+        std::set<std::array<unsigned int, 3>> uniq_shapes;
+        std::set<unsigned int> uniq_dims;
         for (unsigned int i = 0; i < blkList.size(); i++) {
-            const unsigned int n = blkList[i].getAllocationSzX() *
-                                   blkList[i].getAllocationSzY() *
-                                   blkList[i].getAllocationSzZ();
+            const unsigned int nx = blkList[i].getAllocationSzX();
+            const unsigned int ny = blkList[i].getAllocationSzY();
+            const unsigned int nz = blkList[i].getAllocationSzZ();
+            const unsigned int n  = nx * ny * nz;
             if (n > max_blk_sz) max_blk_sz = n;
+            uniq_shapes.insert({nx, ny, nz});
+            uniq_dims.insert(nx);
+            uniq_dims.insert(ny);
+            uniq_dims.insert(nz);
         }
         if (max_blk_sz > 0)
             for (auto& d : pool) d->set_maximum_block_size(max_blk_sz);
+
+        // Build ALL matrix-deriv state (libxsmm kernels + per-size D-matrices)
+        // single-threaded NOW, so the threaded RHS never lazily JITs a kernel
+        // or builds a D-matrix concurrently. That lazy creation under OpenMP is
+        // non-deterministic and corrupts results -- it only bites after a remesh
+        // introduces a block size not seen at init (hence this is also re-run on
+        // every remesh, not just at init/restore).
+        std::vector<dendroderivs::BlockShape> shapes;
+        shapes.reserve(uniq_shapes.size());
+        for (const auto& s : uniq_shapes) shapes.push_back({s[0], s[1], s[2]});
+        dendroderivs::prewarm_kernel_cache(
+            shapes, (unsigned int)bssn::BSSN_PADDING_WIDTH);
+        for (unsigned int sz : uniq_dims)
+            for (auto& d : pool) d->pre_create_for_size(sz);
     }
 }
 }  // namespace
 #endif
 
 namespace bssn {
+void BSSNCtx::reinit_derivs_pool() {
+#ifdef DENDRO_USE_NEW_DERIVS
+    bssn_setup_new_derivs(m_derivs_pool, m_uiMesh);
+#endif
+}
+
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
     m_uiMesh = pMesh;
 
