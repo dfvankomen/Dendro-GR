@@ -6,10 +6,14 @@
  *
  */
 #include <chrono>
+#include <cstdlib>  // std::getenv for the OMP_SCHEDULE default guard
 #include <ctime>  // time_t / time() / ctime() — gcc 15 + <chrono> doesn't drag these in
 #include <iostream>
 #include <sstream>
 #include <vector>
+#if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
+#include <omp.h>
+#endif
 
 #include "TreeNode.h"
 #include "aeh.h"
@@ -67,6 +71,25 @@ int main(int argc, char** argv) {
                      "path may be unsafe with this MPI build."
                   << NRM << std::endl;
     }
+
+#if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
+    // The threaded RHS block loop uses schedule(runtime), so OMP_SCHEDULE picks
+    // the policy without a rebuild: "static" = thread-owned contiguous block
+    // partition (warm per-thread L2 / MPI-subdomain-like locality, but risks
+    // load imbalance); "dynamic,1" = fine-grained balance. Pin the default to
+    // dynamic,1 (the historical behavior) when OMP_SCHEDULE is unset, so nothing
+    // changes unless the user opts in.
+    if (std::getenv("OMP_SCHEDULE") == nullptr)
+        omp_set_schedule(omp_sched_dynamic, 1);
+    if (!rank) {
+        omp_sched_t sched_kind;
+        int sched_chunk;
+        omp_get_schedule(&sched_kind, &sched_chunk);
+        std::cout << "[hybrid] RHS block schedule kind=" << (int)sched_kind
+                  << " chunk=" << sched_chunk
+                  << " (override via OMP_SCHEDULE, e.g. static)" << std::endl;
+    }
+#endif
 
     // --- CPU capability gate -----------------------------------------
     // If this binary was compiled for AVX2/AVX-512 but the runtime CPU

@@ -83,8 +83,13 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
     // workspace slab and its own DendroDerivatives clone (via active_derivs()),
     // so the block loop is race-free under DENDRO_HYBRID_OMP.
 #ifdef DENDRO_HYBRID_OMP
-#pragma omp parallel for schedule(dynamic, 1) \
-    num_threads(bssn::BSSN_HYBRID_NTHREADS)   \
+// schedule(runtime) lets OMP_SCHEDULE pick the policy at run time without a
+// rebuild: "dynamic,1" = fine-grained load balance (default); "static" =
+// thread-owned contiguous block partition, which keeps each thread's private L2
+// warm across RK stages (MPI-subdomain-like locality) at the cost of some load
+// imbalance. A/B these to see which wins for a given mesh.
+#pragma omp parallel for schedule(runtime)  \
+    num_threads(bssn::BSSN_HYBRID_NTHREADS) \
     private(offset, sz, bflag, dx, dy, dz, ptmin, ptmax)
 #endif
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
