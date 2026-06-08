@@ -611,27 +611,41 @@ int main(int argc, char** argv) {
                               << std::endl;
 
                 bssnCtx->terminal_output();
-
-                // Per-step profile snapshot (MPI reduction; rank 0 writes).
-                // Gated so a non-profiling build does no profile IO.
-#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
-                bssn::timer::profileInfoIntermediate(
-                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
-                    ets->get_mesh(), step);
-#if defined(__PROFILE_ETS__) && defined(__PROFILE_CTX__)
-                bssn::timer::profileInfoJSON(
-                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
-                    ets->get_mesh(), step,
-                    &ets->m_uiCtxpt, &bssnCtx->m_uiCtxpt);
-                ets->reset_pt();
-#else
-                bssn::timer::profileInfoJSON(
-                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(),
-                    ets->get_mesh(), step);
-#endif
-                bssn::timer::resetSnapshot();
-#endif  // ENABLE_DENDRO_PROFILE_COUNTERS
             }
+
+            // Per-evolve profile snapshot (MPI reduction; rank 0 writes). Run
+            // every outer iteration -- one record per evolve() interval --
+            // rather than on step % FREQ: evolve() can advance several sub-steps
+            // per call, so a step-based cadence lines up with the dump condition
+            // only erratically (often firing just once, at step 0). Gated so a
+            // non-profiling build does no profile IO.
+#ifdef ENABLE_DENDRO_PROFILE_COUNTERS
+            // The first iteration (fresh start or checkpoint restore) has not
+            // run any RHS yet, so deriv/rhs/rk_step snapshot as 0 and the record
+            // is misleading. Skip *emitting* it, but still flush the snapshot +
+            // ctx counters below so init-phase (or pre-restore) accumulation
+            // doesn't leak into the first real record. emit_profile is identical
+            // across ranks (step and start_step match), so the collective
+            // reductions inside profileInfo* stay all-or-none.
+            const bool emit_profile = (step > start_step);
+            if (emit_profile)
+                bssn::timer::profileInfoIntermediate(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), ets->get_mesh(),
+                    step);
+#if defined(__PROFILE_ETS__) && defined(__PROFILE_CTX__)
+            if (emit_profile)
+                bssn::timer::profileInfoJSON(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), ets->get_mesh(), step,
+                    &ets->m_uiCtxpt, &bssnCtx->m_uiCtxpt);
+            ets->reset_pt();
+#else
+            if (emit_profile)
+                bssn::timer::profileInfoJSON(
+                    bssn::BSSN_PROFILE_FILE_PREFIX.c_str(), ets->get_mesh(),
+                    step);
+#endif
+            bssn::timer::resetSnapshot();
+#endif  // ENABLE_DENDRO_PROFILE_COUNTERS
 
             // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
