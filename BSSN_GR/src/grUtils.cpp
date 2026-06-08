@@ -4309,6 +4309,8 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
     BSSN_JSONL_PHASE_RAW("rhs",           t_rhs.snap);
     BSSN_JSONL_PHASE_RAW("rhs_ko",        t_rhs_ko.snap);
     BSSN_JSONL_PHASE_RAW("bdyc",          t_bdyc.snap);
+    // Constraint computation (unzip + block loop + zip); feeds GW extraction.
+    BSSN_JSONL_PHASE_RAW("constraints",   t_cons.snap);
     BSSN_JSONL_PHASE_RAW("zip",
                          pick_app(CTX_ZIP, t_zip.snap));
     BSSN_JSONL_PHASE_RAW("is_remesh",

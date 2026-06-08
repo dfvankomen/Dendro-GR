@@ -755,6 +755,11 @@ void BSSNCtx::compute_constraint_variables() {
     DVec& m_cvar     = m_var[VL::CPU_CV];
     DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
 
+    // Time the full constraint computation (unzip + threaded block loop + zip).
+    // These fields feed GW extraction, so this phase is reported separately in
+    // the profile JSONL as "constraints".
+    bssn::timer::t_cons.start();
+
     this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
 
     DendroScalar* consUnzipVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
@@ -835,6 +840,8 @@ void BSSNCtx::compute_constraint_variables() {
     }
 
 #endif
+
+    bssn::timer::t_cons.stop();
 
     m_bConstraintsComputed = true;
 
