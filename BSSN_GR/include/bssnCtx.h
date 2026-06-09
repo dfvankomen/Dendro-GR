@@ -85,11 +85,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 #endif
 
    public:
-    /** @brief: rebuild/resize the per-thread derivative pool for the current
-     * mesh and pre-build all libxsmm kernels + D-matrices single-threaded.
-     * MUST be called after every remesh so the threaded RHS never lazily
-     * creates deriv state concurrently (which is non-deterministic). No-op
-     * unless built with DENDRO_USE_NEW_DERIVS. */
+    /** @brief: rebuild the per-thread deriv pool + pre-build deriv state for the
+     * current mesh. Call after every remesh (the threaded RHS must not lazily
+     * create deriv state -- races). No-op without DENDRO_USE_NEW_DERIVS. */
     void reinit_derivs_pool();
 
     /** @brief: default constructor*/

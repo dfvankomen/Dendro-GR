@@ -1,23 +1,12 @@
 /**
  * @file bssn_scaling_bench.cpp
- * @brief Strong / weak scaling benchmark for the BSSN hybrid (MPI+OpenMP) path.
+ * @brief Strong/weak scaling benchmark for the BSSN hybrid path. Builds a fixed
+ * grid (bbh puncture or uniform), runs N RK steps with the full per-step compute
+ * but NO remesh and NO IO, and emits the solver's per-step profiling JSONL.
+ * Built through the same flag system as bssnSolver (mirrors its config).
  *
- * Builds either a representative BBH-puncture grid (the "faked" analytic initial
- * data, refined the same way the solver does) or a clean uniform grid, then runs
- * a fixed number of RK steps with the FULL per-step compute (ghost exchange,
- * unzip, derivatives, RHS, zip, constraints) but with NO remeshing and NO file
- * IO. It emits the same per-step profiling JSONL as bssnSolver so the existing
- * closure-analysis tooling works unchanged.
- *
- * It is built through the same bssn_add_executable / bssn_add_def flag system as
- * bssnSolver, so a given compile-flag combo's binary reflects exactly what the
- * solver runs (DENDRO_HYBRID_OMP, DENDRO_USE_NEW_DERIVS, cascade AVX, ...).
- *
- * Usage:
- *   bssnScalingBench <paramFile> [--mode strong|weak] [--grid bbh|uniform]
- *                    [--steps N] [--warmup K] [--lev L] [--prefix P]
- * Sweep ranks (-np) and OMP_NUM_THREADS externally; each run writes
- *   <prefix>_steps.jsonl with one record per timed step.
+ * Usage: bssnScalingBench <paramFile> [--mode strong|weak] [--grid bbh|uniform]
+ *        [--steps N] [--warmup K] [--lev L] [--id-type N] [--prefix P]
  */
 
 #include <cmath>
@@ -48,11 +37,8 @@ struct BenchOpts {
     unsigned int steps = 10;
     unsigned int warmup = 2;
     unsigned int lev   = 3;  // uniform-grid refinement level (8^lev elements)
-    // Initial field data: -1 = use the param file's BSSN_ID_TYPE (default;
-    // = puncture, the only valid/stable BSSN state). Override with --id-type to
-    // experiment (e.g. on a uniform grid). NOTE: a uniform grid with puncture
-    // data is only marginally stable (the singularity isn't resolved) -- the
-    // representative `bbh` grid is the robust multi-step benchmark.
+    // init data; -1 = use the param file's BSSN_ID_TYPE (puncture). Note: a
+    // uniform grid + puncture is only marginally stable -- prefer --grid bbh.
     int id_type        = -1;
     std::string prefix = "bssn_bench";
 };
@@ -148,9 +134,7 @@ int main(int argc, char** argv) {
     for (unsigned int i = 0; i < interpVars; i++) varIndex[i] = i;
 
     if (opt.grid == "uniform") {
-        // Clean kernel-scaling grid: uniform octree of depth lev_use. For weak
-        // scaling we grow the depth with rank count so #elements/rank stays
-        // ~constant (8^lev per rank).
+        // Uniform octree (8^lev elements); weak scaling grows lev with ranks.
         unsigned int lev_use = opt.lev;
         if (opt.mode == "weak")
             lev_use += (unsigned int)std::lround(std::log((double)npes) /
@@ -160,8 +144,7 @@ int main(int argc, char** argv) {
         if (!rank)
             std::cout << "[bench] uniform grid: lev=" << lev_use << std::endl;
     } else {
-        // Representative BBH grid from the puncture ("faked") initial data,
-        // refined exactly like the solver's adaptive init.
+        // Representative BBH grid: refine on puncture data like the solver.
         const unsigned int f2olmin =
             std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
         if (f2olmin < MAXDEAPTH_LEVEL_DIFF + 2) {
@@ -186,10 +169,8 @@ int main(int argc, char** argv) {
     mesh->computeMinMaxLevel(lmin, lmax);
     tmpNodes.clear();
 
-    // Disable AMR / remeshing: the benchmark runs on a FIXED grid (this is also
-    // what keeps BSSNCtx::initialize() from doing a collective init grid-converge
-    // remesh loop, which otherwise hangs/varies at multi-rank). Mirrors
-    // gr_scaling.cpp. The grid we just built is what gets timed.
+    // Fixed grid: disables AMR + the ctx's collective init grid-converge (which
+    // hangs at multi-rank). Mirrors gr_scaling.cpp.
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY = 1;
 
     // dx / dt (same expressions as the solver)

@@ -73,12 +73,8 @@ int main(int argc, char** argv) {
     }
 
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
-    // The threaded RHS block loop uses schedule(runtime), so OMP_SCHEDULE picks
-    // the policy without a rebuild: "static" = thread-owned contiguous block
-    // partition (warm per-thread L2 / MPI-subdomain-like locality, but risks
-    // load imbalance); "dynamic,1" = fine-grained balance. Pin the default to
-    // dynamic,1 (the historical behavior) when OMP_SCHEDULE is unset, so nothing
-    // changes unless the user opts in.
+    // RHS loop uses schedule(runtime) -> OMP_SCHEDULE tunes it (e.g. "static").
+    // Default to dynamic,1 (historical) when unset.
     if (std::getenv("OMP_SCHEDULE") == nullptr)
         omp_set_schedule(omp_sched_dynamic, 1);
     if (!rank) {
@@ -561,9 +557,7 @@ int main(int argc, char** argv) {
                                                      bssn::BSSN_SPLIT_FIX);
                     bssn::deallocate_bssn_deriv_workspace();
                     bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    // Rebuild/resize the per-thread deriv pool + pre-build all
-                    // libxsmm kernels and D-matrices for the new mesh, so the
-                    // threaded RHS never lazily creates deriv state (races).
+                    // Rebuild deriv pool for the new mesh (avoid lazy JIT races).
                     bssnCtx->reinit_derivs_pool();
                     ets->sync_with_mesh();
                     bssnCtx->calculate_full_grid_size();
@@ -636,20 +630,12 @@ int main(int argc, char** argv) {
                 bssnCtx->terminal_output();
             }
 
-            // Per-evolve profile snapshot (MPI reduction; rank 0 writes). Run
-            // every outer iteration -- one record per evolve() interval --
-            // rather than on step % FREQ: evolve() can advance several sub-steps
-            // per call, so a step-based cadence lines up with the dump condition
-            // only erratically (often firing just once, at step 0). Gated so a
-            // non-profiling build does no profile IO.
+            // Per-evolve profile snapshot, once per evolve() interval (step %
+            // FREQ misfires since evolve() advances several sub-steps per call).
 #ifdef ENABLE_DENDRO_PROFILE_COUNTERS
-            // The first iteration (fresh start or checkpoint restore) has not
-            // run any RHS yet, so deriv/rhs/rk_step snapshot as 0 and the record
-            // is misleading. Skip *emitting* it, but still flush the snapshot +
-            // ctx counters below so init-phase (or pre-restore) accumulation
-            // doesn't leak into the first real record. emit_profile is identical
-            // across ranks (step and start_step match), so the collective
-            // reductions inside profileInfo* stay all-or-none.
+            // Skip the first iteration (no RHS run yet -> all-zero record) but
+            // still flush below. emit_profile is rank-identical, so the
+            // collective reductions in profileInfo* stay all-or-none.
             const bool emit_profile = (step > start_step);
             if (emit_profile)
                 bssn::timer::profileInfoIntermediate(

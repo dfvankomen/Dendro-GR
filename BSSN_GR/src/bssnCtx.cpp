@@ -93,12 +93,9 @@ void bssn_setup_new_derivs(
         if (max_blk_sz > 0)
             for (auto& d : pool) d->set_maximum_block_size(max_blk_sz);
 
-        // Build ALL matrix-deriv state (libxsmm kernels + per-size D-matrices)
-        // single-threaded NOW, so the threaded RHS never lazily JITs a kernel
-        // or builds a D-matrix concurrently. That lazy creation under OpenMP is
-        // non-deterministic and corrupts results -- it only bites after a remesh
-        // introduces a block size not seen at init (hence this is also re-run on
-        // every remesh, not just at init/restore).
+        // Pre-build all matrix-deriv state (libxsmm kernels + D-matrices)
+        // single-threaded; lazy JIT under the threaded RHS races and corrupts
+        // results. Re-run on every remesh (new block sizes), not just at init.
         std::vector<dendroderivs::BlockShape> shapes;
         shapes.reserve(uniq_shapes.size());
         for (const auto& s : uniq_shapes) shapes.push_back({s[0], s[1], s[2]});
@@ -755,9 +752,7 @@ void BSSNCtx::compute_constraint_variables() {
     DVec& m_cvar     = m_var[VL::CPU_CV];
     DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
 
-    // Time the full constraint computation (unzip + threaded block loop + zip).
-    // These fields feed GW extraction, so this phase is reported separately in
-    // the profile JSONL as "constraints".
+    // Timed as the "constraints" phase in the profile JSONL (feeds GW extract).
     bssn::timer::t_cons.start();
 
     this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
