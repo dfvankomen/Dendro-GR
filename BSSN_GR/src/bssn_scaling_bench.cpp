@@ -40,6 +40,8 @@ struct BenchOpts {
     // init data; -1 = use the param file's BSSN_ID_TYPE (puncture). Note: a
     // uniform grid + puncture is only marginally stable -- prefer --grid bbh.
     int id_type        = -1;
+    // weak-scaling per-rank grain (BSSN_DENDRO_GRAIN_SZ); -1 = use param file.
+    int grain          = -1;
     std::string prefix = "bssn_bench";
 };
 
@@ -55,6 +57,8 @@ void usage(const char* a0) {
         << "  --lev L              uniform-grid depth, 8^L elements (default 3)\n"
         << "  --id-type N          override BSSN_ID_TYPE init data (default: "
            "use param file; 0/1 = puncture)\n"
+        << "  --grain N            per-rank grain (BSSN_DENDRO_GRAIN_SZ); weak "
+           "mode keeps ~N elems/rank\n"
         << "  --prefix P           output prefix for <P>_steps.jsonl (default "
            "bssn_bench)\n";
 }
@@ -83,6 +87,8 @@ BenchOpts parse(int argc, char** argv) {
             o.lev = (unsigned int)std::stoul(need("--lev"));
         else if (a == "--id-type")
             o.id_type = std::stoi(need("--id-type"));
+        else if (a == "--grain")
+            o.grain = std::stoi(need("--grain"));
         else if (a == "--prefix")
             o.prefix = need("--prefix");
         else
@@ -112,6 +118,7 @@ int main(int argc, char** argv) {
     // ---- parameters (same loader as the solver) ------------------------
     bssn::readParamFile(opt.param_file.c_str(), comm);
     if (opt.id_type >= 0) bssn::BSSN_ID_TYPE = (unsigned int)opt.id_type;
+    if (opt.grain > 0) bssn::BSSN_DENDRO_GRAIN_SZ = (unsigned int)opt.grain;
     _InitializeHcurve(bssn::BSSN_DIM);
     m_uiMaxDepth                   = bssn::BSSN_MAXDEPTH;
     bssn::BSSN_PROFILE_FILE_PREFIX = opt.prefix;
@@ -210,14 +217,18 @@ int main(int argc, char** argv) {
     ets->init();
 
     {
-        // Report the actual element count on the ctx's (post-init) mesh.
+        // Report element + block counts (per-rank grain is the MPI split knob).
         const ot::Mesh* cmesh = ets->get_mesh();
-        DendroIntL le = cmesh->isActive() ? cmesh->getNumLocalMeshElements() : 0;
-        DendroIntL ge = 0;
+        const bool act        = cmesh->isActive();
+        DendroIntL le = act ? cmesh->getNumLocalMeshElements() : 0;
+        DendroIntL lb = act ? (DendroIntL)cmesh->getLocalBlockList().size() : 0;
+        DendroIntL ge = 0, gb = 0;
         par::Mpi_Reduce(&le, &ge, 1, MPI_SUM, 0, comm);
+        par::Mpi_Reduce(&lb, &gb, 1, MPI_SUM, 0, comm);
         if (!rank)
-            std::cout << "[bench] total elements=" << ge << " lmin=" << lmin
-                      << " lmax=" << lmax << std::endl;
+            std::cout << "[bench] elements=" << ge << " (" << ge / npes
+                      << "/rank)  blocks=" << gb << " (" << gb / npes
+                      << "/rank)  lmin=" << lmin << " lmax=" << lmax << std::endl;
     }
 
     // ---- warm-up + timed loop: NO remesh, NO IO ------------------------
