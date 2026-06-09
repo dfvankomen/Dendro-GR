@@ -216,6 +216,10 @@ bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.c
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
+# Strong/weak scaling benchmark: a few RK steps, no remesh, no IO; emits the
+# per-step profiling JSONL. Same flag system as bssnSolver, so each compile-flag
+# combo's binary mirrors the solver.
+bssn_add_executable(bssnScalingBench src/bssn_scaling_bench.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
 
 if(WITH_CUDA)
   # Helper macro for CUDA executables so we guarantee RDC is on!
