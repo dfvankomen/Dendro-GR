@@ -4189,7 +4189,7 @@ void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
 // active rank 0 writes. Consumer: plot_profile.py.
 //
 // ghost-comm is derivable as (unzip_wcomm - unzip) in the plotter.
-#define BSSN_PROFILE_JSONL_SCHEMA_VERSION 1
+#define BSSN_PROFILE_JSONL_SCHEMA_VERSION 2
 
 namespace {
 // All ranks must call; only rank 0 receives a non-null `os`.
@@ -4234,13 +4234,36 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
     }
 
     // ---- header / mesh ---------------------------------------------------
-    DendroIntL localSz, globalSzElem = 0, globalSzZip = 0, globalSzUnzip = 0;
+    DendroIntL localSz, globalSzElem = 0, globalSzZip = 0, globalSzUnzip = 0,
+                        globalSzBlk = 0;
     localSz = pMesh->getNumLocalMeshElements();
     par::Mpi_Reduce(&localSz, &globalSzElem, 1, MPI_SUM, 0, comm);
     localSz = pMesh->getNumLocalMeshNodes();
     par::Mpi_Reduce(&localSz, &globalSzZip, 1, MPI_SUM, 0, comm);
     localSz = pMesh->getDegOfFreedomUnZip();
     par::Mpi_Reduce(&localSz, &globalSzUnzip, 1, MPI_SUM, 0, comm);
+    localSz = (DendroIntL)pMesh->getLocalBlockList().size();
+    par::Mpi_Reduce(&localSz, &globalSzBlk, 1, MPI_SUM, 0, comm);
+
+    // min/max refinement level across ranks. Reduce over the ACTIVE comm only
+    // (this routine already early-returns for inactive ranks) -- do NOT call
+    // Mesh::computeMinMaxLevel here: it ends with a global Bcast that inactive
+    // ranks would never reach, deadlocking the solver.
+    unsigned int lmin_g = 0, lmax_g = 0;
+    {
+        const std::vector<ot::TreeNode>& allEle = pMesh->getAllElements();
+        const unsigned int eb = pMesh->getElementLocalBegin();
+        const unsigned int ee = pMesh->getElementLocalEnd();
+        unsigned int lmin_l = (ee > eb) ? allEle[eb].getLevel() : 0xFFFFFFFFu;
+        unsigned int lmax_l = (ee > eb) ? allEle[eb].getLevel() : 0u;
+        for (unsigned int e = eb + 1; e < ee; e++) {
+            const unsigned int lv = allEle[e].getLevel();
+            if (lv < lmin_l) lmin_l = lv;
+            if (lv > lmax_l) lmax_l = lv;
+        }
+        par::Mpi_Reduce(&lmin_l, &lmin_g, 1, MPI_MIN, 0, comm);
+        par::Mpi_Reduce(&lmax_l, &lmax_g, 1, MPI_MAX, 0, comm);
+    }
 
     if (os) {
         (*os) << "{"
@@ -4252,8 +4275,13 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
               << ",\"wavelet_tol\":" << bssn::BSSN_WAVELET_TOL
               << ",\"maxdepth\":" << bssn::BSSN_MAXDEPTH
               << ",\"num_elements\":" << globalSzElem
+              << ",\"num_blocks\":" << globalSzBlk
               << ",\"num_zip_dof\":" << globalSzZip
-              << ",\"num_unzip_dof\":" << globalSzUnzip;
+              << ",\"num_unzip_dof\":" << globalSzUnzip
+              << ",\"lmin\":" << lmin_g
+              << ",\"lmax\":" << lmax_g
+              << ",\"ele_order\":" << bssn::BSSN_ELE_ORDER
+              << ",\"omp_threads\":" << bssn::BSSN_HYBRID_NTHREADS;
     }
 
     // Mirrors dendrolib_upstream/ODE/include/{ctx,ets}.h. If you reorder
