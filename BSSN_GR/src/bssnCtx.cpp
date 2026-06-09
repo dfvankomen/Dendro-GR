@@ -1535,8 +1535,13 @@ int BSSNCtx::post_stage(DVec& sIn) { return 0; }
 int BSSNCtx::post_timestep(DVec& sIn) {
     DendroScalar* evar[BSSN_NUM_VARS];
     sIn.to_2d(evar);
-    for (unsigned int node = m_uiMesh->getNodeLocalBegin();
-         node < m_uiMesh->getNodeLocalEnd(); node++)
+    // Node-independent algebraic constraint enforcement; runs every RK stage.
+    const unsigned int nb = m_uiMesh->getNodeLocalBegin();
+    const unsigned int ne = m_uiMesh->getNodeLocalEnd();
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS)
+#endif
+    for (unsigned int node = nb; node < ne; node++)
         enforce_bssn_constraints(evar, node);
 
     return 0;
