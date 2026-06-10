@@ -133,6 +133,17 @@ void noiseData(const double xx1, const double yy1, const double zz1,
                double* var);
 
 /**
+ * @brief Flat space + smooth Gaussian-enveloped DETERMINISTIC noise (ID 7).
+ * Ported from CCZ4's ccz4FlatNoiseInit so BSSN and CCZ4 can be compared on the
+ * same, reproducible initial data. Amplitude set by BSSN_NOISE_AMP. CCZ4's
+ * U_THETA has no BSSN counterpart and is dropped.
+ * @param xx1,yy1,zz1 : grid coords (converted to physical internally)
+ * @param var : initialized bssn variables for the grid point
+ */
+void gaussianNoiseData(const double xx1, const double yy1, const double zz1,
+                       double* var);
+
+/**
  * @brief initial flat space data (Minkowski)
  */
 void minkowskiInitialData(const double xx1, const double yy1, const double zz1,

@@ -107,6 +107,10 @@ static const unsigned int BSSN_NUM_VARS_INTENL =
 /**@brief CFL stability number number (specifies how dt=BSSN_CFL_FACTOR*dx)*/
 extern double BSSN_CFL_FACTOR;
 
+/**@brief amplitude of the Gaussian-enveloped deterministic noise (ID 7),
+ * ported from CCZ4 so the two theories can be compared on the same data */
+extern double BSSN_NOISE_AMP;
+
 /** @brief the minimum dx spacing of the grid, this needs to be stored and
  * updated */
 extern double BSSN_CURRENT_MIN_DX;

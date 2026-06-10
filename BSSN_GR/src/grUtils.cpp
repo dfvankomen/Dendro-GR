@@ -250,6 +250,10 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"];
     }
 
+    if (parFile.find("BSSN_NOISE_AMP") != parFile.end()) {
+        bssn::BSSN_NOISE_AMP = parFile["BSSN_NOISE_AMP"];
+    }
+
     if (parFile.find("BSSN_VTU_Z_SLICE_ONLY") != parFile.end())
         bssn::BSSN_VTU_Z_SLICE_ONLY = parFile["BSSN_VTU_Z_SLICE_ONLY"];
 
@@ -946,6 +950,11 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
             bssn::kerrData(xx_grid, yy_grid, zz_grid, var);
 
             break;
+        case 7:
+            // ID 7 is the deterministic Gaussian-enveloped noise (CCZ4 parity)
+            bssn::gaussianNoiseData(xx_grid, yy_grid, zz_grid, var);
+
+            break;
             // MORE CAN BE ADDED HERE
 
         default:
@@ -1467,6 +1476,57 @@ void noiseData(const double xx1, const double yy1, const double zz1,
     var[VAR::U_SYMAT3] = noise_amp * random_variable[21];  // YY
     var[VAR::U_SYMAT4] = noise_amp * random_variable[22];  // YZ
     var[VAR::U_SYMAT5] = noise_amp * random_variable[23];  // ZZ
+}
+
+// Flat space + smooth Gaussian-enveloped DETERMINISTIC noise (ID 7).
+// Ported verbatim (same frequencies/phases) from CCZ4's ccz4FlatNoiseInit so
+// the two theories evolve identical initial data on the shared variables;
+// CCZ4's U_THETA has no BSSN counterpart and is simply dropped. The Gaussian
+// envelope makes it a compactly-supported, smooth, reproducible perturbation
+// of flat space. Amplitude = BSSN_NOISE_AMP. Coords converted to physical so
+// the envelope is centered at the physical origin (matches CCZ4).
+void gaussianNoiseData(const double xx1, const double yy1, const double zz1,
+                       double* var) {
+    const double x   = GRIDX_TO_X(xx1);
+    const double y   = GRIDY_TO_Y(yy1);
+    const double z   = GRIDZ_TO_Z(zz1);
+    const double A   = bssn::BSSN_NOISE_AMP;
+    const double env = exp(-0.015625 * (x * x) - 0.015625 * (y * y) -
+                           0.015625 * (z * z));
+
+    var[VAR::U_ALPHA]  = A * env * sin(0.7 * x) * sin(0.5 * z) * cos(0.9 * y) + 1;
+    var[VAR::U_CHI]    = A * env * sin(0.4 * x + 0.3) * sin(0.8 * z + 0.3) * cos(0.6 * y) + 1;
+    var[VAR::U_K]      = A * env * sin(1.1 * x) * sin(0.7 * z) * cos(0.3 * y);
+
+    // CCZ4 U_GAMMAHAT{0,1,2} -> BSSN conformal connection Gt{0,1,2}
+    var[VAR::U_GT0]    = A * env * sin(0.6 * x) * sin(0.8 * z) * cos(0.3 * y);
+    var[VAR::U_GT1]    = A * env * sin(0.8 * x + 0.5) * sin(0.3 * z + 0.5) * cos(0.6 * y);
+    var[VAR::U_GT2]    = A * env * sin(0.3 * x + 0.7) * sin(0.6 * z + 0.7) * cos(0.8 * y);
+
+    var[VAR::U_BETA0]  = A * env * sin(0.6 * x) * sin(0.4 * z) * cos(1.0 * y);
+    var[VAR::U_BETA1]  = A * env * sin(1.0 * x + 0.7) * sin(0.6 * z + 0.7) * cos(0.4 * y);
+    var[VAR::U_BETA2]  = A * env * sin(0.4 * x + 0.2) * sin(1.0 * z + 0.2) * cos(0.6 * y);
+
+    // CCZ4 U_GAUGEB{0,1,2} were zero
+    var[VAR::U_B0]     = 0.0;
+    var[VAR::U_B1]     = 0.0;
+    var[VAR::U_B2]     = 0.0;
+
+    // conformal metric gt (symmetric, [0..5] = XX,XY,XZ,YY,YZ,ZZ)
+    var[VAR::U_SYMGT0] = A * env * sin(0.3 * x) * sin(0.7 * z) * cos(0.5 * y) + 1;          // XX
+    var[VAR::U_SYMGT1] = A * env * sin(0.4 * x + 0.4) * sin(0.8 * z + 0.4) * cos(0.6 * y);  // XY
+    var[VAR::U_SYMGT2] = A * env * sin(0.6 * x + 0.6) * sin(0.4 * z + 0.6) * cos(0.8 * y);  // XZ
+    var[VAR::U_SYMGT3] = A * env * sin(0.5 * x) * sin(0.3 * z) * cos(0.7 * y) + 1;          // YY
+    var[VAR::U_SYMGT4] = A * env * sin(0.8 * x + 0.1) * sin(0.6 * z + 0.1) * cos(0.4 * y);  // YZ
+    var[VAR::U_SYMGT5] = A * env * sin(0.7 * x) * sin(0.5 * z) * cos(0.3 * y) + 1;          // ZZ
+
+    // conformal traceless extrinsic curvature At (symmetric, same ordering)
+    var[VAR::U_SYMAT0] = A * env * sin(0.9 * x) * sin(0.3 * z) * cos(0.5 * y);              // XX
+    var[VAR::U_SYMAT1] = A * env * sin(0.7 * x + 0.2) * sin(0.5 * z + 0.2) * cos(0.9 * y);  // XY
+    var[VAR::U_SYMAT2] = A * env * sin(0.9 * x + 0.4) * sin(0.7 * z + 0.4) * cos(0.5 * y);  // XZ
+    var[VAR::U_SYMAT3] = A * env * sin(0.3 * x + 0.8) * sin(0.5 * z + 0.8) * cos(0.9 * y);  // YY
+    var[VAR::U_SYMAT4] = A * env * sin(0.5 * x + 0.6) * sin(0.9 * z + 0.6) * cos(0.7 * y);  // YZ
+    var[VAR::U_SYMAT5] = A * env * sin(0.5 * x + 0.5) * sin(0.9 * z + 0.5) * cos(0.3 * y);  // ZZ
 }
 
 void fake_initial_data(double xx1, double yy1, double zz1, double* u) {

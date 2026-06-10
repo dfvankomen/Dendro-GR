@@ -100,6 +100,8 @@ unsigned int BSSN_MINDEPTH = 3;
 
 unsigned int BSSN_ID_TYPE  = 0;
 
+double BSSN_NOISE_AMP      = 1.0;
+
 double BSSN_GRID_MIN_X     = -50.0;
 double BSSN_GRID_MAX_X     = 50.0;
 double BSSN_GRID_MIN_Y     = -50.0;
