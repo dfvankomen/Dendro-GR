@@ -1438,8 +1438,10 @@ void noiseData(const double xx1, const double yy1, const double zz1,
         random_variable[i] = 2.0 * rand() / ((double)RAND_MAX) - 1.0;
     }
 
-    // set a (uniform) amplitude for the noise
-    double noise_amp   = 1.0e-8;
+    // set a (uniform) amplitude for the noise -- runtime-controlled so the
+    // full-domain random test can sweep amplitude (CCZ4 parity: same knob,
+    // CCZ4_NOISE_AMP). Was hardcoded 1.0e-8.
+    double noise_amp   = bssn::BSSN_NOISE_AMP;
 
     var[VAR::U_ALPHA]  = 1.0 + noise_amp * random_variable[0];
 
