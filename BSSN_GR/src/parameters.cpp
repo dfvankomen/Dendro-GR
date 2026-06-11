@@ -216,6 +216,12 @@ unsigned int BSSN_NYQUIST_M                     = 0;
 
 bool BSSN_SCALE_VTU_AND_GW_EXTRACTION           = false;
 
+// which variables terminal_output computes RMS-deviation-from-flat norms for
+// (matches the CCZ4 dump). Just list the indices in the par ([] = off); the
+// count is the list length. Each selected var costs one ghost exchange.
+std::vector<unsigned int> BSSN_TERMINAL_OUTPUT_EVOL_INDICES  = {};
+std::vector<unsigned int> BSSN_TERMINAL_OUTPUT_CONST_INDICES = {};
+
 unsigned int BSSN_GW_EXTRACT_FREQ_TRUE          = 0;
 
 unsigned int BSSN_IO_OUTPUT_FREQ_TRUE           = 0;
@@ -681,6 +687,20 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_VTU_OUTPUT_CONST_INDICES[i] =
             parFile["BSSN_VTU_OUTPUT_CONST_INDICES"][i].as_integer();
     used_params.insert("BSSN_VTU_OUTPUT_CONST_INDICES");
+
+    // terminal_output norm selection: list of indices (count = list length)
+    if (parFile.contains("BSSN_TERMINAL_OUTPUT_EVOL_INDICES")) {
+        bssn::BSSN_TERMINAL_OUTPUT_EVOL_INDICES =
+            toml::find<std::vector<unsigned int>>(
+                parFile, "BSSN_TERMINAL_OUTPUT_EVOL_INDICES");
+        used_params.insert("BSSN_TERMINAL_OUTPUT_EVOL_INDICES");
+    }
+    if (parFile.contains("BSSN_TERMINAL_OUTPUT_CONST_INDICES")) {
+        bssn::BSSN_TERMINAL_OUTPUT_CONST_INDICES =
+            toml::find<std::vector<unsigned int>>(
+                parFile, "BSSN_TERMINAL_OUTPUT_CONST_INDICES");
+        used_params.insert("BSSN_TERMINAL_OUTPUT_CONST_INDICES");
+    }
 
     bssn::BSSN_IO_OUTPUT_FREQ_TRUE  = bssn::BSSN_IO_OUTPUT_FREQ;
     bssn::BSSN_GW_EXTRACT_FREQ_TRUE = bssn::BSSN_GW_EXTRACT_FREQ;

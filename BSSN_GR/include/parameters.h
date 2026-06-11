@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <toml.hpp>
+#include <vector>
 
 #ifdef DENDRO_HYBRID_OMP
 #include <omp.h>  // omp_get_max_threads / omp_get_thread_num for the hybrid path
@@ -453,6 +454,11 @@ extern unsigned int BSSN_HYBRID_NTHREADS;
 extern unsigned int BSSN_NYQUIST_M;
 
 extern bool BSSN_SCALE_VTU_AND_GW_EXTRACTION;
+
+// terminal_output RMS-deviation-from-flat norm selection (matches CCZ4 dump):
+// variable index lists (count = list length). Empty -> off.
+extern std::vector<unsigned int> BSSN_TERMINAL_OUTPUT_EVOL_INDICES;
+extern std::vector<unsigned int> BSSN_TERMINAL_OUTPUT_CONST_INDICES;
 
 extern unsigned int BSSN_GW_EXTRACT_FREQ_TRUE;
 

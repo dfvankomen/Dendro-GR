@@ -20,8 +20,13 @@
 #include <set>
 #include <string>
 
+#include <iomanip>
+#include <vector>
+
 #include "grUtils.h"
 #include "logger.h"
+#include "mathUtils.h"   // normRMSE, vecMin/vecMax(ptr,n,comm)
+#include "meshUtils.h"   // calculateL2FullMeshIntegration, integrateScalarFieldOnMesh
 #include "parUtils.h"
 #include "parameters.h"
 
@@ -1639,6 +1644,90 @@ int BSSNCtx::terminal_output() {
             if (std::isnan(min) || std::isnan(max)) {
                 std::cout << "[Error]: NAN detected " << std::endl;
                 MPI_Abort(m_uiMesh->getMPICommunicator(), 0);
+            }
+        }
+
+        // Optional RMS-deviation-from-flat norm dump, matching the CCZ4
+        // terminal_output so the two codes can be compared directly. Only the
+        // variables listed in BSSN_TERMINAL_OUTPUT_*_INDICES are computed (each
+        // costs a ghost exchange); constraints are computed only if any are
+        // selected. Both lists empty -> nothing extra is done.
+        const auto& termEvolSel = bssn::BSSN_TERMINAL_OUTPUT_EVOL_INDICES;
+        const auto& termConsSel = bssn::BSSN_TERMINAL_OUTPUT_CONST_INDICES;
+        if (!termEvolSel.empty() || !termConsSel.empty()) {
+            const int rank = m_uiMesh->getMPIRank();
+            const MPI_Comm comm = m_uiMesh->getMPICommunicator();
+            const unsigned int nLocal = m_uiMesh->getNumLocalMeshNodes();
+            const unsigned int nodeBegin = m_uiMesh->getNodeLocalBegin();
+            const size_t dof = m_uiMesh->getDegOfFreedom();
+
+            // flat-space (Minkowski) reference: lapse, chi, gt diagonal = 1
+            double flat_ref[bssn::BSSN_NUM_VARS];
+            for (unsigned int v = 0; v < bssn::BSSN_NUM_VARS; v++)
+                flat_ref[v] = 0.0;
+            flat_ref[bssn::VAR::U_ALPHA]  = 1.0;
+            flat_ref[bssn::VAR::U_CHI]    = 1.0;
+            flat_ref[bssn::VAR::U_SYMGT0] = 1.0;  // gt_xx
+            flat_ref[bssn::VAR::U_SYMGT3] = 1.0;  // gt_yy
+            flat_ref[bssn::VAR::U_SYMGT5] = 1.0;  // gt_zz
+
+            // V = int 1 dV (AMR and uniform grids alike)
+            std::vector<double> onesVec;
+            m_uiMesh->createVector(onesVec);
+            for (size_t i = 0; i < dof; i++) onesVec[i] = 1.0;
+            const double meshVolume =
+                integrateScalarFieldOnMesh(m_uiMesh, onesVec.data());
+            const double invMeshVolume =
+                (meshVolume > 0.0) ? (1.0 / meshVolume) : 0.0;
+
+            if (rank == 0)
+                std::cout << "[BSSN] step=" << bssn::BSSN_CURRENT_RK_STEP
+                          << " t=" << bssn::BSSN_CURRENT_RK_COORD_TIME
+                          << std::endl;
+
+            if (!termEvolSel.empty()) {
+                DendroScalar* zippedUp[bssn::BSSN_NUM_VARS];
+                m_var[VL::CPU_EV].to_2d(zippedUp);
+                std::vector<double> devVec;
+                m_uiMesh->createVector(devVec);
+                for (unsigned int v : termEvolSel) {
+                    if (v >= bssn::BSSN_NUM_VARS) continue;
+                    double l_min = vecMin(&zippedUp[v][nodeBegin], nLocal, comm);
+                    double l_max = vecMax(&zippedUp[v][nodeBegin], nLocal, comm);
+                    for (size_t i = 0; i < dof; i++)
+                        devVec[i] = zippedUp[v][i] - flat_ref[v];
+                    double rms = normRMSE(&devVec[nodeBegin], nLocal, comm);
+                    double rms_vol = std::sqrt(
+                        calculateL2FullMeshIntegration(m_uiMesh, devVec.data()) *
+                        invMeshVolume);
+                    if (rank == 0)
+                        std::cout << "\t[var]:  " << std::setw(12)
+                                  << bssn::BSSN_VAR_NAMES[v]
+                                  << " (min, max, rms_dev, rms_dev_vol) : \t ( "
+                                  << l_min << ", " << l_max << ", " << rms << ", "
+                                  << rms_vol << ") " << std::endl;
+                }
+            }
+
+            if (!termConsSel.empty()) {
+                this->compute_constraint_variables();
+                DendroScalar* zippedCons[bssn::BSSN_CONSTRAINT_NUM_VARS];
+                m_var[VL::CPU_CV].to_2d(zippedCons);
+                for (unsigned int v : termConsSel) {
+                    if (v >= bssn::BSSN_CONSTRAINT_NUM_VARS) continue;
+                    double l_min = vecMin(&zippedCons[v][nodeBegin], nLocal, comm);
+                    double l_max = vecMax(&zippedCons[v][nodeBegin], nLocal, comm);
+                    double rms = normRMSE(&zippedCons[v][nodeBegin], nLocal, comm);
+                    double rms_vol = std::sqrt(
+                        calculateL2FullMeshIntegration(m_uiMesh, zippedCons[v]) *
+                        invMeshVolume);
+                    if (rank == 0)
+                        std::cout << "\t[con]:  " << std::setw(12)
+                                  << bssn::BSSN_CONSTRAINT_VAR_NAMES[v]
+                                  << " (min, max, rms, rms_vol) : \t ( "
+                                  << l_min << ", " << l_max << ", " << rms << ", "
+                                  << rms_vol << ") " << std::endl;
+                }
             }
         }
     }
