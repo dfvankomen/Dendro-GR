@@ -250,10 +250,6 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_CFL_FACTOR = parFile["BSSN_CFL_FACTOR"];
     }
 
-    if (parFile.find("BSSN_NOISE_AMP") != parFile.end()) {
-        bssn::BSSN_NOISE_AMP = parFile["BSSN_NOISE_AMP"];
-    }
-
     if (parFile.find("BSSN_VTU_Z_SLICE_ONLY") != parFile.end())
         bssn::BSSN_VTU_Z_SLICE_ONLY = parFile["BSSN_VTU_Z_SLICE_ONLY"];
 

@@ -443,6 +443,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"CHI_FLOOR", bssn::CHI_FLOOR},
         {"BSSN_TRK0", bssn::BSSN_TRK0},
         {"KO_DISS_SIGMA", bssn::KO_DISS_SIGMA},
+        {"BSSN_NOISE_AMP", bssn::BSSN_NOISE_AMP, UseInitialValue},
 #ifdef DENDRO_USE_NEW_DERIVS
         {"BSSN_DERIVTYPE_FIRST", bssn::BSSN_DERIVTYPE_FIRST, UseInitialValue},
         {"BSSN_DERIVTYPE_SECOND", bssn::BSSN_DERIVTYPE_SECOND, UseInitialValue},
