@@ -616,7 +616,11 @@ bool isRemeshEH(ot::Mesh* pMesh, const double** unzipVec, unsigned int vIndex,
         unsigned int sz[3];
         unsigned int ei[3];
 
-        // refine test
+        // refine test: per-element, write-disjoint -> thread the block loop
+        // (sz/ei per-thread). Gated; serial + bit-identical when off.
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 1) private(sz, ei)
+#endif
         for (unsigned int b = 0; b < blkList.size(); b++) {
             const ot::TreeNode blkNode = blkList[b].getBlockNode();
 
@@ -674,7 +678,12 @@ bool isRemeshEH(ot::Mesh* pMesh, const double** unzipVec, unsigned int vIndex,
             }
         }
 
-        // coarsen test.
+        // coarsen test. Sibling groups stay within a block, so blocks are
+        // independent -> thread the block loop (sz/ei per-thread). The refine
+        // pass above completed first (separate loop). Gated; serial when off.
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 1) private(sz, ei)
+#endif
         for (unsigned int b = 0; b < blkList.size(); b++) {
             const ot::TreeNode blkNode = blkList[b].getBlockNode();
 
