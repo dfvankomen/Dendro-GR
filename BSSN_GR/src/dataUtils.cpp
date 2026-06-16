@@ -172,6 +172,139 @@ static inline double onionRatioGaugeLogistic(
     return logisticTransition(tau, t_transition, sigma, y_init, y_final);
 }
 
+// ---------------------------------------------------------------------------
+// Unified parallel refinement driver (hybrid-OpenMP, turn-off-able).
+//
+// refineFlagsPass runs `decide` for every LOCAL element (block-parallel, with a
+// per-thread WaveletEl + scratch) and stores the returned octant flag in
+// refine_flags. `decide(ctx, currentFlag)` receives element geometry + a
+// thread-safe wavelet-error helper and the element's current flag, so passes
+// compose (e.g. a wavelet decision followed by a BH-proximity override).
+// Physicists edit only the per-element lambda; the threading lives here.
+//
+// With DENDRO_HYBRID_OMP OFF this is a plain serial loop with one shared scratch
+// set -> bit-identical results, no OpenMP constructs compiled in.
+// ---------------------------------------------------------------------------
+struct RefineElemCtx {
+    ot::Mesh* mesh;
+    const ot::TreeNode* node;  // &pNodes[ele]
+    unsigned int ele;
+    unsigned int blk;
+    unsigned int level;
+    bool isBdyOct;
+    Point domain_pt;  // domain coord of the element's min corner
+    double hx[3];     // domain grid spacing along each axis
+    // thread-local wavelet machinery (owned by the driver). im1/im2 are the
+    // per-thread scratch the thread-safe compute_wavelets_3D needs so threads
+    // don't race on RefElement's shared im_vec1/im_vec2.
+    wavelet::WaveletEl* wrefEl;
+    double* eVecTmp;
+    std::vector<double>* wCout;
+    const unsigned int* isz;
+    double* im1;
+    double* im2;
+
+    // Relative L2 wavelet-coefficient error of one unzipped variable at this
+    // element (matches the original WAMR normalization).
+    double waveletErrorL2(const double* unzipVar) const {
+        mesh->getUnzipElementalNodalValues(unzipVar, blk, ele, eVecTmp, true);
+        wrefEl->compute_wavelets_3D((double*)eVecTmp, isz, *wCout, isBdyOct, im1,
+                                    im2);
+        double Linf = 1.0;
+        Linf        = std::max(Linf, 1e-2);
+        return (normL2(wCout->data(), wCout->size())) / sqrt(wCout->size()) /
+               Linf;
+    }
+};
+
+template <typename DecideFn>
+static void refineFlagsPass(ot::Mesh* pMesh,
+                            std::vector<unsigned int>& refine_flags,
+                            DecideFn&& decide) {
+    if (!pMesh->isActive()) return;
+    const unsigned int eleLocalBegin      = pMesh->getElementLocalBegin();
+    const ot::TreeNode* pNodes            = pMesh->getAllElements().data();
+    const RefElement* refEl               = pMesh->getReferenceElement();
+    const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
+    const unsigned int eOrder             = pMesh->getElementOrder();
+    const unsigned int n1                 = 2 * eOrder + 1;
+    const unsigned int szpd               = n1 * n1 * n1;
+    const unsigned int nPe = (eOrder + 1) * (eOrder + 1) * (eOrder + 1);
+    const unsigned int isz[3]             = {n1, n1, n1};
+
+    auto run_block = [&](size_t b, wavelet::WaveletEl& wrefEl, double* eVecTmp,
+                         std::vector<double>& wCout, double* im1, double* im2) {
+        for (unsigned int ele = blkList[b].getLocalElementBegin();
+             ele < blkList[b].getLocalElementEnd(); ele++) {
+            const double oct_dx =
+                (1u << (m_uiMaxDepth - pNodes[ele].getLevel())) /
+                (double(eOrder));
+            Point oct_pt1(pNodes[ele].minX(), pNodes[ele].minY(),
+                          pNodes[ele].minZ());
+            Point oct_pt2(pNodes[ele].minX() + oct_dx,
+                          pNodes[ele].minY() + oct_dx,
+                          pNodes[ele].minZ() + oct_dx);
+            Point dpt1, dpt2;
+            pMesh->octCoordToDomainCoord(oct_pt1, dpt1);
+            pMesh->octCoordToDomainCoord(oct_pt2, dpt2);
+            Point dxd = dpt2 - dpt1;
+
+            RefineElemCtx ctx;
+            ctx.mesh      = pMesh;
+            ctx.node      = &pNodes[ele];
+            ctx.ele       = ele;
+            ctx.blk       = (unsigned int)b;
+            ctx.level     = pNodes[ele].getLevel();
+            ctx.isBdyOct  = pMesh->isBoundaryOctant(ele);
+            ctx.domain_pt = dpt1;
+            ctx.hx[0]     = dxd.x();
+            ctx.hx[1]     = dxd.y();
+            ctx.hx[2]     = dxd.z();
+            ctx.wrefEl    = &wrefEl;
+            ctx.eVecTmp   = eVecTmp;
+            ctx.wCout     = &wCout;
+            ctx.isz       = isz;
+            ctx.im1       = im1;
+            ctx.im2       = im2;
+            refine_flags[ele - eleLocalBegin] =
+                decide(ctx, refine_flags[ele - eleLocalBegin]);
+        }
+    };
+
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel
+    {
+        wavelet::WaveletEl wrefEl_t((RefElement*)refEl);
+        std::vector<double> eVecTmp_t(szpd), wCout_t(szpd);
+        std::vector<double> im1_t(nPe), im2_t(nPe);
+#pragma omp for schedule(dynamic, 1)
+        for (size_t b = 0; b < blkList.size(); b++)
+            run_block(b, wrefEl_t, eVecTmp_t.data(), wCout_t, im1_t.data(),
+                      im2_t.data());
+    }
+#else
+    wavelet::WaveletEl wrefEl_t((RefElement*)refEl);
+    std::vector<double> eVecTmp_t(szpd), wCout_t(szpd);
+    std::vector<double> im1_t(nPe), im2_t(nPe);
+    for (size_t b = 0; b < blkList.size(); b++)
+        run_block(b, wrefEl_t, eVecTmp_t.data(), wCout_t, im1_t.data(),
+                  im2_t.data());
+#endif
+}
+
+// setMeshRefinementFlags on active ranks + the (collective) is-oct-change
+// allreduce on all ranks. Pairs with refineFlagsPass.
+static bool commitRefineFlags(ot::Mesh* pMesh,
+                              std::vector<unsigned int>& refine_flags) {
+    bool isOctChange = false;
+    if (pMesh->isActive())
+        isOctChange = pMesh->setMeshRefinementFlags(refine_flags);
+    bool isOctChange_g = false;
+    MPI_Allreduce(&isOctChange, &isOctChange_g, 1, MPI_CXX_BOOL, MPI_LOR,
+                  pMesh->getMPIGlobalCommunicator());
+    return isOctChange_g;
+}
+
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const dendro_bh::BHHistory& bhHistory,
                 const dendro_aeh::AEH_BHaHAHA* ahFinder) {
@@ -666,106 +799,41 @@ bool isReMeshWAMR(
         if (!pMesh->getMPIRank()) printf("BH coord sep: %.8E \n", dBH);
         // std::cout<<"BH coord sep: "<<dBH<<std::endl;
 
-        const RefElement* refEl    = pMesh->getReferenceElement();
-        wavelet::WaveletEl* wrefEl = new wavelet::WaveletEl((RefElement*)refEl);
-
         refine_flags.resize(pMesh->getNumLocalMeshElements(), OCT_NO_CHANGE);
-        const ot::TreeNode* pNodes = pMesh->getAllElements().data();
 
-        std::vector<double> wtol_vals;
-        wtol_vals.resize(BSSN_NUM_VARS, 0);
-
-        const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
-        const unsigned int eOrder             = pMesh->getElementOrder();
-
-        const unsigned int nx                 = (2 * eOrder + 1);
-        const unsigned int ny                 = (2 * eOrder + 1);
-        const unsigned int nz                 = (2 * eOrder + 1);
-
-        const unsigned int sz_per_dof         = nx * ny * nz;
-        const unsigned int isz[]              = {nx, ny, nz};
-        std::vector<double> eVecTmp;
-        eVecTmp.resize(sz_per_dof);
-
-        std::vector<double> wCout;
-        wCout.resize(sz_per_dof);
-
-        for (unsigned int blk = 0; blk < blkList.size(); blk++) {
-            const unsigned int pw    = blkList[blk].get1DPadWidth();
-            const unsigned int bflag = blkList[blk].getBlkNodeFlag();
-            assert(pw == (eOrder >> 1u));
-
-            for (unsigned int ele = blkList[blk].getLocalElementBegin();
-                 ele < blkList[blk].getLocalElementEnd(); ele++) {
-                const bool isBdyOct = pMesh->isBoundaryOctant(ele);
-                const double oct_dx =
-                    (1u << (m_uiMaxDepth - pNodes[ele].getLevel())) /
-                    (double(eOrder));
-
-                Point oct_pt1 = Point(pNodes[ele].minX(), pNodes[ele].minY(),
-                                      pNodes[ele].minZ());
-                Point oct_pt2 = Point(pNodes[ele].minX() + oct_dx,
-                                      pNodes[ele].minY() + oct_dx,
-                                      pNodes[ele].minZ() + oct_dx);
-                Point domain_pt1, domain_pt2, dx_domain;
-                pMesh->octCoordToDomainCoord(oct_pt1, domain_pt1);
-                pMesh->octCoordToDomainCoord(oct_pt2, domain_pt2);
-                dx_domain    = domain_pt2 - domain_pt1;
-                double hx[3] = {dx_domain.x(), dx_domain.y(), dx_domain.z()};
-                const double tol_ele = wavelet_tol(
-                    domain_pt1.x(), domain_pt1.y(), domain_pt1.z(), hx);
-
-                // initialize all the wavelet errors to zero initially.
-                for (unsigned int v = 0; v < BSSN_NUM_VARS; v++)
-                    wtol_vals[v] = 0;
-
-                // calculate L2 norm of wavelet coefficients
-                // for each variable; if any exceed limit,
-                // break out early
+        // Phase 1: WAMR wavelet decision. Per-element + parallel via the unified
+        // driver; the physicist edits only this lambda. (Math identical to the
+        // former serial loop: max relative wavelet-coeff L2 over refine vars,
+        // with the early-bail, vs the per-element tolerance.)
+        refineFlagsPass(
+            pMesh, refine_flags,
+            [&](const RefineElemCtx& c, unsigned int) -> unsigned int {
+                const double tol_ele =
+                    wavelet_tol(c.domain_pt.x(), c.domain_pt.y(),
+                                c.domain_pt.z(), const_cast<double*>(c.hx));
+                double l_max = 0.0;
                 for (unsigned int v = 0; v < numVars; v++) {
-                    const unsigned int vid = varIds[v];
-                    pMesh->getUnzipElementalNodalValues(
-                        unzippedVec[vid], blk, ele, eVecTmp.data(), true);
-
-                    // computes the wavelets.
-                    wrefEl->compute_wavelets_3D((double*)(eVecTmp.data()), isz,
-                                                wCout, isBdyOct);
-                    // calculate the L-infinity norm of values on the grid
-                    // double Linf = normLInfty(eVecTmp.data(), eVecTmp.size());
-                    double Linf    = 1.0;  // remove this for relWAMR
-                    // ensure not exploding with the relative values (div by 0)
-                    Linf           = std::max(Linf, 1e-2);
-                    // renormalize waveleth values as relative to L-infty norm
-                    wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
-                                     sqrt(wCout.size()) / Linf;
-
-                    // early bail if the computed tolerance value is large.
-                    if (wtol_vals[vid] > tol_ele) break;
+                    const double w = c.waveletErrorL2(unzippedVec[varIds[v]]);
+                    l_max          = std::max(l_max, w);
+                    if (w > tol_ele) break;  // early bail
                 }
-                // compute maximum wavelet coefficient of the compiled set
-                const double l_max = vecMax(wtol_vals.data(), wtol_vals.size());
-
-                // use max wavelet coefficient to decide whether
-                // to coaresen / refine / no change
-                if (l_max > tol_ele) {
-                    // if under-refined, then refine
-                    refine_flags[(ele - eleLocalBegin)] = OCT_SPLIT;
-                } else if (l_max < amr_coarse_fac * tol_ele) {
-                    // if over-refined, then coarsen
-                    refine_flags[(ele - eleLocalBegin)] = OCT_COARSE;
-                } else {
-                    // Goldilox zone - no changes needed
-                    refine_flags[(ele - eleLocalBegin)] = OCT_NO_CHANGE;
-                }
-            }
-        }
-
-        delete wrefEl;
+                if (l_max > tol_ele)
+                    return (unsigned int)OCT_SPLIT;
+                else if (l_max < amr_coarse_fac * tol_ele)
+                    return (unsigned int)OCT_COARSE;
+                return (unsigned int)OCT_NO_CHANGE;
+            });
         // end of WAMR core calculation.
 
         ////////////////////////////////////////////////////////////////
         // Below code enforces a certain level of refinement at the BHs,
-        // overriding what's currently set by the wavelets.
+        // overriding what's currently set by the wavelets. Per-element and
+        // write-disjoint, so thread it directly (gated); d1/d2/temp are
+        // per-thread. Bit-identical to the serial path.
+        const ot::TreeNode* pNodes = pMesh->getAllElements().data();
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 1) private(d1, d2, temp)
+#endif
         for (unsigned int ele = eleLocalBegin; ele < eleLocalEnd; ele++) {
             // refine_flags[ele-eleLocalBegin] =
             // (pNodes[ele].getFlag()>>NUM_LEVEL_BITS); std::cout<<"ref flag:
