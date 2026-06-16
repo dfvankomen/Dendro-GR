@@ -4,6 +4,9 @@
 
 #include "dataUtils.h"
 
+#include <cmath>
+#include <iomanip>
+#include <limits>
 #include <utility>
 
 #include "bssnCtx.h"
@@ -132,11 +135,12 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
 
         // writes the header
         if (timestep == 0)
-            fileGW << "TimeStep\t" << " time\t" << " bh1_x\t" << " bh1_y\t"
-                   << " bh1_z\t" << " bh2_x\t" << " bh2_y\t" << " bh2_z\t"
+            fileGW << "TimeStep\t" << "time\t" << "bh1_x\t" << "bh1_y\t"
+                   << "bh1_z\t" << "bh2_x\t" << "bh2_y\t" << "bh2_z\t"
                    << std::endl;
 
-        fileGW << timestep << "\t" << time << "\t" << ptLocs[0].x() << "\t"
+        fileGW << std::setprecision(std::numeric_limits<double>::max_digits10)
+               << timestep << "\t" << time << "\t" << ptLocs[0].x() << "\t"
                << ptLocs[0].y() << "\t" << ptLocs[0].z() << "\t"
                << ptLocs[1].x() << "\t" << ptLocs[1].y() << "\t"
                << ptLocs[1].z() << std::endl;
@@ -148,6 +152,25 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
 // The BH-derived kinematics that used to live here as free functions now live
 // in dendro_bh::BHHistory (dendrolib, include/bh_history.h), which maintains
 // them incrementally. isRemeshBH consumes that object directly.
+
+// standard logistic transition from y_init to y_final over timescale sigma,
+// centered about x0
+static inline double logisticTransition(double x, double x0, double sigma,
+                                        double y_init = 0.0,
+                                        double y_final = 1.0) {
+    const double s = 1.0 / (1.0 + std::exp(-(x - x0) / sigma));
+    return y_init + (y_final - y_init) * s;
+}
+
+// logistic transition of the onion AMR ratio, tuned to the gauge wave leaving
+// the BHs (retarded time tau = t - r / gauge_speed)
+static inline double onionRatioGaugeLogistic(
+    double t, double r, double y_final = bssn::BSSN_AMR_R_RATIO,
+    double y_init = 2.0, double t_transition = 20.0, double sigma = 5.0,
+    double gauge_speed = std::sqrt(2.0)) {
+    const double tau = t - r / gauge_speed;
+    return logisticTransition(tau, t_transition, sigma, y_init, y_final);
+}
 
 bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const dendro_bh::BHHistory& bhHistory,
@@ -283,7 +306,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double f2      = m1 / (m1 + m2);
             const double f       = std::max(f1, f2);
             const double R_orbit = f * dBH + 8;  // M; resolve scale
-            const int l_orbit    = 9;  // desired refinement level within
+            const int l_orbit    = 2;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
                 setLevelFloor(l_orbit);
@@ -321,25 +344,19 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             ////////////////////////////////////////////////////////////
             // Onion refinement immediately about the black holes
             if (dBH > BH_MERGED_SEP_TOL) {
-                // if not merged yet, handle BHs separately to set up onion
-                double ratio;  // ratio of radii btw concentric layers
-                int shift;
-                // DISABLED: option to boost initial refinement
-                if (bssn::BSSN_CURRENT_RK_COORD_TIME < -10) {
-                    // boost initial refinement, bolstering onion
-                    ratio = 2.0;
-                    shift = 1;
-                } else {  // relax onion later
-                    ratio = bssn::BSSN_AMR_R_RATIO;
-                    shift = 0;
-                }
+                // if not merged yet, handle BHs separately to set up onion.
+                // smoothly transition each BH's onion ratio toward the target
+                // as the gauge wave passes (logistic in retarded time).
+                const double t_current = bssn::BSSN_CURRENT_RK_COORD_TIME;
+                const double ratio_1 = onionRatioGaugeLogistic(t_current, r1_min);
+                const double ratio_2 = onionRatioGaugeLogistic(t_current, r2_min);
                 // refinement levels near each BH
                 const int l_goal_0 =
                     onionLevel(r1_min, r_near[0],
-                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF + shift, ratio);
+                               bssn::BSSN_BH1_MAX_LEV - LVL_OFF, ratio_1);
                 const int l_goal_1 =
                     onionLevel(r2_min, r_near[1],
-                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF + shift, ratio);
+                               bssn::BSSN_BH2_MAX_LEV - LVL_OFF, ratio_2);
                 setLevelFloor(l_goal_0);
                 setLevelFloor(l_goal_1);
             } else {
