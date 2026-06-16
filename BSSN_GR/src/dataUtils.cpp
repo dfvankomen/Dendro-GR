@@ -206,12 +206,14 @@ struct RefineElemCtx {
 
     // Relative L2 wavelet-coefficient error of one unzipped variable at this
     // element (matches the original WAMR normalization).
-    double waveletErrorL2(const double* unzipVar) const {
+    double waveletErrorL2(const double* unzipVar, bool relative = false) const {
         mesh->getUnzipElementalNodalValues(unzipVar, blk, ele, eVecTmp, true);
         wrefEl->compute_wavelets_3D((double*)eVecTmp, isz, *wCout, isBdyOct, im1,
                                     im2);
+        // relative WAMR normalizes by the element's L-inf; absolute uses 1.0.
         double Linf = 1.0;
-        Linf        = std::max(Linf, 1e-2);
+        if (relative)
+            Linf = std::max(normLInfty(eVecTmp, isz[0] * isz[1] * isz[2]), 1e-2);
         return (normL2(wCout->data(), wCout->size())) / sqrt(wCout->size()) /
                Linf;
     }
@@ -372,7 +374,13 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         // kinematics come from the incremental BHHistory; only the clean
         // orbital wavelength is consumed below
 
-        // refine pass: iterate over all elements
+        // refine pass: per-element + write-disjoint, so thread directly (gated);
+        // d1/d2/temp are per-thread. Geometry-only (no wavelet scratch needed),
+        // so a direct pragma is cleaner than the driver here. Bit-identical to
+        // the serial path.
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 1) private(d1, d2, temp)
+#endif
         for (unsigned int ele = eleLocalBegin; ele < eleLocalEnd; ele++) {
             // calculate which region of the grid we're in
             const unsigned int ln = 1u
@@ -1290,141 +1298,46 @@ bool addRemeshWAMR(
     // pull in current refinement flags
     std::vector<unsigned int> refine_flags = pMesh->getAllRefinementFlags();
 
-    const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
-
-    const unsigned int eleLocalBegin = pMesh->getElementLocalBegin();
-    const unsigned int eleLocalEnd   = pMesh->getElementLocalEnd();
-    bool isOctChange                 = false;
-    bool isOctChange_g               = false;
-    Point d1, d2, temp;
-
-    const unsigned int eOrder = pMesh->getElementOrder();
-    const double dBH          = (BSSN_BH_LOC[0] - BSSN_BH_LOC[1]).abs();
-    const unsigned int refLevMin =
-        std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
-
-    // BH considered merged if the distance between punctures are less than the
-    // specified value.
-    const double BH_MERGED_SEP_TOL = 0.1;
+    bool isOctChange   = false;
+    bool isOctChange_g = false;
+    const double dBH   = (BSSN_BH_LOC[0] - BSSN_BH_LOC[1]).abs();
 
     if (pMesh->isActive()) {
         if (!pMesh->getMPIRank()) printf("BH coord sep: %.8E \n", dBH);
         // std::cout<<"BH coord sep: "<<dBH<<std::endl;
 
-        const RefElement* refEl    = pMesh->getReferenceElement();
-        wavelet::WaveletEl* wrefEl = new wavelet::WaveletEl((RefElement*)refEl);
-
-        // pull current refinement flags
-        const ot::TreeNode* pNodes = pMesh->getAllElements().data();
-
-        // set up vector to collect wavelet tolerance values
-        std::vector<double> wtol_vals(BSSN_NUM_VARS, 0.0);
-
-        const std::vector<ot::Block>& blkList = pMesh->getLocalBlockList();
-        const unsigned int eOrder             = pMesh->getElementOrder();
-
-        const unsigned int nx                 = (2 * eOrder + 1);
-        const unsigned int ny                 = (2 * eOrder + 1);
-        const unsigned int nz                 = (2 * eOrder + 1);
-
-        const unsigned int sz_per_dof         = nx * ny * nz;
-        const unsigned int isz[]              = {nx, ny, nz};
-        std::vector<double> eVecTmp;
-        eVecTmp.resize(sz_per_dof);
-
-        std::vector<double> wCout;
-        wCout.resize(sz_per_dof);
-
-        for (unsigned int blk = 0; blk < blkList.size(); blk++) {
-            const unsigned int pw    = blkList[blk].get1DPadWidth();
-            const unsigned int bflag = blkList[blk].getBlkNodeFlag();
-            assert(pw == (eOrder >> 1u));
-
-            for (unsigned int ele = blkList[blk].getLocalElementBegin();
-                 ele < blkList[blk].getLocalElementEnd(); ele++) {
-                const bool isBdyOct = pMesh->isBoundaryOctant(ele);
-                const double oct_dx =
-                    (1u << (m_uiMaxDepth - pNodes[ele].getLevel())) /
-                    (double(eOrder));
-
-                Point oct_pt1 = Point(pNodes[ele].minX(), pNodes[ele].minY(),
-                                      pNodes[ele].minZ());
-                Point oct_pt2 = Point(pNodes[ele].minX() + oct_dx,
-                                      pNodes[ele].minY() + oct_dx,
-                                      pNodes[ele].minZ() + oct_dx);
-                Point domain_pt1, domain_pt2, dx_domain;
-                pMesh->octCoordToDomainCoord(oct_pt1, domain_pt1);
-                pMesh->octCoordToDomainCoord(oct_pt2, domain_pt2);
-                dx_domain      = domain_pt2 - domain_pt1;
-                double hx[3]   = {dx_domain.x(), dx_domain.y(), dx_domain.z()};
-                double tol_ele = wavelet_tol(domain_pt1.x(), domain_pt1.y(),
-                                             domain_pt1.z(), hx);
-
-                ////////////////////////////////////////////////////////
-                // wkb 17 Oct: amplify wavelet tolerance if w/i BH radii
-                // calculate distances to each black hole
+        // WAMR add-only decision: per element + parallel via the unified
+        // driver; physicist edits only this lambda.
+        refineFlagsPass(
+            pMesh, refine_flags,
+            [&](const RefineElemCtx& c, unsigned int curFlag) -> unsigned int {
+                double tol_ele =
+                    wavelet_tol(c.domain_pt.x(), c.domain_pt.y(),
+                                c.domain_pt.z(), const_cast<double*>(c.hx));
+                // amplify the tolerance (effectively disable WAMR) within
+                // either BH's AMR radius.
                 const double r_BH1 =
-                    (domain_pt1 - BSSN_BH_LOC[0]).abs() / bssn::BSSN_BH1_AMR_R;
+                    (c.domain_pt - BSSN_BH_LOC[0]).abs() / bssn::BSSN_BH1_AMR_R;
                 const double r_BH2 =
-                    (domain_pt1 - BSSN_BH_LOC[1]).abs() / bssn::BSSN_BH2_AMR_R;
-                // overwrite if we're w/i the AMR radius of either BH
-                if (std::min(r_BH1, r_BH2) <= 1) {
-                    // large amplification of tolerance should
-                    // effectively disable WAMR w/i the BHs.
-                    tol_ele *= 1e12;
-                }
+                    (c.domain_pt - BSSN_BH_LOC[1]).abs() / bssn::BSSN_BH2_AMR_R;
+                if (std::min(r_BH1, r_BH2) <= 1) tol_ele *= 1e12;
 
-                // initialize all the wavelet errors to zero initially.
-                for (unsigned int v = 0; v < BSSN_NUM_VARS; v++)
-                    wtol_vals[v] = 0;
-
-                // calculate L2 norm of wavelet tolerances for each
-                // variable; if any exceed limit, break out early
+                double l_max = 0.0;
                 for (unsigned int v = 0; v < numVars; v++) {
-                    const unsigned int vid = varIds[v];
-                    pMesh->getUnzipElementalNodalValues(
-                        unzippedVec[vid], blk, ele, eVecTmp.data(), true);
-
-                    // computes the wavelets.
-                    wrefEl->compute_wavelets_3D((double*)(eVecTmp.data()), isz,
-                                                wCout, isBdyOct);
-
-                    // toggle using relative wavelets or not
-                    double Linf;  // initialize normalization
-                    if (relative_WAMR) {
-                        // calculate the L-infinity norm of values on the grid
-                        Linf = normLInfty(eVecTmp.data(), eVecTmp.size());
-                        // ensure not exploding with the relative values (div by
-                        // 0)
-                        Linf = std::max(Linf, 1e-2);
-                    } else {
-                        Linf = 1.0;
-                    }
-
-                    // renormalize wavelet tolerance values
-                    wtol_vals[vid] = (normL2(wCout.data(), wCout.size())) /
-                                     sqrt(wCout.size()) / Linf;
-
-                    // early bail if the computed tolerance value is large.
-                    if (wtol_vals[vid] > tol_ele) break;
+                    const double w =
+                        c.waveletErrorL2(unzippedVec[varIds[v]], relative_WAMR);
+                    l_max = std::max(l_max, w);
+                    if (w > tol_ele) break;  // early bail
                 }
-                const double l_max = vecMax(wtol_vals.data(), wtol_vals.size());
-
-                // if we exceed the tolerance, then add refinement,
-                // overwriting whatever the current flag is
-                if (l_max > tol_ele) {
-                    refine_flags[(ele - eleLocalBegin)] = OCT_SPLIT;
-                } else if (refine_flags[(ele - eleLocalBegin)] == OCT_COARSE &&
-                           l_max >= amr_coarse_fac * tol_ele) {
-                    // if it wanted to coarsen, but the current level of
-                    // refinement is actually necessary, then we're in
-                    // the Goldilocks zone: Don't change!
-                    refine_flags[(ele - eleLocalBegin)] = OCT_NO_CHANGE;
-                }
-            }
-        }
-
-        delete wrefEl;
+                // add refinement; protect needed refinement from coarsening;
+                // otherwise leave the existing flag untouched.
+                if (l_max > tol_ele)
+                    return (unsigned int)OCT_SPLIT;
+                else if (curFlag == OCT_COARSE &&
+                         l_max >= amr_coarse_fac * tol_ele)
+                    return (unsigned int)OCT_NO_CHANGE;
+                return curFlag;
+            });
 
         // check whether any changes have been made to the grid here
         isOctChange = pMesh->setMeshRefinementFlags(refine_flags);
