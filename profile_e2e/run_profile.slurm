@@ -57,6 +57,10 @@ MPI_LAUNCH=${MPI_LAUNCH:-srun}
 # vanilla FetchContent pulls an old dendrolib master that lacks it. Point at the
 # CHPC checkout of dendrolib_dfvk_copy.
 DENDROLIB_DIR=${DENDROLIB_DIR:-$HOME/research/dendrolib_dfvk_copy}
+# Where the (large, ~1-2GB each) build dirs go. Set to a SHARED scratch path to
+# keep them off home quota, e.g. /scratch/general/vast/$USER/dendrogr_builds.
+# Must be shared (not node-local /scratch/local) so multi-node MPI sees the binary.
+BUILD_ROOT=${BUILD_ROOT:-"$HERE"}
 OUT=${OUT:-"$HERE/profile_results_${SLURM_JOB_ID:-local}.csv"}
 # Default decomposes the speedup: production -> non-fused (kernel restructuring)
 # -> fused (+ stencil fusion), both widths. For strong scaling, override with just
@@ -101,7 +105,7 @@ base_ets=""
 for v in $VARIANTS; do
   flag="${FLAG[$v]-__UNSET__}"
   [[ "$flag" == "__UNSET__" ]] && { echo "## unknown variant '$v' — skipping"; continue; }
-  bdir="$HERE/build_$v"; bin="$bdir/BSSN_GR/bssnSolver"
+  mkdir -p "$BUILD_ROOT"; bdir="$BUILD_ROOT/build_$v"; bin="$bdir/BSSN_GR/bssnSolver"
   echo ""; echo "===== $v  (${flag:-production CSE}) ====="
   if [[ ! -x "$bin" ]]; then
     echo "## building (fresh, identical config + $flag) ..."
