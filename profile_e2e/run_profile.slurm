@@ -54,7 +54,8 @@ NTASKS=${NTASKS:-${SLURM_NTASKS:-4}}
 PARFILE=${PARFILE:-"$HERE/q1.profile.4node.par.toml"}
 CPU_ARCH=${CPU_ARCH:-native}
 JOBS=${JOBS:-$(nproc)}
-MPI_LAUNCH=${MPI_LAUNCH:-srun}
+MPI_LAUNCH=${MPI_LAUNCH:-mpirun}  # OpenMPI: mpirun is SLURM-aware + needs no srun MPI plugin.
+                                  # Use srun only if your SLURM has the matching --mpi plugin (pmix/pmi2).
 # Local dendrolib with dendro_bh::BHHistory (bh_history.h); REQUIRED on dfvk —
 # vanilla FetchContent pulls an old dendrolib master that lacks it. Point at the
 # CHPC checkout of dendrolib_dfvk_copy.
