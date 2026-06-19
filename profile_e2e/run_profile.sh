@@ -21,6 +21,7 @@ JOBS=${JOBS:-$(nproc)}
 ENV_SETUP=${ENV_SETUP:-/opt/intel/oneapi/setvars.sh} # MKL (+icpx). On HPC: a script that `module load`s.
 # Local dendrolib with dendro_bh::BHHistory (bh_history.h); empty => CMake FetchContents master.
 DENDROLIB_DIR=${DENDROLIB_DIR:-$HOME/research/dendrolib_dfvk_copy}
+BUILD_ROOT=${BUILD_ROOT:-"$HERE"}   # set to a shared scratch path to keep build dirs off home
 OUT=${OUT:-"$HERE/profile_results.csv"}
 VARIANTS=${VARIANTS:-"production cascade_ir_avx512 cascade_ir_avx512_fused cascade_ir_avx cascade_ir_avx_fused"}
 
@@ -52,7 +53,7 @@ base_ets=""
 for v in $VARIANTS; do
   flag="${FLAG[$v]-__UNSET__}"
   [[ "$flag" == "__UNSET__" ]] && { echo "## unknown variant '$v' — skipping"; continue; }
-  bdir="$HERE/build_$v"; bin="$bdir/BSSN_GR/bssnSolver"
+  mkdir -p "$BUILD_ROOT"; bdir="$BUILD_ROOT/build_$v"; bin="$bdir/BSSN_GR/bssnSolver"
   echo ""; echo "===== $v  (${flag:-production CSE}) ====="
   if [[ ! -x "$bin" ]]; then
     echo "## building (fresh, identical config + $flag) ..."
