@@ -44,6 +44,10 @@ option(BSSN_USE_CASCADE_AVX "Use AVX2-batched cascade RHS (4-lane __m256d, requi
 option(BSSN_USE_CASCADE_AVX_FUSED "Use AVX2 cascade with inline deriv stencils (fused)" OFF)
 option(BSSN_USE_CASCADE_AVX512 "Use AVX-512 cascade RHS (8-lane __m512d). Requires CPU_ARCH with AVX-512 support (e.g. skylake-avx512, icelake-server, znver4, native on capable CPUs)." OFF)
 option(BSSN_USE_CASCADE_AVX512_FUSED "Use AVX-512 cascade with inline deriv stencils (fused). Requires CPU_ARCH with AVX-512 support." OFF)
+option(BSSN_USE_CASCADE_IR_AVX512 "Use IR-generated polynomial-cascade RHS (AVX-512, 8-wide; SSL/CAHD via runtime coefficients)" OFF)
+option(BSSN_USE_CASCADE_IR_AVX "Use IR-generated polynomial-cascade RHS (AVX2, 4-wide; SSL/CAHD via runtime coefficients)" OFF)
+option(BSSN_USE_CASCADE_IR_AVX512_FUSED "IR polynomial-cascade RHS with inline deriv stencils (AVX-512, 8-wide; mixed-only deriv pre-pass on interior blocks)" OFF)
+option(BSSN_USE_CASCADE_IR_AVX_FUSED "IR polynomial-cascade RHS with inline deriv stencils (AVX2, 4-wide; mixed-only deriv pre-pass on interior blocks)" OFF)
 
 # Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
 # provide the ISA, compile will fail on the intrinsics (clear error). The
@@ -93,7 +97,9 @@ endif()
 # Only one defines bssnRHS, so no collision.
 if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
    BSSN_USE_CASCADE_AVX_FUSED OR BSSN_USE_CASCADE_AVX512 OR
-   BSSN_USE_CASCADE_AVX512_FUSED OR DENDRO_USE_NEW_DERIVS)
+   BSSN_USE_CASCADE_AVX512_FUSED OR BSSN_USE_CASCADE_IR_AVX512 OR
+   BSSN_USE_CASCADE_IR_AVX OR BSSN_USE_CASCADE_IR_AVX512_FUSED OR
+   BSSN_USE_CASCADE_IR_AVX_FUSED OR DENDRO_USE_NEW_DERIVS)
   set(BSSN_RHS_SRC src/rhs_experimental.cpp)
   message(STATUS "BSSN RHS source: src/rhs_experimental.cpp (experimental flags set)")
 else()
@@ -198,6 +204,10 @@ bssn_add_def(BSSN_USE_CASCADE_AVX BSSN_USE_CASCADE_AVX)
 bssn_add_def(BSSN_USE_CASCADE_AVX_FUSED BSSN_USE_CASCADE_AVX_FUSED)
 bssn_add_def(BSSN_USE_CASCADE_AVX512 BSSN_USE_CASCADE_AVX512)
 bssn_add_def(BSSN_USE_CASCADE_AVX512_FUSED BSSN_USE_CASCADE_AVX512_FUSED)
+bssn_add_def(BSSN_USE_CASCADE_IR_AVX512 BSSN_USE_CASCADE_IR_AVX512)
+bssn_add_def(BSSN_USE_CASCADE_IR_AVX BSSN_USE_CASCADE_IR_AVX)
+bssn_add_def(BSSN_USE_CASCADE_IR_AVX512_FUSED BSSN_USE_CASCADE_IR_AVX512_FUSED)
+bssn_add_def(BSSN_USE_CASCADE_IR_AVX_FUSED BSSN_USE_CASCADE_IR_AVX_FUSED)
 bssn_add_def(BSSN_EXTRACT_GRAVITATIONAL_WAVES BSSN_EXTRACT_GRAVITATIONAL_WAVES)
 
 if(BSSN_ENABLE_AVX AND CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

@@ -13,7 +13,11 @@
 #endif
 
 #if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
-    defined(BSSN_USE_CASCADE_AVX512) || defined(BSSN_USE_CASCADE_AVX512_FUSED)
+    defined(BSSN_USE_CASCADE_AVX512) ||                                      \
+    defined(BSSN_USE_CASCADE_AVX512_FUSED) ||                               \
+    defined(BSSN_USE_CASCADE_IR_AVX512) || defined(BSSN_USE_CASCADE_IR_AVX) || \
+    defined(BSSN_USE_CASCADE_IR_AVX512_FUSED) ||                            \
+    defined(BSSN_USE_CASCADE_IR_AVX_FUSED)
 // Generated cascade bodies define their own VEC typedef (scoped to their
 // body {}) and #undef/#define the macros before use, so AVX2 and AVX-512
 // variants can coexist in the same TU.
@@ -262,11 +266,13 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #ifdef DENDRO_USE_NEW_DERIVS
     if (puncture_block) set_block_explicit_derivs(true);
 #endif
-#if defined(BSSN_USE_CASCADE_AVX512_FUSED)
-    // AVX-512 fused: for bflag==0 blocks (interior), use mixed-only
-    // precompute — both the 8-wide AVX-512 kernel (wide blocks) and the
-    // 4-wide AVX2-fused kernel (narrow blocks) work from mixed-only arrays.
-    // Only bflag!=0 (boundary) blocks need the full 138-array workspace.
+#if defined(BSSN_USE_CASCADE_AVX512_FUSED) ||      \
+    defined(BSSN_USE_CASCADE_IR_AVX512_FUSED) ||   \
+    defined(BSSN_USE_CASCADE_IR_AVX_FUSED)
+    // Fused kernels (hand or IR): for bflag==0 blocks (interior), use
+    // mixed-only precompute — wide and narrow fused kernels both work from
+    // mixed-only arrays. Only bflag!=0 (boundary) blocks need the full
+    // 138-array workspace (their non-fused fallback reads it).
     if (bflag == 0) {
         #include "bssnrhs_derivs_mixed_only.h"
     } else {
@@ -335,6 +341,45 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #elif defined(BSSN_USE_CASCADE_AVX)
 #pragma message("BSSN: using AVX2-batched cascade RHS")
 #include "bssn_cascade_avx_interior.inc.cpp"
+#elif defined(BSSN_USE_CASCADE_IR_AVX512_FUSED)
+#pragma message( \
+    "BSSN: using IR-generated polynomial-cascade RHS (AVX-512, 8-wide, fused stencils)")
+    // Fused IR body: inline 6th-order stencils for 1st/pure-2nd derivs,
+    // mixed 2nds from the mixed-only pre-pass above. Boundary blocks
+    // (bflag != 0) got the full pre-pass and use the non-fused IR path.
+    if (bflag == 0 && (nx - 2 * PW) >= 8) {
+#include "bssn_cascade_ir_avx512_fused_interior.inc.cpp"
+    } else if (bflag == 0) {
+#include "bssn_cascade_ir_avx2_fused_interior.inc.cpp"
+    } else if ((nx - 2 * PW) >= 8) {
+#include "bssn_cascade_ir_avx512_interior.inc.cpp"
+    } else {
+#include "bssn_cascade_ir_avx2_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_IR_AVX_FUSED)
+#pragma message( \
+    "BSSN: using IR-generated polynomial-cascade RHS (AVX2, 4-wide, fused stencils)")
+    if (bflag == 0) {
+#include "bssn_cascade_ir_avx2_fused_interior.inc.cpp"
+    } else {
+#include "bssn_cascade_ir_avx2_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_IR_AVX512)
+#pragma message("BSSN: using IR-generated polynomial-cascade RHS (AVX-512, 8-wide)")
+    // IR-generated body (codegen/cascade_emit.py): non-fused, reads the full
+    // deriv workspace; SSL/CAHD gauge terms included via runtime coefficients
+    // (h_ssl = 0 / BSSN_CAHD_C = 0 disable them without rebuild). Wide blocks
+    // use the 8-wide kernel; narrower blocks the 4-wide twin.
+    if ((nx - 2 * PW) >= 8) {
+#include "bssn_cascade_ir_avx512_interior.inc.cpp"
+    } else {
+#include "bssn_cascade_ir_avx2_interior.inc.cpp"
+    }
+#elif defined(BSSN_USE_CASCADE_IR_AVX)
+#pragma message("BSSN: using IR-generated polynomial-cascade RHS (AVX2, 4-wide)")
+    // 4-wide twin of the IR_AVX512 path for AVX2-only hardware (AMD Zen <= 3,
+    // Intel parts with AVX-512 fused off). Same generated body.
+#include "bssn_cascade_ir_avx2_interior.inc.cpp"
 #elif defined(BSSN_USE_CASCADE_AVX512)
 #pragma message("BSSN: using AVX-512-batched cascade RHS (8-wide)")
     // Non-fused AVX-512: reads the full 138-array deriv workspace populated by
