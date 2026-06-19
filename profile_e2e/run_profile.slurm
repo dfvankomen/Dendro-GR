@@ -32,7 +32,9 @@
 #   MPI_LAUNCH 'srun' (default, SLURM-native) or 'mpirun'
 #   JOBS       build parallelism (default: cores on the build node)
 set -uo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Under sbatch, BASH_SOURCE points at the spooled script copy; SLURM_SUBMIT_DIR is
+# the dir you launched from (profile_e2e). Fall back to BASH_SOURCE when interactive.
+HERE="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 REPO="$(cd "$HERE/.." && pwd)"                       # dendrogr_upstream
 
 # ---- modules ------------------------------------------------------------
@@ -40,7 +42,7 @@ REPO="$(cd "$HERE/.." && pwd)"                       # dendrogr_upstream
 # regresses the no-CSE baseline). intel-oneapi-mkl is a *library* module and
 # does NOT trigger the compiler-family clash that intel-oneapi-COMPILERS would.
 # Adjust these names to your site (`module spider <name>` to find versions).
-MODULES=${MODULES:-"gcc/15.1.0 intel-oneapi-mkl/2025.2.0 openmpi/5.0.3"}
+MODULES=${MODULES:-"gcc/15.1.0 intel-oneapi-mkl/2025.3.1 openmpi/5.0.3"}
 if command -v module >/dev/null 2>&1; then
   echo "## module load $MODULES"
   module purge 2>/dev/null || true
