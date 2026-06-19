@@ -4,7 +4,7 @@
 #SBATCH --partition=soc-np
 #SBATCH --constraint=csl              # Intel Cascadelake (AVX-512). Use 'rom' for AMD Zen2 (AVX2-only).
 #SBATCH --nodes=4
-#SBATCH --ntasks-per-node=16          # 16 ranks/node x 4 = 64 ranks. Tune to the octree grain.
+#SBATCH --ntasks-per-node=40          # full csl node (Xeon Gold 6230 = 2x20 cores). Drop if the octree over-decomposes.
 #SBATCH --cpus-per-task=1
 #SBATCH --exclusive
 #SBATCH --time=02:00:00
