@@ -135,7 +135,12 @@ FetchContent_MakeAvailable(toml11)
 
 # settable option for the user on where dendrolib is available
 set(DENDRO_dendrolib_DIR "" CACHE PATH "Path to the local dendrolib source directory (optional)")
-set(DENDRO_dendrolib_GIT_TAG "master" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
+# Default to the dfvk fork's experimental branch: it carries bh_history.h
+# (BHHistory tracker) and the compact-FD work this branch requires. Upstream
+# paralab/Dendro-5.01 master lacks these and fails to build. Override either
+# cache var, or set DENDRO_dendrolib_DIR, to use a different dendrolib.
+set(DENDRO_dendrolib_GIT_REPOSITORY "https://github.com/dfvankomen/Dendro-5.01" CACHE STRING "Git repository URL for dendrolib")
+set(DENDRO_dendrolib_GIT_TAG "experimental" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
 
 
 # now include the dendro repository for compiling the library
@@ -147,7 +152,7 @@ else()
   message(STATUS "Dendrolib not found locally, fetching from repository...")
   FetchContent_Declare(
     dendrolib
-    GIT_REPOSITORY "https://github.com/paralab/Dendro-5.01"
+    GIT_REPOSITORY ${DENDRO_dendrolib_GIT_REPOSITORY}
     GIT_TAG ${DENDRO_dendrolib_GIT_TAG}
   )
 
