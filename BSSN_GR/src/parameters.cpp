@@ -163,6 +163,9 @@ std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST          = "auto";
 std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND         = "auto";
 #endif
 
+// TEMPORARY (NaN-location debug): see parameters.h.
+int BSSN_NANSCAN_STEP = -1;
+
 unsigned int RIT_ETA_FUNCTION                            = 1;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
