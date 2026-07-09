@@ -15,6 +15,9 @@ sbatch --account=MYACCT --partition=MYPART --constraint=csl --nodes=4 run_hybrid
 
 Output → `results_<jobid>/hybrid_scaling_<jobid>.csv` (plus per-run logs & build logs).
 
+Running on Stampede3 or another site? See [`../PORTING.md`](../PORTING.md) for the
+module stack, MPI-fabric vars, and `DENDROLIB_DIR` per site.
+
 ## How it works
 
 Total cores are held fixed (`cores/node × nodes`); the sweep varies OpenMP
