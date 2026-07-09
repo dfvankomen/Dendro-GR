@@ -702,7 +702,6 @@ int main(int argc, char** argv) {
             if (!rank_global && step <= 1)
                 std::cout << "[trace step=" << step
                           << "] entering ets->evolve()" << std::endl;
-            bssn::BSSN_NANSCAN_STEP = (int)step;  // TEMP: NaN-scan step label
             ets->evolve();
             if (!rank_global && step <= 1)
                 std::cout << "[trace step=" << step

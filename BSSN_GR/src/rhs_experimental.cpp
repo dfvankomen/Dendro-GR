@@ -5,9 +5,6 @@
 
 #include "rhs.h"
 
-#include <cmath>
-#include <cstdlib>
-
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
@@ -27,60 +24,6 @@
 
 using namespace std;
 using namespace bssn;
-
-// ===== TEMPORARY NaN-location scan (gated by env BSSN_NANSCAN=1) ============
-// Scans one block's RHS output for the first non-finite interior value per
-// variable and prints the evolved-var name, octree level, physical (x,y,z),
-// radius, and the local chi/alpha so we can see whether the blow-up starts at
-// a puncture (small r, small chi) or somewhere else (level interface, far
-// field, ...). Remove together with the parameters.{h,cpp} / bssngr_main hooks.
-static void nanscan_block(double **const rhs, const double **const evol,
-                          unsigned int offset, const unsigned int *sz,
-                          const double *ptmin, double dx, double dy, double dz,
-                          unsigned int level, double curr_time) {
-    static const bool s_enabled = (std::getenv("BSSN_NANSCAN") != nullptr);
-    if (!s_enabled) return;
-    static int s_reports        = 0;
-    const int kMaxReports       = 60;
-    if (s_reports >= kMaxReports) return;
-
-    const unsigned int pw = bssn::BSSN_PADDING_WIDTH;
-    const unsigned int nx = sz[0], ny = sz[1], nz = sz[2];
-    for (unsigned int v = 0; v < bssn::BSSN_NUM_VARS; v++) {
-        const double *const rv = &rhs[v][offset];
-        bool found             = false;
-        for (unsigned int k = pw; k < nz - pw && !found; k++)
-            for (unsigned int j = pw; j < ny - pw && !found; j++)
-                for (unsigned int i = pw; i < nx - pw && !found; i++) {
-                    const unsigned int idx = i + nx * (j + ny * k);
-                    if (std::isfinite(rv[idx])) continue;
-                    found            = true;
-                    const double x   = ptmin[0] + i * dx;
-                    const double y   = ptmin[1] + j * dy;
-                    const double z   = ptmin[2] + k * dz;
-                    const double r   = std::sqrt(x * x + y * y + z * z);
-                    const double chi = evol[bssn::VAR::U_CHI][offset + idx];
-                    const double al  = evol[bssn::VAR::U_ALPHA][offset + idx];
-#ifdef _OPENMP
-#pragma omp critical(nanscan)
-#endif
-                    {
-                        if (s_reports < kMaxReports) {
-                            std::cout << "[NANSCAN] step="
-                                      << bssn::BSSN_NANSCAN_STEP
-                                      << " t=" << curr_time << " rhs("
-                                      << bssn::BSSN_VAR_NAMES[v]
-                                      << ") level=" << level << " (x,y,z)=(" << x
-                                      << "," << y << "," << z << ") r=" << r
-                                      << " | chi=" << chi << " alpha=" << al
-                                      << std::endl;
-                            s_reports++;
-                        }
-                    }
-                }
-    }
-}
-// ===========================================================================
 
 void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
              const ot::Block *blkList, unsigned int numBlocks,
@@ -171,10 +114,6 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
 
         bssnrhs(uzipVarsRHS, (const double **)uZipVars, offset, ptmin, ptmax,
                 sz, bflag, curr_time, (const double **)uZipConstVars);
-
-        nanscan_block(uzipVarsRHS, (const double **)uZipVars, offset, sz, ptmin,
-                      dx, dy, dz, blkList[blk].getBlockNode().getLevel(),
-                      curr_time);
     }
 #endif
 }
