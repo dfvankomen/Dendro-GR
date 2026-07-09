@@ -16,16 +16,29 @@ set -uo pipefail
 HERE="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 REPO="$HERE"; while [[ "$REPO" != / && ! -f "$REPO/CMakeLists.txt" ]]; do REPO="$(dirname "$REPO")"; done
 
-DENDROLIB_DIR="${DENDROLIB_DIR:-$HOME/research/dendrolib_dfvk_copy}"  # must have the hybrid path
-BUILD_ROOT="${BUILD_ROOT:-$HERE}"                                    # put on shared scratch for multi-node
+# Site preset: modules + arch + cores/node + dendrolib path + MPI fabric. Default
+# stampede3 (TACC); 'chpc' for Utah csl nodes; 'none' if you load modules yourself.
+# Any individual value below is still overridable by its own env var. See PORTING.md.
+SITE="${SITE:-stampede3}"
+case "$SITE" in
+  stampede3)                                       # Sapphire Rapids, Omni-Path fabric
+    : "${CPU_ARCH:=sapphirerapids}"; SITE_CORES=112
+    : "${DENDROLIB_DIR:=$HOME/Projects/dendro/DVK_experimental/Dendro-5.01}"
+    export OMPI_MCA_mtl="${OMPI_MCA_mtl:-ofi}" FI_PROVIDER="${FI_PROVIDER:-opx}" ;;  # select Omni-Path, not TCP
+  chpc)                                            # Utah CHPC, csl (Cascade Lake)
+    : "${CPU_ARCH:=cascadelake}"; SITE_CORES=40
+    : "${DENDROLIB_DIR:=$HOME/research/dendrolib_dfvk_copy}" ;;
+  none|skip) SITE_CORES="" ;;                      # no presets; load modules yourself
+  *) echo "ERROR: unknown SITE=$SITE (stampede3|chpc|none)"; exit 1 ;;
+esac
+CPU_ARCH="${CPU_ARCH:-native}"
+DENDROLIB_DIR="${DENDROLIB_DIR:-}"                 # from site preset or env; must have the hybrid path (checked below)
+CORES_PER_NODE="${CORES_PER_NODE:-${SLURM_CPUS_ON_NODE:-${SITE_CORES:-$(nproc)}}}"
+
+BUILD_ROOT="${BUILD_ROOT:-$HERE}"                  # put on shared scratch for multi-node
 BUILD_DIR="${BUILD_DIR:-$BUILD_ROOT/build_hybrid}"
-
-MODULES="${MODULES:-gcc/15.1.0 intel-oneapi-mkl/2025.3.1 openmpi/5.0.3}"  # your site's names; empty = skip
-CPU_ARCH="${CPU_ARCH:-native}"           # csl->cascadelake, rom->znver2
-CASCADE_FLAG="${CASCADE_FLAG:-}"         # optional, e.g. -DBSSN_USE_CASCADE_AVX512_FUSED=ON
+CASCADE_FLAG="${CASCADE_FLAG:-}"                   # optional, e.g. -DBSSN_USE_CASCADE_AVX512_FUSED=ON
 JOBS="${JOBS:-$(nproc)}"
-
-CORES_PER_NODE="${CORES_PER_NODE:-${SLURM_CPUS_ON_NODE:-$(nproc)}}"   # csl=40, rom=64
 NNODES="${NNODES:-${SLURM_NNODES:-1}}"
 TOTAL_CORES=$(( CORES_PER_NODE * NNODES ))
 MPI_LAUNCH="${MPI_LAUNCH:-mpirun}"       # or srun (set SRUN_MPI plugin)
@@ -48,17 +61,23 @@ OUT_CSV="${OUT_CSV:-$OUTDIR/hybrid_scaling_${STAMP}.csv}"
 
 # --- preflight ---------------------------------------------------------------
 mkdir -p "$OUTDIR"
-if [[ -n "$MODULES" ]] && command -v module >/dev/null 2>&1; then
+if [[ "$SITE" != none && "$SITE" != skip ]] && command -v module >/dev/null 2>&1; then
   module purge 2>/dev/null || true
-  # shellcheck disable=SC2086
-  module load $MODULES || { echo "ERROR: module load failed -- fix MODULES"; exit 1; }
+  case "$SITE" in
+    stampede3)   # openmpi is off the default module tree -> needs 'module use' first
+      module load autotools/1.4 cmake/4.1.1 python/3.12.11 gcc/15.1.0 mkl/25.1 gsl/2.8 \
+        && module use /scratch/projects/compilers/modulefiles \
+        && module load openmpi/5.0.9 ;;
+    chpc)
+      module load gcc/15.1.0 intel-oneapi-mkl/2025.3.1 openmpi/5.0.3 ;;
+  esac || { echo "ERROR: module load failed for SITE=$SITE (try SITE=none if you load modules yourself)"; exit 1; }
 fi
 command -v cmake   >/dev/null || { echo "ERROR: cmake not found";   exit 1; }
 command -v python3 >/dev/null || { echo "ERROR: python3 not found"; exit 1; }
 [[ -f "$PARFILE" ]]     || { echo "ERROR: parfile not found: $PARFILE"; exit 1; }
-[[ -d "$DENDROLIB_DIR" ]] || { echo "ERROR: DENDROLIB_DIR missing: $DENDROLIB_DIR"; exit 1; }
+[[ -d "$DENDROLIB_DIR" ]] || { echo "ERROR: DENDROLIB_DIR not set/found: '$DENDROLIB_DIR' (set DENDROLIB_DIR, or SITE with a preset)"; exit 1; }
 
-echo "nodes=$NNODES cores/node=$CORES_PER_NODE total=$TOTAL_CORES  launch=$MPI_LAUNCH arch=$CPU_ARCH"
+echo "site=$SITE  nodes=$NNODES cores/node=$CORES_PER_NODE total=$TOTAL_CORES  launch=$MPI_LAUNCH arch=$CPU_ARCH"
 echo "sweep T=[$THREADS_LIST]  parfile=$(basename "$PARFILE") grid=$GRID steps=$STEPS  -> $OUTDIR"
 
 # --- build once (hybrid path + profile counters for the JSONL) ---------------

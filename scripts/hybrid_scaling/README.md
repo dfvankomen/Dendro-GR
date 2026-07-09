@@ -9,14 +9,16 @@ doesn't exercise the interconnect, which is the point.
 
 ```bash
 cd scripts/hybrid_scaling
-# Set MODULES / DENDROLIB_DIR / CORES_PER_NODE / CPU_ARCH for your site (env or top of script).
-sbatch --account=MYACCT --partition=MYPART --constraint=csl --nodes=4 run_hybrid_scaling.sh
+# SITE defaults to stampede3 (modules, arch, cores, dendrolib, MPI fabric all preset).
+sbatch -A MYACCT -p spr --nodes=4 run_hybrid_scaling.sh            # Stampede3 (default)
+SITE=chpc sbatch -A MYACCT -p soc-np -C csl --nodes=4 run_hybrid_scaling.sh   # CHPC csl
 ```
 
 Output → `results_<jobid>/hybrid_scaling_<jobid>.csv` (plus per-run logs & build logs).
 
-Running on Stampede3 or another site? See [`../PORTING.md`](../PORTING.md) for the
-module stack, MPI-fabric vars, and `DENDROLIB_DIR` per site.
+`SITE` sets the module stack, MPI-fabric vars, `CPU_ARCH`, `CORES_PER_NODE`, and
+`DENDROLIB_DIR`. Use `SITE=none` if you load modules yourself. New site? Add a case
+to the script and see [`../PORTING.md`](../PORTING.md).
 
 ## How it works
 
@@ -60,14 +62,12 @@ GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (
 
 | var | default | notes |
 |-----|---------|-------|
-| `THREADS_LIST` | `1 2 4` | threads/rank; `1` = pure-MPI. Keep each a divisor of the per-**socket** core count (csl=20, rom=32). |
-| `CORES_PER_NODE` | auto | csl=40, rom=64 |
-| `CPU_ARCH` | `native` | csl→`cascadelake`, rom→`znver2` |
+| `SITE` | `stampede3` | preset bundle: modules + `CPU_ARCH` + `CORES_PER_NODE` + `DENDROLIB_DIR` + MPI fabric. Also `chpc`, or `none` (load modules yourself). |
+| `THREADS_LIST` | `1 2 4` | threads/rank; `1` = pure-MPI. Keep each a divisor of the per-**socket** core count. |
 | `GRID`/`LEV` | `bbh`/`7` | `uniform` + `LEV` to saturate many nodes (see above) |
 | `STEPS`/`WARMUP` | `10`/`2` | timed / discarded RK steps |
 | `MPI_LAUNCH` | `mpirun` | or `srun` (set `SRUN_MPI` plugin) |
-| `MODULES` | `gcc/15.1.0 intel-oneapi-mkl/2025.3.1 openmpi/5.0.3` | your site's names; empty = skip |
-| `DENDROLIB_DIR` | `~/research/dendrolib_dfvk_copy` | must be the dfvk dendrolib (upstream lacks the hybrid path) |
+| `CPU_ARCH` / `CORES_PER_NODE` / `DENDROLIB_DIR` | from `SITE` | override any of these to deviate from the site preset |
 | `BUILD_ROOT` | this dir | put on **shared** scratch for multi-node so every node sees the binary |
 | `CASCADE_FLAG` | *(none)* | optional RHS kernel, e.g. `-DBSSN_USE_CASCADE_AVX512_FUSED=ON` |
 
