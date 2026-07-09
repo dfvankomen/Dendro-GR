@@ -166,7 +166,7 @@ static inline double logisticTransition(double x, double x0, double sigma,
 // the BHs (retarded time tau = t - r / gauge_speed)
 static inline double onionRatioGaugeLogistic(
     double t, double r, double y_final = bssn::BSSN_AMR_R_RATIO,
-    double y_init = 2.0, double t_transition = 20.0, double sigma = 5.0,
+    double y_init = 2.0, double t_transition = 50.0, double sigma = 5.0,
     double gauge_speed = std::sqrt(2.0)) {
     const double tau = t - r / gauge_speed;
     return logisticTransition(tau, t_transition, sigma, y_init, y_final);
