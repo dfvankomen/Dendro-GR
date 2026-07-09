@@ -51,11 +51,6 @@ extern unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
 extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST;
 extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND;
 
-// TEMPORARY (NaN-location debug): current integer RK step, set by bssngr_main
-// before each ets->evolve() so the RHS NaN scan can report the exact step.
-// Scan itself is gated by env BSSN_NANSCAN=1. Remove with its rhs hook.
-extern int BSSN_NANSCAN_STEP;
-
 /**
  * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instances:
  * one per OpenMP thread so the RHS block loop can thread under the hybrid path
