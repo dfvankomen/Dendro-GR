@@ -1905,12 +1905,22 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
     // distance from BH1
     const double dbh1 = (grid_p - bssn::BSSN_BH_LOC[1]).abs();
 
+    // Inert-BH robustness (mirrors isRemeshBH): a (near-)massless puncture
+    // must not tighten the wavelet tolerance around itself. A BH is active
+    // iff its mass exceeds this tolerance; for a real binary both are active
+    // and every guard below is a no-op (bit-identical to the two-BH path).
+    constexpr double BH_ACTIVE_MASS_TOL = 1.0e-6;
+    const bool bh0_active = bssn::BSSN_BH1_MASS > BH_ACTIVE_MASS_TOL;
+    const bool bh1_active = bssn::BSSN_BH2_MASS > BH_ACTIVE_MASS_TOL;
+
     if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 1) {
         const double tolMax = bssn::BSSN_WAVELET_TOL_MAX;
         const double tolMin = bssn::BSSN_WAVELET_TOL;
 
-        const double R0     = bssn::BSSN_BH1_AMR_R;
-        const double R1     = bssn::BSSN_BH2_AMR_R;
+        // inert BH: negative radius so its tight-refine trigger (dd < R)
+        // can never fire (this function is deprecated, but keep it robust).
+        const double R0     = bh0_active ? bssn::BSSN_BH1_AMR_R : -1.0;
+        const double R1     = bh1_active ? bssn::BSSN_BH2_AMR_R : -1.0;
 
         // R_Max is defined based on the initial separation.
         const double R_MAX =
@@ -2160,15 +2170,21 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             const double W2 =
                 (R12 - R02) / std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
 
-            if (dbh0 < R01 || dbh1 < R02)
+            if ((bh0_active && dbh0 < R01) || (bh1_active && dbh1 < R02))
                 return bssn::BSSN_WAVELET_TOL;
             else {
-                double minbheps =
-                    std::min(((std::pow(WTOL_EXP, (dbh0 - R01) / W1)) *
-                              bssn::BSSN_WAVELET_TOL),
-                             ((std::pow(WTOL_EXP, (dbh1 - R02) / W2)) *
-                              bssn::BSSN_WAVELET_TOL));
-                return std::min(bssn::BSSN_WAVELET_TOL_MAX, minbheps);
+                // an inert BH contributes the loosest tolerance, so the
+                // std::min always selects the active BH's value (and its
+                // W=0 division is skipped). Bit-exact when both are active.
+                const double e0 =
+                    bh0_active ? (std::pow(WTOL_EXP, (dbh0 - R01) / W1) *
+                                  bssn::BSSN_WAVELET_TOL)
+                               : bssn::BSSN_WAVELET_TOL_MAX;
+                const double e1_ =
+                    bh1_active ? (std::pow(WTOL_EXP, (dbh1 - R02) / W2) *
+                                  bssn::BSSN_WAVELET_TOL)
+                               : bssn::BSSN_WAVELET_TOL_MAX;
+                return std::min(bssn::BSSN_WAVELET_TOL_MAX, std::min(e0, e1_));
             }
         }
 
@@ -2188,12 +2204,16 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         rad[1]    = 4.0 * rad[0];
         rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
-        double e1 = CalTolHelper(T_CURRENT, d1, rad, eps, toffset);
+        // an inert BH yields the loosest tolerance so the std::min below
+        // selects the active BH's value (no tightening around a phantom).
+        double e1 = bh0_active ? CalTolHelper(T_CURRENT, d1, rad, eps, toffset)
+                               : bssn::BSSN_WAVELET_TOL_MAX;
 
         rad[0]    = 3.0 * m2;
         rad[1]    = 4.0 * rad[0];
         rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
-        double e2 = CalTolHelper(T_CURRENT, d2, rad, eps, toffset);
+        double e2 = bh1_active ? CalTolHelper(T_CURRENT, d2, rad, eps, toffset)
+                               : bssn::BSSN_WAVELET_TOL_MAX;
 
         return std::min(e1, e2);
 
