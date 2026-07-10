@@ -76,6 +76,10 @@ if [[ "$SITE" != none && "$SITE" != skip ]] && command -v module >/dev/null 2>&1
     chpc)
       module load gcc/15.1.0 intel-oneapi-mkl/2025.3.1 openmpi/5.0.3 ;;
   esac || { echo "ERROR: module load failed for SITE=$SITE (try SITE=none if you load modules yourself)"; exit 1; }
+  # Use module-provided paths; TACC_GSL_DIR is set by the gsl module to the correct
+  # compiler-matched build. GSL_ROOT_DIR may already be in the env pointing at a
+  # different build, so override it explicitly here.
+  export GSL_ROOT_DIR="${TACC_GSL_DIR:-/home1/apps/gcc15/gsl/2.8}"  # override any pre-set intel path
 fi
 command -v cmake   >/dev/null || { echo "ERROR: cmake not found";   exit 1; }
 command -v python3 >/dev/null || { echo "ERROR: python3 not found"; exit 1; }
