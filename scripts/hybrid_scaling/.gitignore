@@ -1,4 +1,4 @@
-build_hybrid/
+build_hybrid*/
 results_*/
 *_steps.jsonl
 *.log

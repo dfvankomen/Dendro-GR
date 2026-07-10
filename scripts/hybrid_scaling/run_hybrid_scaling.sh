@@ -35,8 +35,14 @@ CPU_ARCH="${CPU_ARCH:-native}"
 DENDROLIB_DIR="${DENDROLIB_DIR:-}"                 # from site preset or env; must have the hybrid path (checked below)
 CORES_PER_NODE="${CORES_PER_NODE:-${SLURM_CPUS_ON_NODE:-${SITE_CORES:-$(nproc)}}}"
 
+GRID="${GRID:-bbh}"; LEV="${LEV:-7}"     # uniform blocks ~= 8^(LEV-3); use it to saturate many nodes
+# Block fusion (dendrolib -DOCT2BLK_COARSEST_LEV): 0 = fuse same-level octants under a common
+# ancestor into big blocks (production RHS default); 31 = no fusion, block-per-element. Uniform
+# needs many small blocks to fill ranks, so default it to 31; bbh keeps the fused default.
+OCT2BLK_LEV="${OCT2BLK_LEV:-$([[ "$GRID" == uniform ]] && echo 31 || echo 0)}"
+
 BUILD_ROOT="${BUILD_ROOT:-$HERE}"                  # put on shared scratch for multi-node
-BUILD_DIR="${BUILD_DIR:-$BUILD_ROOT/build_hybrid}"
+BUILD_DIR="${BUILD_DIR:-$BUILD_ROOT/build_hybrid_ob${OCT2BLK_LEV}}"
 CASCADE_FLAG="${CASCADE_FLAG:-}"                   # optional, e.g. -DBSSN_USE_CASCADE_AVX512_FUSED=ON
 JOBS="${JOBS:-$(nproc)}"
 NNODES="${NNODES:-${SLURM_NNODES:-1}}"
@@ -52,7 +58,6 @@ PARFILE="${PARFILE:-$HERE/q1.scaling.par.toml}"
 if [[ "$PARFILE" != /* ]]; then
   [[ -f "$HERE/$PARFILE" ]] && PARFILE="$HERE/$PARFILE" || PARFILE="$REPO/BSSN_GR/pars/$PARFILE"
 fi
-GRID="${GRID:-bbh}"; LEV="${LEV:-7}"     # uniform grid blocks ~= 8^(LEV-3); use it to saturate many nodes
 STEPS="${STEPS:-10}"; WARMUP="${WARMUP:-2}"
 
 STAMP="${SLURM_JOB_ID:-local}"
@@ -78,7 +83,7 @@ command -v python3 >/dev/null || { echo "ERROR: python3 not found"; exit 1; }
 [[ -d "$DENDROLIB_DIR" ]] || { echo "ERROR: DENDROLIB_DIR not set/found: '$DENDROLIB_DIR' (set DENDROLIB_DIR, or SITE with a preset)"; exit 1; }
 
 echo "site=$SITE  nodes=$NNODES cores/node=$CORES_PER_NODE total=$TOTAL_CORES  launch=$MPI_LAUNCH arch=$CPU_ARCH"
-echo "sweep T=[$THREADS_LIST]  parfile=$(basename "$PARFILE") grid=$GRID steps=$STEPS  -> $OUTDIR"
+echo "sweep T=[$THREADS_LIST]  parfile=$(basename "$PARFILE") grid=$GRID oct2blk=$OCT2BLK_LEV steps=$STEPS  -> $OUTDIR"
 
 # --- build once (hybrid path + profile counters for the JSONL) ---------------
 BIN="$BUILD_DIR/BSSN_GR/bssnScalingBench"
@@ -86,6 +91,7 @@ if [[ ! -x "$BIN" ]]; then
   echo "## building (once) ..."
   cmake -S "$REPO" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCPU_ARCH="$CPU_ARCH" \
         -DDENDRO_dendrolib_DIR="$DENDROLIB_DIR" -DDENDRO_HYBRID_OMP=ON \
+        -DOCT2BLK_COARSEST_LEV="$OCT2BLK_LEV" \
         -DENABLE_DENDRO_PROFILE_COUNTERS=ON $CASCADE_FLAG >"$OUTDIR/configure.log" 2>&1 \
     || { echo "## CONFIGURE FAILED -- $OUTDIR/configure.log"; tail -20 "$OUTDIR/configure.log"; exit 1; }
   cmake --build "$BUILD_DIR" --target bssnScalingBench -j"$JOBS" >"$OUTDIR/build.log" 2>&1 \

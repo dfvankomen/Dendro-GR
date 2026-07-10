@@ -54,6 +54,11 @@ busiest config (pure-MPI) needs `blocks_per_rank ≥ 16`. The default BBH grid i
 it **plateaus**: raising `BSSN_MAXDEPTH` past 14 adds no blocks. To saturate many
 nodes, switch to a uniform grid (`blocks ≈ 8^(LEV−3)`):
 
+`GRID=uniform` auto-builds with block fusion **off** (`OCT2BLK_LEV=31`,
+one block per element) — otherwise a uniform grid collapses into a few giant fused
+blocks and can't fill ranks; this is what makes `blocks ≈ 8^(LEV−3)` hold. `bbh`
+keeps fusion **on** (`=0`), the production RHS layout.
+
 ```bash
 GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (LEV=8 ~= 32768)
 ```
@@ -65,6 +70,7 @@ GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (
 | `SITE` | `stampede3` | preset bundle: modules + `CPU_ARCH` + `CORES_PER_NODE` + `DENDROLIB_DIR` + MPI fabric. Also `chpc`, or `none` (load modules yourself). |
 | `THREADS_LIST` | `1 2 4` | threads/rank; `1` = pure-MPI. Keep each a divisor of the per-**socket** core count. |
 | `GRID`/`LEV` | `bbh`/`7` | `uniform` + `LEV` to saturate many nodes (see above) |
+| `OCT2BLK_LEV` | `31` uniform / `0` bbh | block fusion: `0` = fused big blocks (production RHS), `31` = no fusion, many small blocks. Baked into the build; changing it triggers a separate `build_hybrid_ob<N>/`. |
 | `STEPS`/`WARMUP` | `10`/`2` | timed / discarded RK steps |
 | `MPI_LAUNCH` | `mpirun` | or `srun` (set `SRUN_MPI` plugin) |
 | `CPU_ARCH` / `CORES_PER_NODE` / `DENDROLIB_DIR` | from `SITE` | override any of these to deviate from the site preset |
