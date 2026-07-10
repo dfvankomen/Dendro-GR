@@ -1950,8 +1950,15 @@ void BSSNCtx::evolve_bh_loc() {
     //     std::cout<<"bh1 "<<bhLoc[1]<<std::endl;
 
     // }
-    m_uiBHLoc[0]         = bhLoc[0];
-    m_uiBHLoc[1]         = bhLoc[1];
+    // Don't chase an inert (near-massless) puncture: there is no real BH
+    // for the extractor to lock onto, so its "tracked" location is noise
+    // that would drift into the active BH's region (and pollute the AMR /
+    // BH-separation diagnostics). Keep an inactive BH pinned at its initial
+    // location. For a real binary both masses are > tol, so both update and
+    // this is bit-identical to the two-BH path.
+    constexpr double BH_ACTIVE_MASS_TOL = 1.0e-6;
+    if (bssn::BSSN_BH1_MASS > BH_ACTIVE_MASS_TOL) m_uiBHLoc[0] = bhLoc[0];
+    if (bssn::BSSN_BH2_MASS > BH_ACTIVE_MASS_TOL) m_uiBHLoc[1] = bhLoc[1];
 
     bssn::BSSN_BH_LOC[0] = m_uiBHLoc[0];
     bssn::BSSN_BH_LOC[1] = m_uiBHLoc[1];

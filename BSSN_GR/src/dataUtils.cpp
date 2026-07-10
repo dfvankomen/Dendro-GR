@@ -344,6 +344,24 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
         const double BH_MERGED_SEP_TOL = 0.1;
         // distance btw the black holes
         const double dBH               = (bhLoc[0] - bhLoc[1]).abs();
+
+        ////////////////////////////////////////////////////////////////
+        // Inert-BH robustness. A (near-)massless puncture contributes
+        // nothing to the spacetime, so we must never build refinement
+        // around it -- doing so wastes grid on a phantom center and can
+        // seed instability (e.g. a single BH run with BH2 MASS=0 parked
+        // on-grid). A BH is "active" iff its mass exceeds this tolerance.
+        // For a real binary both are active, so every guard below is a
+        // no-op and this path stays bit-identical to the two-BH code.
+        constexpr double BH_ACTIVE_MASS_TOL = 1.0e-6;
+        const bool bh_active[2] = {bssn::BSSN_BH1_MASS > BH_ACTIVE_MASS_TOL,
+                                   bssn::BSSN_BH2_MASS > BH_ACTIVE_MASS_TOL};
+        const int n_active_bh =
+            (bh_active[0] ? 1 : 0) + (bh_active[1] ? 1 : 0);
+        // Orbital scale is meaningless with fewer than two active BHs;
+        // don't let an inert BH's (phantom) separation drive R_orbit.
+        const double dBH_eff = (n_active_bh < 2) ? 0.0 : dBH;
+
         // lower of two max depths
         const unsigned int refLevMin =
             std::min(bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_BH2_MAX_LEV);
@@ -446,7 +464,7 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
             const double f1      = m2 / (m1 + m2);
             const double f2      = m1 / (m1 + m2);
             const double f       = std::max(f1, f2);
-            const double R_orbit = f * dBH + 8;  // M; resolve scale
+            const double R_orbit = f * dBH_eff + 8;  // M; resolve scale
             const int l_orbit    = 2;  // desired refinement level within
             if (r_min <= R_orbit) {
                 // set up orbital radius scale
@@ -498,8 +516,11 @@ bool isRemeshBH(ot::Mesh* pMesh, const Point* bhLoc,
                 const int l_goal_1 =
                     onionLevel(r2_min, r_near[1],
                                bssn::BSSN_BH2_MAX_LEV - LVL_OFF, ratio_2);
-                setLevelFloor(l_goal_0);
-                setLevelFloor(l_goal_1);
+                // only refine around active BHs; an inert (massless)
+                // puncture must not spawn its own onion (bit-exact for
+                // real binaries, where both are active).
+                if (bh_active[0]) setLevelFloor(l_goal_0);
+                if (bh_active[1]) setLevelFloor(l_goal_1);
             } else {
                 // if merged, handle BHs together
                 // calculate minimum distance to either BH
