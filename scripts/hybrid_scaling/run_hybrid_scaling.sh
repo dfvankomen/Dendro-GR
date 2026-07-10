@@ -89,6 +89,29 @@ command -v python3 >/dev/null || { echo "ERROR: python3 not found"; exit 1; }
 echo "site=$SITE  nodes=$NNODES cores/node=$CORES_PER_NODE total=$TOTAL_CORES  launch=$MPI_LAUNCH arch=$CPU_ARCH"
 echo "sweep T=[$THREADS_LIST]  parfile=$(basename "$PARFILE") grid=$GRID oct2blk=$OCT2BLK_LEV steps=$STEPS  -> $OUTDIR"
 
+# --- memory preflight --------------------------------------------------------
+# Uniform + no-fusion keeps 8^LEV blocks, each with its own ghost zone, so the
+# unzipped arrays OOM long before the compute is interesting. Estimate per-node
+# RAM up front and fail with a node count instead of a cryptic bad_alloc/SIGSEGV
+# (a bad_alloc thrown in an OMP region crashes as a corrupt-pointer segfault).
+if [[ "$GRID" == uniform && "${MEM_CHECK:-on}" != off ]]; then
+  ord=$(grep -oiE 'BSSN_ELE_ORDER[[:space:]]*=[[:space:]]*[0-9]+' "$PARFILE" | grep -oE '[0-9]+$'); ord="${ord:-6}"
+  pad=$(( (2*ord + 1) ** 3 ))                              # padded pts per unzipped block
+  fuse=$([[ "$OCT2BLK_LEV" -ge 20 ]] && echo 1 || echo 512)  # ob31 ~ block/elem; ob0 fuses ~8^3
+  nblk=$(( 8 ** LEV / fuse )); (( nblk < 1 )) && nblk=1
+  gb=$(( nblk * pad * 85 * 8 / 1073741824 ))              # ~85 arrays/block (24 fields x RK stages + unzip/deriv peak)
+  per_node=$(( gb / NNODES ))
+  ram=$(( $(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0) / 1048576 ))
+  (( ram < 1 )) && ram="${NODE_RAM_GB:-192}"
+  budget=$(( ram * 85 / 100 ))
+  echo "mem: ~${nblk} blocks -> ~${per_node} GB/node (usable ~${budget} of ${ram} GB)"
+  if (( per_node > budget )); then
+    echo "ERROR: est ~${per_node} GB/node > ~${budget} GB usable. Need >= $(( gb / budget + 1 )) nodes, a smaller LEV, or OCT2BLK_LEV=0 (fused)."
+    echo "       Override with MEM_CHECK=off if you know the run fits."
+    exit 1
+  fi
+fi
+
 # --- build once (hybrid path + profile counters for the JSONL) ---------------
 BIN="$BUILD_DIR/BSSN_GR/bssnScalingBench"
 if [[ ! -x "$BIN" ]]; then

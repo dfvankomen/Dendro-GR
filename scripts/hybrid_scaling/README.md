@@ -59,6 +59,12 @@ one block per element) — otherwise a uniform grid collapses into a few giant f
 blocks and can't fill ranks; this is what makes `blocks ≈ 8^(LEV−3)` hold. `bbh`
 keeps fusion **on** (`=0`), the production RHS layout.
 
+No-fusion is memory-hungry: every one of the `8^LEV` blocks carries its own ghost
+zone, so the unzipped arrays grow fast and OOM (as a `bad_alloc`, or a corrupt-pointer
+segfault when it hits inside an OpenMP region). `MEM_CHECK` estimates per-node RAM and
+aborts with a node count before that happens. Rough fit: `LEV=5` (~32K blocks) runs
+2→8 nodes on one SKX/SPR node's worth of memory; `LEV=7` (~2M blocks) needs ~15+ nodes.
+
 ```bash
 GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (LEV=8 ~= 32768)
 ```
@@ -71,6 +77,7 @@ GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (
 | `THREADS_LIST` | `1 2 4` | threads/rank; `1` = pure-MPI. Keep each a divisor of the per-**socket** core count. |
 | `GRID`/`LEV` | `bbh`/`7` | `uniform` + `LEV` to saturate many nodes (see above) |
 | `OCT2BLK_LEV` | `31` uniform / `0` bbh | block fusion: `0` = fused big blocks (production RHS), `31` = no fusion, many small blocks. Baked into the build; changing it triggers a separate `build_hybrid_ob<N>/`. |
+| `MEM_CHECK` | `on` | uniform-grid RAM preflight; aborts with a node count before an OOM. Set `off` to bypass the estimate. |
 | `STEPS`/`WARMUP` | `10`/`2` | timed / discarded RK steps |
 | `MPI_LAUNCH` | `mpirun` | or `srun` (set `SRUN_MPI` plugin) |
 | `CPU_ARCH` / `CORES_PER_NODE` / `DENDROLIB_DIR` | from `SITE` | override any of these to deviate from the site preset |
