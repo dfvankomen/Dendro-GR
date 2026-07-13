@@ -69,6 +69,23 @@ aborts with a node count before that happens. Rough fit: `LEV=5` (~32K blocks) r
 GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (LEV=8 ~= 32768)
 ```
 
+## Roofline mode
+
+The compute phases (unzip, RHS) are memory-bandwidth-bound — they speed up as ranks/socket
+drop because there's less bandwidth contention, not more parallelism. `PROFILE=roofline` tells
+you how close you are to the memory wall, which decides whether *any* compute tuning is worth it:
+
+```bash
+module load likwid
+PROFILE=roofline sbatch -A ACCT -p spr --nodes=1 run_hybrid_scaling.sh
+```
+
+It runs one config on a single node under `likwid-perfctr -g MEM_DP` (IMC counters see all node
+memory traffic) and a `likwid-bench` STREAM run for the ceiling, then reports achieved GB/s, the
+STREAM ceiling, **% of the bandwidth wall**, DP GFLOP/s, and operational intensity →
+`roofline_<jobid>.csv`. Near the wall (~80%+) means only *fewer bytes* helps (ghost compression);
+well below it means there's locality/prefetch headroom. Sweep `ROOFLINE_T` to see utilization vs split.
+
 ## Knobs (env vars)
 
 | var | default | notes |
@@ -78,6 +95,8 @@ GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (
 | `GRID`/`LEV` | `bbh`/`7` | `uniform` + `LEV` to saturate many nodes (see above) |
 | `OCT2BLK_LEV` | `31` uniform / `0` bbh | block fusion: `0` = fused big blocks (production RHS), `31` = no fusion, many small blocks. Baked into the build; changing it triggers a separate `build_hybrid_ob<N>/`. |
 | `MEM_CHECK` | `on` | uniform-grid RAM preflight; aborts with a node count before an OOM. Set `off` to bypass the estimate. |
+| `PROFILE` | *(none)* | `roofline` runs one single-node likwid measurement instead of the sweep (see below). |
+| `ROOFLINE_T` | `1` | threads/rank for the roofline run; sweep it to see how bandwidth utilization changes with the split. |
 | `STEPS`/`WARMUP` | `10`/`2` | timed / discarded RK steps |
 | `MPI_LAUNCH` | `mpirun` | or `srun` (set `SRUN_MPI` plugin) |
 | `CPU_ARCH` / `CORES_PER_NODE` / `DENDROLIB_DIR` | from `SITE` | override any of these to deviate from the site preset |

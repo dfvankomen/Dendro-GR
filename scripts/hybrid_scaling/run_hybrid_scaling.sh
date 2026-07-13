@@ -52,6 +52,13 @@ SRUN_MPI="${SRUN_MPI:-pmix}"
 
 THREADS_LIST="${THREADS_LIST:-1 2 4}"    # threads/rank; 1 = pure-MPI. Keep each a per-socket divisor.
 
+# PROFILE=roofline: instead of the sweep, measure one single-node config under likwid
+# (MEM_DP counters = achieved memory bandwidth + DP GFLOP/s + operational intensity) and a
+# likwid-bench STREAM ceiling -> where the workload sits vs the memory-bandwidth wall.
+PROFILE="${PROFILE:-}"
+ROOFLINE_T="${ROOFLINE_T:-1}"                       # threads/rank for the roofline run (sweep to probe splits)
+ROOFLINE_STREAM_KERNEL="${ROOFLINE_STREAM_KERNEL:-stream}"  # likwid-bench kernel; stream_avx512 for widest SIMD
+
 # Default = the self-contained BBH grid here. NOT BSSN_GR/pars/q1.par.toml: it needs
 # an external TwoPunctures (tp_*) file and segfaults without one.
 PARFILE="${PARFILE:-$HERE/q1.scaling.par.toml}"
@@ -139,6 +146,65 @@ run_split() {
     mpirun --np "$R" --map-by "ppr:${RPN}:node:pe=${T}" --bind-to core "$BIN" "${args[@]}"
   fi
 }
+
+# --- roofline: one single-node config under likwid MEM_DP vs a STREAM ceiling -
+run_roofline() {
+  command -v likwid-perfctr >/dev/null 2>&1 && command -v likwid-bench >/dev/null 2>&1 \
+    || { echo "ERROR: PROFILE=roofline needs likwid (likwid-perfctr + likwid-bench). Try 'module load likwid'."; return 1; }
+  local T="$ROOFLINE_T"; (( CORES_PER_NODE % T == 0 )) || { echo "ERROR: ROOFLINE_T=$T must divide $CORES_PER_NODE"; return 1; }
+  local R=$(( CORES_PER_NODE / T )) hi=$(( CORES_PER_NODE - 1 ))
+  local PFX="$OUTDIR/roofline_t${T}"
+  export OMP_NUM_THREADS="$T" OMP_PROC_BIND=close OMP_PLACES=cores
+  echo "roofline: 1 node, $R ranks x $T threads, MEM_DP over cores 0-$hi"
+  # IMC counters see all node memory traffic; keep all ranks on one node (ppr:R:node)
+  likwid-perfctr -g MEM_DP -C "0-$hi" -f \
+    mpirun --np "$R" --map-by "ppr:${R}:node:pe=${T}" --bind-to core \
+      "$BIN" "$PARFILE" --grid "$GRID" --lev "$LEV" --steps "$STEPS" --warmup "$WARMUP" --prefix "$PFX" \
+    >"${PFX}.likwid" 2>&1 \
+    || { echo "## likwid-perfctr failed (counter access? need perf_event_paranoid<=0 or the likwid accessdaemon)"; tail -15 "${PFX}.likwid"; return 1; }
+  local nsock; nsock=$(likwid-topology 2>/dev/null | awk -F: '/Sockets:/{gsub(/ /,"",$2);print $2}'); nsock="${nsock:-1}"
+  likwid-bench -t "$ROOFLINE_STREAM_KERNEL" -W "S0:2GB:$(( CORES_PER_NODE / nsock ))" \
+    >"$OUTDIR/roofline_stream.likwid" 2>&1 || echo "## likwid-bench $ROOFLINE_STREAM_KERNEL failed; ceiling unknown"
+  python3 - "${PFX}.likwid" "$OUTDIR/roofline_stream.likwid" "$nsock" "$T" "$R" "$OUTDIR/roofline_${STAMP}.csv" <<'PYEOF'
+import re, sys
+run, stream, nsock, T, R, out_csv = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6]
+def maxfloat(path, needle):                     # STAT rows put the node-wide Sum as the largest value on the line
+    best = None
+    try: lines = open(path).read().splitlines()
+    except OSError: return None
+    for ln in lines:
+        if needle in ln:
+            for m in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", ln.split(needle,1)[1]):
+                v = float(m); best = v if best is None or v > best else best
+    return best
+bw   = maxfloat(run, "Memory bandwidth [MBytes/s]")     # achieved, node-wide
+flop = maxfloat(run, "DP [MFLOP/s]")
+oi   = maxfloat(run, "Operational intensity")
+# STREAM ceiling: likwid-bench reports one socket's MByte/s; scale to the node
+sbw = None
+for ln in open(stream).read().splitlines() if stream else []:
+    if "MByte/s" in ln:
+        m = re.findall(r"[\d.]+", ln.split("MByte/s",1)[1]);  sbw = float(m[0]) if m else sbw
+peak = sbw * nsock if sbw else None
+bw_g   = bw/1000 if bw else None
+peak_g = peak/1000 if peak else None
+pct    = 100*bw/peak if (bw and peak) else None
+flop_g = flop/1000 if flop else None
+f = lambda x: f"{x:.2f}" if isinstance(x,float) else ("" if x is None else str(x))
+print("\n== roofline ==")
+print(f"  achieved memory BW : {f(bw_g)} GB/s (node)")
+print(f"  STREAM ceiling     : {f(peak_g)} GB/s (node, {nsock}x socket)")
+print(f"  % of BW wall       : {f(pct)} %")
+print(f"  DP compute         : {f(flop_g)} GFLOP/s")
+print(f"  operational intens.: {f(oi)} FLOP/byte")
+with open(out_csv, "w") as fh:
+    fh.write("threads,ranks,achieved_bw_gbs,stream_bw_gbs,pct_of_wall,dp_gflops,op_intensity\n")
+    fh.write(",".join(f(x) for x in [T, R, bw_g, peak_g, pct, flop_g, oi]) + "\n")
+print(f"  wrote {out_csv}")
+PYEOF
+}
+
+if [[ "$PROFILE" == roofline ]]; then run_roofline; exit $?; fi
 
 # --- sweep -------------------------------------------------------------------
 for T in $THREADS_LIST; do
