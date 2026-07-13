@@ -48,32 +48,33 @@ messages. Pure-MPI and hybrid are the *same binary* — pure-MPI is just
 
 ## Sizing the mesh
 
-The mesh is fixed by the parfile and does **not** grow with node count, so the
-busiest config (pure-MPI) needs `blocks_per_rank ≥ 16`. The default BBH grid is
-~1044 blocks — good for ~1 node (the comm-bound regime where hybrid helps most), but
-it **plateaus**: raising `BSSN_MAXDEPTH` past 14 adds no blocks. To saturate many
-nodes, switch to a uniform grid (`blocks ≈ 8^(LEV−3)`):
-
-`GRID=uniform` auto-builds with block fusion **off** (`OCT2BLK_LEV=31`,
-one block per element) — otherwise a uniform grid collapses into a few giant fused
-blocks and can't fill ranks; this is what makes `blocks ≈ 8^(LEV−3)` hold. `bbh`
-keeps fusion **on** (`=0`), the production RHS layout.
-
-No-fusion is memory-hungry: every one of the `8^LEV` blocks carries its own ghost
-zone, so the unzipped arrays grow fast and OOM (as a `bad_alloc`, or a corrupt-pointer
-segfault when it hits inside an OpenMP region). `MEM_CHECK` estimates per-node RAM and
-aborts with a node count before that happens. Rough fit: `LEV=5` (~32K blocks) runs
-2→8 nodes on one SKX/SPR node's worth of memory; `LEV=7` (~2M blocks) needs ~15+ nodes.
+The mesh is fixed by the parfile and does **not** grow with node count, so the busiest
+config (pure-MPI) needs `blocks_per_rank ≥ 16`. The default `q1` BBH grid is ~1100 blocks
+— enough for N=1–2, but at N≥4 pure-MPI starves (1–2 blocks/rank) and the numbers aren't
+reliable. **To saturate N=4/N=8, use the higher-mass-ratio grid** — more AMR blocks with the
+same production `ob0` large-block layout that actually shows the hybrid win:
 
 ```bash
-GRID=uniform LEV=7 sbatch --nodes=8 ... run_hybrid_scaling.sh   # ~4096 blocks (LEV=8 ~= 32768)
+PARFILE=q8.scaling.par.toml sbatch -A ACCT -p spr --nodes=4 run_hybrid_scaling.sh
 ```
+
+`q8` is mass ratio 8:1 (`MAXDEPTH=17`); the small BH's deeper refinement gives several× more
+blocks. Confirm `blocks_per_rank` on the first run and raise `BSSN_MAXDEPTH` in the parfile
+if you need still more.
+
+**Don't** reach for `GRID=uniform` to saturate the hybrid comparison — it's a dead end:
+`ob0` uniform makes every block full-size and OOMs, and `ob31` uniform (no fusion) shows **no**
+hybrid win (the win is a large-block load-balance effect, absent when all blocks are tiny/equal).
+The uniform path stays for other bandwidth experiments; `MEM_CHECK` guards it. `ob31` mechanics:
+`blocks ≈ 8^(LEV−3)`, memory-hungry (each tiny block carries a full ghost zone) — `LEV=5` runs
+2→8 nodes on one node's RAM, `LEV=7` (~2M blocks) needs ~15+ nodes.
 
 ## Roofline mode
 
-The compute phases (unzip, RHS) are memory-bandwidth-bound — they speed up as ranks/socket
-drop because there's less bandwidth contention, not more parallelism. `PROFILE=roofline` tells
-you how close you are to the memory wall, which decides whether *any* compute tuning is worth it:
+`PROFILE=roofline` places the workload against the memory-bandwidth wall (achieved GB/s vs a
+STREAM ceiling) — useful for bandwidth-reduction questions like ghost compression. Note the
+hybrid *speedup* itself is a large-block load-balance effect, not bandwidth (the `ob31` control
+is flat), so this is a bandwidth diagnostic, not an explanation of the hybrid win:
 
 ```bash
 module load likwid
