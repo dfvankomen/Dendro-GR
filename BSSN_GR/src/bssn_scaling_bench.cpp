@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
     if (opt.mode == "weak" && opt.grid == "bbh")
         pMesh = bssn::weakScalingReMesh(mesh, npes);
 
-    // ---- ctx + stepper (mirror the solver, incl. MSRK) -----------------
+    // ---- ctx + stepper (mirror the solver, incl. MSRK/TSRK) ------------
     bssn::BSSNCtx* bssnCtx = new bssn::BSSNCtx(pMesh);
     const RKType rkType    = (RKType)bssn::BSSN_RK_TYPE;
     ts::ETS<DendroScalar, bssn::BSSNCtx>* ets = nullptr;
@@ -204,13 +204,13 @@ int main(int argc, char** argv) {
                             ? ts::ETSType::RK4_MSRK2_2
                             : ts::ETSType::RK4_MSRK3;
         ets = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(bssnCtx, v);
+    } else if (rkType == RKType::RK6_TSRK) {
+        ets = new ts::ETS_TSRK<DendroScalar, bssn::BSSNCtx>(bssnCtx);
     } else {
+        // RKType is index-matched to ts::ETSType: cast covers every
+        // single-step method, falling back to RK4 on an unknown value.
         ets = new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
-        if (rkType == RKType::RK3)
-            ets->set_ets_coefficients(ts::ETSType::RK3);
-        else if (rkType == RKType::RK5)
-            ets->set_ets_coefficients(ts::ETSType::RK5);
-        else
+        if (ets->set_ets_coefficients((ts::ETSType)rkType) != 0)
             ets->set_ets_coefficients(ts::ETSType::RK4);
     }
     ets->set_evolve_vars(bssnCtx->get_evolution_vars());

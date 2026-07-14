@@ -151,15 +151,24 @@ BSSN_RK_TIME_BEGIN = 0.0
 # The ending time of the simulation
 BSSN_RK_TIME_END = 700.0
 
-# which RK Method to use
-# 0 : RK3
-# 1 : RK4
-# 2 : RK45
-# Multi-Step Runge-Kutta (MSRK) methods (arXiv:2603.05763)
-# reuse RHS evals from previous steps for ~20-60% speedup.
-# 3 : RK4-2(1) -> Two-Step Runge-Kutta (TSRK)
-# 4 : RK4-2(2) -> Two-Step Runge-Kutta (TSRK)
-# 5 : RK4-3  -> Three-Step Runge-Kutta (3SRK)
+# which RK Method to use (index-matched to ts::ETSType)
+# Single-step Runge-Kutta:
+# 0  : RK3
+# 1  : RK4
+# 2  : RK5  (Butcher, 6-stage)
+# 6  : RK4 Ralston
+# 7  : RK45 Cash-Karp
+# 8  : RKF45
+# 9  : RK5 Nystrom
+# 10 : RK6  (Luther, 7-stage)
+# Multi-Step Runge-Kutta (MSRK) methods (arXiv:2603.05763) reuse RHS evals
+# from previous steps for ~20-60% speedup:
+# 3  : MSRK2(1)  (2-step, order 4)
+# 4  : MSRK2(2)  (2-step, order 4)
+# 5  : MSRK3     (3-step, order 4)
+# General multistep Runge-Kutta (TSRK family), reuses the previous two steps'
+# stage-derivative clouds; order 6, depth 2 (stores 8 extra derivative vectors):
+# 11 : RK6_TSRK
 BSSN_RK_TYPE = 1
 
 # Preferred time step size (this is overwritten by the CFL factor! It's not used!)

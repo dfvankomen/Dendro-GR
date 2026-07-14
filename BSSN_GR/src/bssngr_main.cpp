@@ -406,10 +406,14 @@ int main(int argc, char** argv) {
                       << NRM << std::endl;
         bssn::BSSNCtx* bssnCtx = new bssn::BSSNCtx(mesh);
 
-        // select time integrator based on BSSN_RK_TYPE:
+        // select time integrator based on BSSN_RK_TYPE (index-matched to
+        // ts::ETSType):
         //   0=RK3, 1=RK4, 2=RK5 (Butcher 6-stage)
         //   3=MSRK2_1, 4=MSRK2_2, 5=MSRK3 (multistep RK, arXiv:2603.05763)
-        // MSRK methods reuse RHS evals from previous steps for ~20-40% speedup.
+        //   6=RALSTON, 7=CASH_KARP, 8=RKF45, 9=NYSTROM, 10=RK6 (single-step)
+        //   11=RK6_TSRK (general multistep RK, order 6, depth 2)
+        // MSRK/TSRK methods reuse RHS evals from previous steps to cut ghost
+        // exchanges (~20-40% speedup); TSRK stores 8 extra derivative clouds.
         const RKType rkType = (RKType)bssn::BSSN_RK_TYPE;
 
         ts::ETS<DendroScalar, bssn::BSSNCtx>* ets = nullptr;
@@ -426,15 +430,22 @@ int main(int argc, char** argv) {
 
             ets = new ts::ETS_MSRK<DendroScalar, bssn::BSSNCtx>(
                 bssnCtx, msrkVariant);
+        } else if (rkType == RKType::RK6_TSRK) {
+            // TSRK takes no variant arg: fixed to the order-6 tableau, and
+            // self-bootstraps its history via the base RK6 stepper.
+            ets = new ts::ETS_TSRK<DendroScalar, bssn::BSSNCtx>(bssnCtx);
         } else {
             ets = new ts::ETS<DendroScalar, bssn::BSSNCtx>(bssnCtx);
 
-            if (rkType == RKType::RK3)
-                ets->set_ets_coefficients(ts::ETSType::RK3);
-            else if (rkType == RKType::RK4)
+            // RKType is index-matched to ts::ETSType, so a direct cast covers
+            // every single-step method (RK3/4/5 + RALSTON/CASH_KARP/RKF45/
+            // NYSTROM/RK6).
+            if (ets->set_ets_coefficients((ts::ETSType)rkType) != 0) {
+                if (!rank)
+                    std::cerr << "Unknown BSSN_RK_TYPE=" << bssn::BSSN_RK_TYPE
+                              << ", defaulting to RK4" << std::endl;
                 ets->set_ets_coefficients(ts::ETSType::RK4);
-            else if (rkType == RKType::RK5)
-                ets->set_ets_coefficients(ts::ETSType::RK5);
+            }
         }
 
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());

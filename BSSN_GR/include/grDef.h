@@ -27,9 +27,23 @@
 #define Z_TO_GRIDZ(zc) \
     (((RgZ / Rz) * (zc - bssn::BSSN_COMPD_MIN[2])) + bssn::BSSN_OCTREE_MIN[2])
 
-// type of the rk method.
-// 0=RK3, 1=RK4, 2=RK5(Butcher,6-stage), 3=MSRK2_1, 4=MSRK2_2, 5=MSRK3
-enum RKType { RK3 = 0, RK4, RK5, RK4_MSRK2_1, RK4_MSRK2_2, RK4_MSRK3 };
+// type of the rk method (index-matched to ts::ETSType in dendrolib ts.h)
+//  0=RK3 1=RK4 2=RK5(Butcher,6-stage)  3/4/5=MSRK2_1/MSRK2_2/MSRK3
+//  6=RALSTON 7=CASH_KARP 8=RKF45 9=NYSTROM  10=RK6(Luther,7-stage)  11=RK6_TSRK
+enum RKType {
+    RK3 = 0,
+    RK4,
+    RK5,
+    RK4_MSRK2_1,
+    RK4_MSRK2_2,
+    RK4_MSRK3,
+    RK4_RALSTON,
+    RK45_CASH_KARP,
+    RKF45,
+    RK5_NYSTROM,
+    RK6,
+    RK6_TSRK
+};
 
 namespace bssn {
 /**@brief BSSN evolution variables*/

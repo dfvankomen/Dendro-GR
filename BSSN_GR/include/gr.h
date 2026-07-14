@@ -17,6 +17,7 @@
 #include "enuts.h"
 #include "ets.h"
 #include "ets_msrk.h"
+#include "ets_tsrk.h"
 
 #define BLD "\033[1m"
 
