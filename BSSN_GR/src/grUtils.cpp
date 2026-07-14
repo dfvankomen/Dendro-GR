@@ -821,53 +821,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << NRM << std::endl;
         sout << YLW << "\t\tVERBOSITY_LEVEL: " << AEH::VERBOSITY_LEVEL << NRM
              << std::endl;
-
-#ifdef DENDRO_USE_NEW_DERIVS
-        // new-derivs scheme selection (only compiled in with DENDRO_USE_NEW_DERIVS)
-        sout << GRN << "\t----- DERIVATIVE OPTIONS (new derivs) -----" << NRM
-             << std::endl;
-        sout << YLW << "\tBSSN_DERIVTYPE_FIRST :" << bssn::BSSN_DERIVTYPE_FIRST
-             << NRM << std::endl;
-        sout << YLW
-             << "\tBSSN_DERIVTYPE_SECOND :" << bssn::BSSN_DERIVTYPE_SECOND << NRM
-             << std::endl;
-        sout << YLW
-             << "\tBSSN_DERIV_FIRST_MATID :" << bssn::BSSN_DERIV_FIRST_MATID
-             << NRM << std::endl;
-        sout << YLW
-             << "\tBSSN_DERIV_SECOND_MATID :" << bssn::BSSN_DERIV_SECOND_MATID
-             << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_INMATFILT_FIRST :"
-             << bssn::BSSN_DERIV_INMATFILT_FIRST << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_INMATFILT_SECOND :"
-             << bssn::BSSN_DERIV_INMATFILT_SECOND << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_FIRST_COEFFS :[";
-        for (unsigned int i = 0; i < bssn::BSSN_DERIV_FIRST_COEFFS.size(); i++)
-            sout << bssn::BSSN_DERIV_FIRST_COEFFS[i] << ", ";
-        sout << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_SECOND_COEFFS :[";
-        for (unsigned int i = 0; i < bssn::BSSN_DERIV_SECOND_COEFFS.size(); i++)
-            sout << bssn::BSSN_DERIV_SECOND_COEFFS[i] << ", ";
-        sout << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_INMATFILT_FIRST_COEFFS :[";
-        for (unsigned int i = 0;
-             i < bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS.size(); i++)
-            sout << bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS[i] << ", ";
-        sout << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_INMATFILT_SECOND_COEFFS :[";
-        for (unsigned int i = 0;
-             i < bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS.size(); i++)
-            sout << bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS[i] << ", ";
-        sout << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS :"
-             << bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS
-             << (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS == 0 ? " (off)" : "")
-             << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_PUNCTURE_FALLBACK_FIRST :"
-             << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST << NRM << std::endl;
-        sout << YLW << "\tBSSN_DERIV_PUNCTURE_FALLBACK_SECOND :"
-             << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND << NRM << std::endl;
-#endif
     }
 }
 
@@ -946,11 +899,6 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
             bssn::kerrData(xx_grid, yy_grid, zz_grid, var);
 
             break;
-        case 7:
-            // ID 7 is the deterministic Gaussian-enveloped noise (CCZ4 parity)
-            bssn::gaussianNoiseData(xx_grid, yy_grid, zz_grid, var);
-
-            break;
             // MORE CAN BE ADDED HERE
 
         default:
@@ -972,9 +920,10 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
 
 void punctureDataPhysicalCoord(const double xx, const double yy,
                                const double zz, double* var) {
-    /* Define the Levi-Cevita pseudo-tensor and Kroneckar delta */
+    /* Define the Levi-Civita pseudotensor and Kronecker delta */
     double epijk[3][3][3];
     int i, j, k;
+
     for (k = 0; k < 3; k++) {
         for (j = 0; j < 3; j++) {
             for (i = 0; i < 3; i++) {
@@ -982,6 +931,7 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
             }
         }
     }
+
     epijk[0][1][2] = 1.0;
     epijk[1][2][0] = 1.0;
     epijk[2][0][1] = 1.0;
@@ -990,6 +940,7 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
     epijk[1][0][2] = -1.0;
 
     double deltaij[3][3];
+
     for (j = 0; j < 3; j++) {
         for (i = 0; i < 3; i++) {
             deltaij[j][i] = 0.0;
@@ -1005,218 +956,380 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
     double vn1[3], vn2[3];
 
     double vpsibl;
-    double v_u_corr, amp_capj, amp_capr, l_r, u0_j, u2_j, mu_j, p2_mu_j, v_u_j1;
+    double v_u_corr;
+    double amp_capj, amp_capr, l_r;
+    double u0_j, u2_j, mu_j, p2_mu_j, v_u_j1;
     double v1, v2, v3, v4, vt1, vt2;
 
     int i1, i2, i3, i4;
-    double amp_capp, u0_p, u2_p, mu_p, p2_mu_p;
+
+    double amp_capp;
+    double u0_p, u2_p, mu_p, p2_mu_p;
     double v_u_p1, v_u_c1, v_u_j2, v_u_p2;
     double v_u_c2, vpsibl_u, vpsibl_u2;
 
-    // bh 1
-    double mass1 = BH1.getBHMass();
-    double bh1x  = BH1.getBHCoordX();
-    double bh1y  = BH1.getBHCoordY();
-    double bh1z  = BH1.getBHCoordZ();
+    constexpr double PUNCTURE_EPS = 1.0e-14;
+
+    // BH1
+    const double mass1 = BH1.getBHMass();
+    const double bh1x  = BH1.getBHCoordX();
+    const double bh1y  = BH1.getBHCoordY();
+    const double bh1z  = BH1.getBHCoordZ();
 
     double vp1[3];
-    vp1[0]          = BH1.getVx();
-    vp1[1]          = BH1.getVy();
-    vp1[2]          = BH1.getVz();
+    vp1[0] = BH1.getVx();
+    vp1[1] = BH1.getVy();
+    vp1[2] = BH1.getVz();
 
-    double vp1tot   = sqrt(vp1[0] * vp1[0] + vp1[1] * vp1[1] + vp1[2] * vp1[2]);
-    double spin1    = BH1.getBHSpin();
-    double spin1_th = BH1.getBHSpinTheta();
-    double spin1_phi = BH1.getBHSpinPhi();
+    const double vp1tot =
+        sqrt(vp1[0] * vp1[0] +
+             vp1[1] * vp1[1] +
+             vp1[2] * vp1[2]);
+
+    const double spin1     = BH1.getBHSpin();
+    const double spin1_th  = BH1.getBHSpinTheta();
+    const double spin1_phi = BH1.getBHSpinPhi();
+
     double vs1[3];
+    vs1[0] = spin1 * sin(spin1_th) * cos(spin1_phi);
+    vs1[1] = spin1 * sin(spin1_th) * sin(spin1_phi);
+    vs1[2] = spin1 * cos(spin1_th);
 
-    vs1[0]       = spin1 * sin(spin1_th) * cos(spin1_phi);
-    vs1[1]       = spin1 * sin(spin1_th) * sin(spin1_phi);
-    vs1[2]       = spin1 * cos(spin1_th);
-
-    // bh 2
-    double mass2 = BH2.getBHMass();
-    double bh2x  = BH2.getBHCoordX();
-    double bh2y  = BH2.getBHCoordY();
-    double bh2z  = BH2.getBHCoordZ();
+    // BH2
+    const double mass2 = BH2.getBHMass();
+    const double bh2x  = BH2.getBHCoordX();
+    const double bh2y  = BH2.getBHCoordY();
+    const double bh2z  = BH2.getBHCoordZ();
 
     double vp2[3];
-    vp2[0]          = BH2.getVx();
-    vp2[1]          = BH2.getVy();
-    vp2[2]          = BH2.getVz();
+    vp2[0] = BH2.getVx();
+    vp2[1] = BH2.getVy();
+    vp2[2] = BH2.getVz();
 
-    double vp2tot   = sqrt(vp2[0] * vp2[0] + vp2[1] * vp2[1] + vp2[2] * vp2[2]);
-    double spin2    = BH2.getBHSpin();
-    double spin2_th = BH2.getBHSpinTheta();
-    double spin2_phi = BH2.getBHSpinPhi();
+    const double vp2tot =
+        sqrt(vp2[0] * vp2[0] +
+             vp2[1] * vp2[1] +
+             vp2[2] * vp2[2]);
+
+    const double spin2     = BH2.getBHSpin();
+    const double spin2_th  = BH2.getBHSpinTheta();
+    const double spin2_phi = BH2.getBHSpinPhi();
 
     double vs2[3];
-    vs2[0]   = spin2 * sin(spin2_th) * cos(spin2_phi);
-    vs2[1]   = spin2 * sin(spin2_th) * sin(spin2_phi);
-    vs2[2]   = spin2 * cos(spin2_th);
+    vs2[0] = spin2 * sin(spin2_th) * cos(spin2_phi);
+    vs2[1] = spin2 * sin(spin2_th) * sin(spin2_phi);
+    vs2[2] = spin2 * cos(spin2_th);
 
-    // coordinates with respect to center of bh1
-    x1       = xx - bh1x;
-    y1       = yy - bh1y;
-    z1       = zz - bh1z;
+    // Coordinates relative to BH1
+    x1  = xx - bh1x;
+    y1  = yy - bh1y;
+    z1  = zz - bh1z;
+    rv1 = sqrt(x1 * x1 + y1 * y1 + z1 * z1);
 
-    // locating as a radial form
-    rv1      = sqrt(x1 * x1 + y1 * y1 + z1 * z1);
-    vn1[0]   = x1 / rv1;
-    vn1[1]   = y1 / rv1;
-    vn1[2]   = z1 / rv1;
+    // Coordinates relative to BH2
+    x2  = xx - bh2x;
+    y2  = yy - bh2y;
+    z2  = zz - bh2z;
+    rv2 = sqrt(x2 * x2 + y2 * y2 + z2 * z2);
 
-    // same as BH2
-    x2       = xx - bh2x;
-    y2       = yy - bh2y;
-    z2       = zz - bh2z;
+    const bool at_puncture1 = rv1 <= PUNCTURE_EPS;
+    const bool at_puncture2 = rv2 <= PUNCTURE_EPS;
 
-    rv2      = sqrt(x2 * x2 + y2 * y2 + z2 * z2);
-    vn2[0]   = x2 / rv2;
-    vn2[1]   = y2 / rv2;
-    vn2[2]   = z2 / rv2;
+    /*
+     * At either puncture, the radial unit vector is undefined and the
+     * Brill-Lindquist conformal factor diverges. The evolved variables,
+     * however, have well defined limiting values:
+     *
+     *     alpha -> 0,
+     *     chi   -> 0,
+     *     A_ij  -> 0.
+     *
+     * Apply those limits directly to avoid 0/0 and inf*0 operations.
+     */
+    if (at_puncture1 || at_puncture2) {
+        var[VAR::U_ALPHA] = CHI_FLOOR;
+        var[VAR::U_CHI]   = CHI_FLOOR;
+        var[VAR::U_K]     = 0.0;
 
-    // Initial data is related with the paper: http://arxiv.org/abs/0711.1165
+        var[VAR::U_BETA0] = 0.0;
+        var[VAR::U_BETA1] = 0.0;
+        var[VAR::U_BETA2] = 0.0;
+
+        var[VAR::U_GT0] = 0.0;
+        var[VAR::U_GT1] = 0.0;
+        var[VAR::U_GT2] = 0.0;
+
+        var[VAR::U_B0] = 0.0;
+        var[VAR::U_B1] = 0.0;
+        var[VAR::U_B2] = 0.0;
+
+        var[VAR::U_SYMGT0] = 1.0;  // XX
+        var[VAR::U_SYMGT1] = 0.0;  // XY
+        var[VAR::U_SYMGT2] = 0.0;  // XZ
+        var[VAR::U_SYMGT3] = 1.0;  // YY
+        var[VAR::U_SYMGT4] = 0.0;  // YZ
+        var[VAR::U_SYMGT5] = 1.0;  // ZZ
+
+        var[VAR::U_SYMAT0] = 0.0;  // XX
+        var[VAR::U_SYMAT1] = 0.0;  // XY
+        var[VAR::U_SYMAT2] = 0.0;  // XZ
+        var[VAR::U_SYMAT3] = 0.0;  // YY
+        var[VAR::U_SYMAT4] = 0.0;  // YZ
+        var[VAR::U_SYMAT5] = 0.0;  // ZZ
+
+        return;
+    }
+
+    // Radial unit vectors are safe after the puncture check
+    vn1[0] = x1 / rv1;
+    vn1[1] = y1 / rv1;
+    vn1[2] = z1 / rv1;
+
+    vn2[0] = x2 / rv2;
+    vn2[1] = y2 / rv2;
+    vn2[2] = z2 / rv2;
+
+    // Initial data is related to arXiv:0711.1165
     // Brill-Lindquist conformal factor
-    vpsibl   = 1.0 + mass1 / (2.0 * rv1);
-    vpsibl   = vpsibl + mass2 / (2.0 * rv2);
+    vpsibl = 1.0 + mass1 / (2.0 * rv1);
+    vpsibl = vpsibl + mass2 / (2.0 * rv2);
 
     v_u_corr = 0.0;
-    // bh 1
 
-    // For spinning puncture
-    if (fabs(spin1) > 1.e-6) {
+    // BH1 spinning puncture correction
+    if (fabs(spin1) > 1.0e-6) {
         amp_capj = 4.0 * spin1 / (mass1 * mass1);
         amp_capr = 2.0 * rv1 / mass1;
         l_r      = 1.0 / (1.0 + amp_capr);
+
         u0_j =
-            (l_r + l_r * l_r + l_r * l_r * l_r - 4.0 * l_r * l_r * l_r * l_r +
+            (l_r +
+             l_r * l_r +
+             l_r * l_r * l_r -
+             4.0 * l_r * l_r * l_r * l_r +
              2.0 * l_r * l_r * l_r * l_r * l_r) /
             40.0;
-        u2_j    = -pow(l_r, 5) / 20.0;
-        mu_j    = vn1[0] * vs1[0];
-        mu_j    = mu_j + vn1[1] * vs1[1];
-        mu_j    = (mu_j + vn1[2] * vs1[2]) / fabs(spin1);
+
+        u2_j = -pow(l_r, 5) / 20.0;
+
+        mu_j = vn1[0] * vs1[0];
+        mu_j = mu_j + vn1[1] * vs1[1];
+        mu_j = (mu_j + vn1[2] * vs1[2]) / fabs(spin1);
+
         p2_mu_j = (3.0 * mu_j * mu_j - 1.0) / 2.0;
+
         v_u_j1 =
-            amp_capj * amp_capj * (u0_j + u2_j * amp_capr * amp_capr * p2_mu_j);
+            amp_capj * amp_capj *
+            (u0_j + u2_j * amp_capr * amp_capr * p2_mu_j);
+
         v_u_corr = v_u_corr + v_u_j1;
     }
-    // For boosting puncture
-    if (vp1tot > 1.e-6) {
+
+    // BH1 boosted puncture correction
+    if (vp1tot > 1.0e-6) {
         amp_capp = 2.0 * vp1tot / mass1;
         amp_capr = 2.0 * rv1 / mass1;
         l_r      = 1.0 / (1.0 + amp_capr);
-        u0_p     = l_r - 2.0 * l_r * l_r + 2.0 * pow(l_r, 3);
-        u0_p     = (u0_p - pow(l_r, 4) + 0.20 * pow(l_r, 5)) * (5.0 / 32.0);
-        u2_p     = 15.0 * l_r + 132.0 * l_r * l_r + 53.0 * pow(l_r, 3);
-        u2_p     = u2_p + 96.0 * pow(l_r, 4) + 82.0 * pow(l_r, 5);
-        u2_p = u2_p + (84.0 / amp_capr) * (pow(l_r, 5) + log(l_r) / amp_capr);
-        u2_p = (u2_p) / (80.0 * amp_capr);
+
+        u0_p = l_r -
+               2.0 * l_r * l_r +
+               2.0 * pow(l_r, 3);
+
+        u0_p =
+            (u0_p -
+             pow(l_r, 4) +
+             0.20 * pow(l_r, 5)) *
+            (5.0 / 32.0);
+
+        u2_p =
+            15.0 * l_r +
+            132.0 * l_r * l_r +
+            53.0 * pow(l_r, 3);
+
+        u2_p =
+            u2_p +
+            96.0 * pow(l_r, 4) +
+            82.0 * pow(l_r, 5);
+
+        u2_p =
+            u2_p +
+            (84.0 / amp_capr) *
+                (pow(l_r, 5) + log(l_r) / amp_capr);
+
+        u2_p = u2_p / (80.0 * amp_capr);
+
         mu_p = vn1[0] * vp1[0] / vp1tot;
         mu_p = mu_p + vn1[1] * vp1[1] / vp1tot;
         mu_p = mu_p + vn1[2] * vp1[2] / vp1tot;
-        p2_mu_p  = (3.0 * pow(mu_p, 2) - 1.0) / 2.0;
-        v_u_p1   = pow(amp_capp, 2) * (u0_p + u2_p * p2_mu_p);
+
+        p2_mu_p = (3.0 * pow(mu_p, 2) - 1.0) / 2.0;
+
+        v_u_p1 =
+            pow(amp_capp, 2) *
+            (u0_p + u2_p * p2_mu_p);
+
         v_u_corr = v_u_corr + v_u_p1;
     }
-    // For spinning boosted pucture
-    if (vp1tot > 1.e-6 && fabs(spin1) > 1.e-6) {
-        v1       = (vp1[1] * vs1[2] - vp1[2] * vs1[1]) * vn1[0];
-        v1       = v1 + (vp1[2] * vs1[0] - vp1[0] * vs1[2]) * vn1[1];
-        v1       = v1 + (vp1[0] * vs1[1] - vp1[1] * vs1[0]) * vn1[2];
-        v1       = v1 * (16.0 / pow(mass1, 4)) * rv1;
+
+    // BH1 spinning and boosted puncture correction
+    if (vp1tot > 1.0e-6 && fabs(spin1) > 1.0e-6) {
+        v1 =
+            (vp1[1] * vs1[2] - vp1[2] * vs1[1]) * vn1[0];
+
+        v1 =
+            v1 +
+            (vp1[2] * vs1[0] - vp1[0] * vs1[2]) * vn1[1];
+
+        v1 =
+            v1 +
+            (vp1[0] * vs1[1] - vp1[1] * vs1[0]) * vn1[2];
+
+        v1 = v1 * (16.0 / pow(mass1, 4)) * rv1;
 
         amp_capr = 2.0 * rv1 / mass1;
         l_r      = 1.0 / (1.0 + amp_capr);
 
-        v2       = 1.0 + 5.0 * amp_capr + 10.0 * pow(amp_capr, 2);
+        v2 = 1.0 +
+             5.0 * amp_capr +
+             10.0 * pow(amp_capr, 2);
 
-        v_u_c1   = (v1 * v2 * pow(l_r, 5)) / 80.0;
+        v_u_c1 = (v1 * v2 * pow(l_r, 5)) / 80.0;
+
         v_u_corr = v_u_corr + v_u_c1;
     }
-    // bh 2 same puncture as bh 1
-    if (fabs(spin2) > 1.e-6) {
+
+    // BH2 spinning puncture correction
+    if (fabs(spin2) > 1.0e-6) {
         amp_capj = 4.0 * spin2 / (mass2 * mass2);
         amp_capr = 2.0 * rv2 / mass2;
         l_r      = 1.0 / (1.0 + amp_capr);
+
         u0_j =
-            (l_r + l_r * l_r + l_r * l_r * l_r - 4.0 * l_r * l_r * l_r * l_r +
+            (l_r +
+             l_r * l_r +
+             l_r * l_r * l_r -
+             4.0 * l_r * l_r * l_r * l_r +
              2.0 * l_r * l_r * l_r * l_r * l_r) /
             40.0;
-        u2_j    = -pow(l_r, 5) / 20.0;
-        mu_j    = vn2[0] * vs2[0];
-        mu_j    = mu_j + vn2[1] * vs2[1];
-        mu_j    = (mu_j + vn2[2] * vs2[2]) / fabs(spin2);
+
+        u2_j = -pow(l_r, 5) / 20.0;
+
+        mu_j = vn2[0] * vs2[0];
+        mu_j = mu_j + vn2[1] * vs2[1];
+        mu_j = (mu_j + vn2[2] * vs2[2]) / fabs(spin2);
+
         p2_mu_j = (3.0 * mu_j * mu_j - 1.0) / 2.0;
+
         v_u_j2 =
-            amp_capj * amp_capj * (u0_j + u2_j * amp_capr * amp_capr * p2_mu_j);
+            amp_capj * amp_capj *
+            (u0_j + u2_j * amp_capr * amp_capr * p2_mu_j);
+
         v_u_corr = v_u_corr + v_u_j2;
     }
 
-    if (vp2tot > 1.e-6) {
+    // BH2 boosted puncture correction
+    if (vp2tot > 1.0e-6) {
         amp_capp = 2.0 * vp2tot / mass2;
         amp_capr = 2.0 * rv2 / mass2;
         l_r      = 1.0 / (1.0 + amp_capr);
-        u0_p     = l_r - 2.0 * l_r * l_r + 2.0 * pow(l_r, 3);
-        u0_p     = (u0_p - pow(l_r, 4) + 0.20 * pow(l_r, 5)) * (5.0 / 32.0);
-        u2_p     = 15.0 * l_r + 132.0 * l_r * l_r + 53.0 * pow(l_r, 3);
-        u2_p     = u2_p + 96.0 * pow(l_r, 4) + 82.0 * pow(l_r, 5);
-        u2_p = u2_p + (84.0 / amp_capr) * (pow(l_r, 5) + log(l_r) / amp_capr);
-        u2_p = (u2_p) / (80.0 * amp_capr);
+
+        u0_p = l_r -
+               2.0 * l_r * l_r +
+               2.0 * pow(l_r, 3);
+
+        u0_p =
+            (u0_p -
+             pow(l_r, 4) +
+             0.20 * pow(l_r, 5)) *
+            (5.0 / 32.0);
+
+        u2_p =
+            15.0 * l_r +
+            132.0 * l_r * l_r +
+            53.0 * pow(l_r, 3);
+
+        u2_p =
+            u2_p +
+            96.0 * pow(l_r, 4) +
+            82.0 * pow(l_r, 5);
+
+        u2_p =
+            u2_p +
+            (84.0 / amp_capr) *
+                (pow(l_r, 5) + log(l_r) / amp_capr);
+
+        u2_p = u2_p / (80.0 * amp_capr);
+
         mu_p = vn2[0] * vp2[0] / vp2tot;
         mu_p = mu_p + vn2[1] * vp2[1] / vp2tot;
         mu_p = mu_p + vn2[2] * vp2[2] / vp2tot;
-        p2_mu_p  = (3.0 * pow(mu_p, 2) - 1.0) / 2.0;
-        v_u_p2   = pow(amp_capp, 2) * (u0_p + u2_p * p2_mu_p);
+
+        p2_mu_p = (3.0 * pow(mu_p, 2) - 1.0) / 2.0;
+
+        v_u_p2 =
+            pow(amp_capp, 2) *
+            (u0_p + u2_p * p2_mu_p);
+
         v_u_corr = v_u_corr + v_u_p2;
     }
 
-    if (vp2tot > 1.e-6 && fabs(spin2) > 1.e-6) {
-        v1       = (vp2[1] * vs2[2] - vp2[2] * vs2[1]) * vn2[0];
-        v1       = v1 + (vp2[2] * vs2[0] - vp2[0] * vs2[2]) * vn2[1];
-        v1       = v1 + (vp2[0] * vs2[1] - vp2[1] * vs2[0]) * vn2[2];
-        v1       = v1 * (16.0 / pow(mass2, 4)) * rv2;
+    // BH2 spinning and boosted puncture correction
+    if (vp2tot > 1.0e-6 && fabs(spin2) > 1.0e-6) {
+        v1 =
+            (vp2[1] * vs2[2] - vp2[2] * vs2[1]) * vn2[0];
+
+        v1 =
+            v1 +
+            (vp2[2] * vs2[0] - vp2[0] * vs2[2]) * vn2[1];
+
+        v1 =
+            v1 +
+            (vp2[0] * vs2[1] - vp2[1] * vs2[0]) * vn2[2];
+
+        v1 = v1 * (16.0 / pow(mass2, 4)) * rv2;
 
         amp_capr = 2.0 * rv2 / mass2;
         l_r      = 1.0 / (1.0 + amp_capr);
 
-        v2       = 1.0 + 5.0 * amp_capr + 10.0 * pow(amp_capr, 2);
+        v2 = 1.0 +
+             5.0 * amp_capr +
+             10.0 * pow(amp_capr, 2);
 
-        v_u_c2   = (v1 * v2 * pow(l_r, 5)) / 80.0;
+        v_u_c2 = (v1 * v2 * pow(l_r, 5)) / 80.0;
+
         v_u_corr = v_u_corr + v_u_c2;
     }
 
-    // vpsibl_u will be used for the conformal factor,
-    vpsibl_u          = vpsibl + v_u_corr;
-    // vpsibl_u2 is for the Aij terms...
-    // ! since the corrections are first order...
-    // ! adding half of the correction seems to give the best results...
-    // ! update - do a fit for spin = 0.6...
-    vpsibl_u2         = vpsibl + v_u_corr;
+    // Corrected conformal factors
+    vpsibl_u  = vpsibl + v_u_corr;
+    vpsibl_u2 = vpsibl + v_u_corr;
 
-    var[VAR::U_ALPHA] = 1.0 / (vpsibl_u * vpsibl_u);
-    // std::cout<<"Alpha: "<<u[U_ALPHA]<<" vpsibl_u: "<< vpsibl_u<<std::endl;
-    var[VAR::U_ALPHA] = std::max(var[VAR::U_ALPHA], CHI_FLOOR);
+    var[VAR::U_ALPHA] =
+        1.0 / (vpsibl_u * vpsibl_u);
 
-    v2                = 1.0 / pow(vpsibl_u, 4);
-    var[VAR::U_CHI]   = v2;
+    var[VAR::U_ALPHA] =
+        std::max(var[VAR::U_ALPHA], CHI_FLOOR);
 
-    if (var[VAR::U_CHI] < CHI_FLOOR) var[VAR::U_CHI] = CHI_FLOOR;
+    var[VAR::U_CHI] =
+        1.0 / pow(vpsibl_u, 4);
 
-    var[VAR::U_K]      = 0.0;
+    if (var[VAR::U_CHI] < CHI_FLOOR) {
+        var[VAR::U_CHI] = CHI_FLOOR;
+    }
 
-    var[VAR::U_BETA0]  = 0.0;
-    var[VAR::U_BETA1]  = 0.0;
-    var[VAR::U_BETA2]  = 0.0;
+    var[VAR::U_K] = 0.0;
 
-    var[VAR::U_GT0]    = 0.0;
-    var[VAR::U_GT1]    = 0.0;
-    var[VAR::U_GT2]    = 0.0;
+    var[VAR::U_BETA0] = 0.0;
+    var[VAR::U_BETA1] = 0.0;
+    var[VAR::U_BETA2] = 0.0;
 
-    var[VAR::U_B0]     = 0.0;
-    var[VAR::U_B1]     = 0.0;
-    var[VAR::U_B2]     = 0.0;
+    var[VAR::U_GT0] = 0.0;
+    var[VAR::U_GT1] = 0.0;
+    var[VAR::U_GT2] = 0.0;
+
+    var[VAR::U_B0] = 0.0;
+    var[VAR::U_B1] = 0.0;
+    var[VAR::U_B2] = 0.0;
 
     var[VAR::U_SYMGT0] = 1.0;  // XX
     var[VAR::U_SYMGT1] = 0.0;  // XY
@@ -1227,47 +1340,106 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
 
     for (i1 = 0; i1 < 3; i1++) {
         for (i2 = 0; i2 < 3; i2++) {
-            // first BH
+            /*
+             * BH1 contribution to the physical conformal
+             * trace-free extrinsic curvature.
+             */
             v2 = 0.0;
+
             for (i3 = 0; i3 < 3; i3++) {
                 for (i4 = 0; i4 < 3; i4++) {
-                    vt1 = epijk[i1][i3][i4] * vs1[i3] * vn1[i4] * vn1[i2];
-                    vt2 = epijk[i2][i3][i4] * vs1[i3] * vn1[i4] * vn1[i1];
-                    v2  = v2 + vt1 + vt2;
+                    vt1 =
+                        epijk[i1][i3][i4] *
+                        vs1[i3] *
+                        vn1[i4] *
+                        vn1[i2];
+
+                    vt2 =
+                        epijk[i2][i3][i4] *
+                        vs1[i3] *
+                        vn1[i4] *
+                        vn1[i1];
+
+                    v2 = v2 + vt1 + vt2;
                 }
             }
 
-            v3  = vp1[i1] * vn1[i2] + vp1[i2] * vn1[i1];
+            v3 =
+                vp1[i1] * vn1[i2] +
+                vp1[i2] * vn1[i1];
+
             vt1 = 0.0;
+
             for (i3 = 0; i3 < 3; i3++) {
                 vt1 = vt1 + vp1[i3] * vn1[i3];
             }
-            vt1 = vt1 * (vn1[i1] * vn1[i2] - deltaij[i1][i2]);
-            v3  = v3 + vt1;
 
-            v1  = 3.0 / (pow(vpsibl_u2, 6) * pow(rv1, 3));
-            v4  = v1 * (v2 + (rv1 / 2.0) * v3);
+            vt1 =
+                vt1 *
+                (vn1[i1] * vn1[i2] -
+                 deltaij[i1][i2]);
 
-            // second BH
-            v2  = 0.0;
+            v3 = v3 + vt1;
+
+            v1 =
+                3.0 /
+                (pow(vpsibl_u2, 6) *
+                 pow(rv1, 3));
+
+            v4 =
+                v1 *
+                (v2 + (rv1 / 2.0) * v3);
+
+            /*
+             * BH2 contribution to the physical conformal
+             * trace-free extrinsic curvature.
+             */
+            v2 = 0.0;
+
             for (i3 = 0; i3 < 3; i3++) {
                 for (i4 = 0; i4 < 3; i4++) {
-                    vt1 = epijk[i1][i3][i4] * vs2[i3] * vn2[i4] * vn2[i2];
-                    vt2 = epijk[i2][i3][i4] * vs2[i3] * vn2[i4] * vn2[i1];
-                    v2  = v2 + vt1 + vt2;
+                    vt1 =
+                        epijk[i1][i3][i4] *
+                        vs2[i3] *
+                        vn2[i4] *
+                        vn2[i2];
+
+                    vt2 =
+                        epijk[i2][i3][i4] *
+                        vs2[i3] *
+                        vn2[i4] *
+                        vn2[i1];
+
+                    v2 = v2 + vt1 + vt2;
                 }
             }
 
-            v3  = vp2[i1] * vn2[i2] + vp2[i2] * vn2[i1];
+            v3 =
+                vp2[i1] * vn2[i2] +
+                vp2[i2] * vn2[i1];
+
             vt1 = 0.0;
+
             for (i3 = 0; i3 < 3; i3++) {
                 vt1 = vt1 + vp2[i3] * vn2[i3];
             }
-            vt1 = vt1 * (vn2[i1] * vn2[i2] - deltaij[i1][i2]);
-            v3  = v3 + vt1;
 
-            v1  = 3.0 / (pow(vpsibl_u2, 6) * pow(rv2, 3));
-            v4  = v4 + v1 * (v2 + (rv2 / 2.0) * v3);
+            vt1 =
+                vt1 *
+                (vn2[i1] * vn2[i2] -
+                 deltaij[i1][i2]);
+
+            v3 = v3 + vt1;
+
+            v1 =
+                3.0 /
+                (pow(vpsibl_u2, 6) *
+                 pow(rv2, 3));
+
+            v4 =
+                v4 +
+                v1 *
+                    (v2 + (rv2 / 2.0) * v3);
 
             if (i1 == 0 && i2 == 0) {
                 var[VAR::U_SYMAT0] = v4;  // XX
@@ -1285,7 +1457,6 @@ void punctureDataPhysicalCoord(const double xx, const double yy,
         }
     }
 }
-
 void punctureData(const double xx1, const double yy1, const double zz1,
                   double* var) {
     const double xx = GRIDX_TO_X(xx1);
@@ -1438,10 +1609,8 @@ void noiseData(const double xx1, const double yy1, const double zz1,
         random_variable[i] = 2.0 * rand() / ((double)RAND_MAX) - 1.0;
     }
 
-    // set a (uniform) amplitude for the noise -- runtime-controlled so the
-    // full-domain random test can sweep amplitude (CCZ4 parity: same knob,
-    // CCZ4_NOISE_AMP). Was hardcoded 1.0e-8.
-    double noise_amp   = bssn::BSSN_NOISE_AMP;
+    // set a (uniform) amplitude for the noise
+    double noise_amp   = 1.0e-8;
 
     var[VAR::U_ALPHA]  = 1.0 + noise_amp * random_variable[0];
 
@@ -1474,57 +1643,6 @@ void noiseData(const double xx1, const double yy1, const double zz1,
     var[VAR::U_SYMAT3] = noise_amp * random_variable[21];  // YY
     var[VAR::U_SYMAT4] = noise_amp * random_variable[22];  // YZ
     var[VAR::U_SYMAT5] = noise_amp * random_variable[23];  // ZZ
-}
-
-// Flat space + smooth Gaussian-enveloped DETERMINISTIC noise (ID 7).
-// Ported verbatim (same frequencies/phases) from CCZ4's ccz4FlatNoiseInit so
-// the two theories evolve identical initial data on the shared variables;
-// CCZ4's U_THETA has no BSSN counterpart and is simply dropped. The Gaussian
-// envelope makes it a compactly-supported, smooth, reproducible perturbation
-// of flat space. Amplitude = BSSN_NOISE_AMP. Coords converted to physical so
-// the envelope is centered at the physical origin (matches CCZ4).
-void gaussianNoiseData(const double xx1, const double yy1, const double zz1,
-                       double* var) {
-    const double x   = GRIDX_TO_X(xx1);
-    const double y   = GRIDY_TO_Y(yy1);
-    const double z   = GRIDZ_TO_Z(zz1);
-    const double A   = bssn::BSSN_NOISE_AMP;
-    const double env = exp(-0.015625 * (x * x) - 0.015625 * (y * y) -
-                           0.015625 * (z * z));
-
-    var[VAR::U_ALPHA]  = A * env * sin(0.7 * x) * sin(0.5 * z) * cos(0.9 * y) + 1;
-    var[VAR::U_CHI]    = A * env * sin(0.4 * x + 0.3) * sin(0.8 * z + 0.3) * cos(0.6 * y) + 1;
-    var[VAR::U_K]      = A * env * sin(1.1 * x) * sin(0.7 * z) * cos(0.3 * y);
-
-    // CCZ4 U_GAMMAHAT{0,1,2} -> BSSN conformal connection Gt{0,1,2}
-    var[VAR::U_GT0]    = A * env * sin(0.6 * x) * sin(0.8 * z) * cos(0.3 * y);
-    var[VAR::U_GT1]    = A * env * sin(0.8 * x + 0.5) * sin(0.3 * z + 0.5) * cos(0.6 * y);
-    var[VAR::U_GT2]    = A * env * sin(0.3 * x + 0.7) * sin(0.6 * z + 0.7) * cos(0.8 * y);
-
-    var[VAR::U_BETA0]  = A * env * sin(0.6 * x) * sin(0.4 * z) * cos(1.0 * y);
-    var[VAR::U_BETA1]  = A * env * sin(1.0 * x + 0.7) * sin(0.6 * z + 0.7) * cos(0.4 * y);
-    var[VAR::U_BETA2]  = A * env * sin(0.4 * x + 0.2) * sin(1.0 * z + 0.2) * cos(0.6 * y);
-
-    // CCZ4 U_GAUGEB{0,1,2} were zero
-    var[VAR::U_B0]     = 0.0;
-    var[VAR::U_B1]     = 0.0;
-    var[VAR::U_B2]     = 0.0;
-
-    // conformal metric gt (symmetric, [0..5] = XX,XY,XZ,YY,YZ,ZZ)
-    var[VAR::U_SYMGT0] = A * env * sin(0.3 * x) * sin(0.7 * z) * cos(0.5 * y) + 1;          // XX
-    var[VAR::U_SYMGT1] = A * env * sin(0.4 * x + 0.4) * sin(0.8 * z + 0.4) * cos(0.6 * y);  // XY
-    var[VAR::U_SYMGT2] = A * env * sin(0.6 * x + 0.6) * sin(0.4 * z + 0.6) * cos(0.8 * y);  // XZ
-    var[VAR::U_SYMGT3] = A * env * sin(0.5 * x) * sin(0.3 * z) * cos(0.7 * y) + 1;          // YY
-    var[VAR::U_SYMGT4] = A * env * sin(0.8 * x + 0.1) * sin(0.6 * z + 0.1) * cos(0.4 * y);  // YZ
-    var[VAR::U_SYMGT5] = A * env * sin(0.7 * x) * sin(0.5 * z) * cos(0.3 * y) + 1;          // ZZ
-
-    // conformal traceless extrinsic curvature At (symmetric, same ordering)
-    var[VAR::U_SYMAT0] = A * env * sin(0.9 * x) * sin(0.3 * z) * cos(0.5 * y);              // XX
-    var[VAR::U_SYMAT1] = A * env * sin(0.7 * x + 0.2) * sin(0.5 * z + 0.2) * cos(0.9 * y);  // XY
-    var[VAR::U_SYMAT2] = A * env * sin(0.9 * x + 0.4) * sin(0.7 * z + 0.4) * cos(0.5 * y);  // XZ
-    var[VAR::U_SYMAT3] = A * env * sin(0.3 * x + 0.8) * sin(0.5 * z + 0.8) * cos(0.9 * y);  // YY
-    var[VAR::U_SYMAT4] = A * env * sin(0.5 * x + 0.6) * sin(0.9 * z + 0.6) * cos(0.7 * y);  // YZ
-    var[VAR::U_SYMAT5] = A * env * sin(0.5 * x + 0.5) * sin(0.9 * z + 0.5) * cos(0.3 * y);  // ZZ
 }
 
 void fake_initial_data(double xx1, double yy1, double zz1, double* u) {
@@ -1905,22 +2023,12 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
     // distance from BH1
     const double dbh1 = (grid_p - bssn::BSSN_BH_LOC[1]).abs();
 
-    // Inert-BH robustness (mirrors isRemeshBH): a (near-)massless puncture
-    // must not tighten the wavelet tolerance around itself. A BH is active
-    // iff its mass exceeds this tolerance; for a real binary both are active
-    // and every guard below is a no-op (bit-identical to the two-BH path).
-    constexpr double BH_ACTIVE_MASS_TOL = 1.0e-6;
-    const bool bh0_active = bssn::BSSN_BH1_MASS > BH_ACTIVE_MASS_TOL;
-    const bool bh1_active = bssn::BSSN_BH2_MASS > BH_ACTIVE_MASS_TOL;
-
     if (bssn::BSSN_USE_WAVELET_TOL_FUNCTION == 1) {
         const double tolMax = bssn::BSSN_WAVELET_TOL_MAX;
         const double tolMin = bssn::BSSN_WAVELET_TOL;
 
-        // inert BH: negative radius so its tight-refine trigger (dd < R)
-        // can never fire (this function is deprecated, but keep it robust).
-        const double R0     = bh0_active ? bssn::BSSN_BH1_AMR_R : -1.0;
-        const double R1     = bh1_active ? bssn::BSSN_BH2_AMR_R : -1.0;
+        const double R0     = bssn::BSSN_BH1_AMR_R;
+        const double R1     = bssn::BSSN_BH2_AMR_R;
 
         // R_Max is defined based on the initial separation.
         const double R_MAX =
@@ -2170,21 +2278,15 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
             const double W2 =
                 (R12 - R02) / std::log10(W_RR / bssn::BSSN_WAVELET_TOL);
 
-            if ((bh0_active && dbh0 < R01) || (bh1_active && dbh1 < R02))
+            if (dbh0 < R01 || dbh1 < R02)
                 return bssn::BSSN_WAVELET_TOL;
             else {
-                // an inert BH contributes the loosest tolerance, so the
-                // std::min always selects the active BH's value (and its
-                // W=0 division is skipped). Bit-exact when both are active.
-                const double e0 =
-                    bh0_active ? (std::pow(WTOL_EXP, (dbh0 - R01) / W1) *
-                                  bssn::BSSN_WAVELET_TOL)
-                               : bssn::BSSN_WAVELET_TOL_MAX;
-                const double e1_ =
-                    bh1_active ? (std::pow(WTOL_EXP, (dbh1 - R02) / W2) *
-                                  bssn::BSSN_WAVELET_TOL)
-                               : bssn::BSSN_WAVELET_TOL_MAX;
-                return std::min(bssn::BSSN_WAVELET_TOL_MAX, std::min(e0, e1_));
+                double minbheps =
+                    std::min(((std::pow(WTOL_EXP, (dbh0 - R01) / W1)) *
+                              bssn::BSSN_WAVELET_TOL),
+                             ((std::pow(WTOL_EXP, (dbh1 - R02) / W2)) *
+                              bssn::BSSN_WAVELET_TOL));
+                return std::min(bssn::BSSN_WAVELET_TOL_MAX, minbheps);
             }
         }
 
@@ -2202,18 +2304,14 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         double rad[3];
         rad[0]    = 3.0 * m1;
         rad[1]    = 4.0 * rad[0];
-        rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        rad[3]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
-        // an inert BH yields the loosest tolerance so the std::min below
-        // selects the active BH's value (no tightening around a phantom).
-        double e1 = bh0_active ? CalTolHelper(T_CURRENT, d1, rad, eps, toffset)
-                               : bssn::BSSN_WAVELET_TOL_MAX;
+        double e1 = CalTolHelper(T_CURRENT, d1, rad, eps, toffset);
 
         rad[0]    = 3.0 * m2;
         rad[1]    = 4.0 * rad[0];
-        rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
-        double e2 = bh1_active ? CalTolHelper(T_CURRENT, d2, rad, eps, toffset)
-                               : bssn::BSSN_WAVELET_TOL_MAX;
+        rad[3]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        double e2 = CalTolHelper(T_CURRENT, d2, rad, eps, toffset);
 
         return std::min(e1, e2);
 
@@ -2652,37 +2750,8 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac) {
         bssn::BSSN_DERIV_WORKSPACE = nullptr;
     }
 
-    // One workspace slab per thread so the RHS block loop can be threaded under
-    // DENDRO_HYBRID_OMP; each thread indexes WORKSPACE + tid * stride. Without
-    // the flag this is a single slab (n_threads = 1) -> identical to before.
-    bssn::BSSN_DERIV_WORKSPACE_STRIDE =
-        (size_t)s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS;
-#ifdef DENDRO_HYBRID_OMP
-    const unsigned int n_threads = (unsigned int)omp_get_max_threads();
-#else
-    const unsigned int n_threads = 1;
-#endif
-    // Single source of truth for the threaded-region thread count: every
-    // tid-indexed parallel region (RHS, constraints) pins num_threads() to this
-    // so omp_get_thread_num() can never index past the slabs allocated here.
-    bssn::BSSN_HYBRID_NTHREADS = n_threads;
     bssn::BSSN_DERIV_WORKSPACE =
-        new double[(size_t)n_threads * bssn::BSSN_DERIV_WORKSPACE_STRIDE];
-#ifdef DENDRO_HYBRID_OMP
-    // NUMA first-touch: each thread zeroes its own slab so the pages bind to the
-    // thread's local node (first-touch policy) instead of all landing on the
-    // master's node -- matters on multi-socket machines.
-    if (n_threads > 1) {
-#pragma omp parallel num_threads(n_threads)
-        {
-            const unsigned int tid = (unsigned int)omp_get_thread_num();
-            double* slab = bssn::BSSN_DERIV_WORKSPACE +
-                           (size_t)tid * bssn::BSSN_DERIV_WORKSPACE_STRIDE;
-            for (size_t i = 0; i < bssn::BSSN_DERIV_WORKSPACE_STRIDE; i++)
-                slab[i] = 0.0;
-        }
-    }
-#endif
+        new double[s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS];
 }
 
 void deallocate_bssn_deriv_workspace() {
@@ -2849,7 +2918,6 @@ void resetSnapshot() {
 
     t_deriv.snapreset();
     t_rhs.snapreset();
-    t_rhs_ko.snapreset();
 
     t_rhs_a.snapreset();
     t_rhs_b.snapreset();
@@ -2864,7 +2932,6 @@ void resetSnapshot() {
 
     t_zip.snapreset();
     t_rkStep.snapreset();
-    for (unsigned int s = 0; s < 6; s++) t_rkStage[s].snapreset();
     t_isReMesh.snapreset();
     t_gridTransfer.snapreset();
     t_ioVtu.snapreset();
@@ -3234,15 +3301,6 @@ void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
 
 void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
                              const unsigned int currentStep) {
-    // Inactive ranks bail out: the function does MPI collectives on the
-    // active comm below, and prior to this guard `commActive` was left
-    // uninitialised on inactive ranks (only assigned inside the
-    // `if (pMesh->isActive())` branch). At large rank counts where the
-    // load balancer leaves some ranks empty, that uninitialised comm
-    // produces undefined behaviour (often MPI_ERR_ROOT). Match the
-    // active-rank guard that profileInfoJSON uses.
-    if (!pMesh->isActive()) return;
-
     int activeRank, activeNpes, globalRank, globalNpes;
 
     MPI_Comm commActive;
@@ -4262,248 +4320,6 @@ void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
 #endif
 }
 
-// JSONL profile emitter: one self-contained record per call to
-// <prefix>_steps.jsonl. All ranks must call (MPI reduction inside); only
-// active rank 0 writes. Consumer: plot_profile.py.
-//
-// ghost-comm is derivable as (unzip_wcomm - unzip) in the plotter.
-#define BSSN_PROFILE_JSONL_SCHEMA_VERSION 2
-
-namespace {
-// All ranks must call; only rank 0 receives a non-null `os`.
-inline void emit_timer_triplet(std::ostream* os, const char* key,
-                               long double snap_seconds, MPI_Comm comm) {
-    double t      = static_cast<double>(snap_seconds);
-    double tg[3]  = {0, 0, 0};
-    computeOverallStats(&t, tg, comm);
-    if (os) {
-        (*os) << "\"" << key << "\":{\"min\":" << tg[0]
-              << ",\"mean\":" << tg[1] << ",\"max\":" << tg[2] << "}";
-    }
-}
-}  // namespace
-
-void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
-                     const unsigned int currentStep,
-                     const std::vector<profiler_t>* ets_ctxpt,
-                     const std::vector<profiler_t>* app_ctxpt) {
-    if (!pMesh->isActive()) return;
-
-    MPI_Comm comm     = pMesh->getMPICommunicator();
-    int activeRank    = pMesh->getMPIRank();
-    int activeNpes    = pMesh->getMPICommSize();
-    int globalRank    = pMesh->getMPIRankGlobal();
-    int globalNpes    = pMesh->getMPICommSizeGlobal();
-
-    // File only opened on rank 0.
-    std::ofstream out;
-    std::ostream* os = nullptr;
-    if (!activeRank) {
-        char fName[256];
-        std::snprintf(fName, sizeof(fName), "%s_steps.jsonl", filePrefix);
-        out.open(fName, std::fstream::app);
-        if (out.fail()) {
-            std::cout << fName << " file open failed " << std::endl;
-            // proceed without writing; we still need all ranks to do reductions
-        } else {
-            os = &out;
-            out << std::scientific << std::setprecision(6);
-        }
-    }
-
-    // ---- header / mesh ---------------------------------------------------
-    DendroIntL localSz, globalSzElem = 0, globalSzZip = 0, globalSzUnzip = 0,
-                        globalSzBlk = 0;
-    localSz = pMesh->getNumLocalMeshElements();
-    par::Mpi_Reduce(&localSz, &globalSzElem, 1, MPI_SUM, 0, comm);
-    localSz = pMesh->getNumLocalMeshNodes();
-    par::Mpi_Reduce(&localSz, &globalSzZip, 1, MPI_SUM, 0, comm);
-    localSz = pMesh->getDegOfFreedomUnZip();
-    par::Mpi_Reduce(&localSz, &globalSzUnzip, 1, MPI_SUM, 0, comm);
-    localSz = (DendroIntL)pMesh->getLocalBlockList().size();
-    par::Mpi_Reduce(&localSz, &globalSzBlk, 1, MPI_SUM, 0, comm);
-
-    // min/max refinement level across ranks. Reduce over the ACTIVE comm only
-    // (this routine already early-returns for inactive ranks) -- do NOT call
-    // Mesh::computeMinMaxLevel here: it ends with a global Bcast that inactive
-    // ranks would never reach, deadlocking the solver.
-    unsigned int lmin_g = 0, lmax_g = 0;
-    {
-        const std::vector<ot::TreeNode>& allEle = pMesh->getAllElements();
-        const unsigned int eb = pMesh->getElementLocalBegin();
-        const unsigned int ee = pMesh->getElementLocalEnd();
-        unsigned int lmin_l = (ee > eb) ? allEle[eb].getLevel() : 0xFFFFFFFFu;
-        unsigned int lmax_l = (ee > eb) ? allEle[eb].getLevel() : 0u;
-        for (unsigned int e = eb + 1; e < ee; e++) {
-            const unsigned int lv = allEle[e].getLevel();
-            if (lv < lmin_l) lmin_l = lv;
-            if (lv > lmax_l) lmax_l = lv;
-        }
-        par::Mpi_Reduce(&lmin_l, &lmin_g, 1, MPI_MIN, 0, comm);
-        par::Mpi_Reduce(&lmax_l, &lmax_g, 1, MPI_MAX, 0, comm);
-    }
-
-    if (os) {
-        (*os) << "{"
-              << "\"schema_version\":" << BSSN_PROFILE_JSONL_SCHEMA_VERSION
-              << ",\"step\":" << currentStep
-              << ",\"active_npes\":" << activeNpes
-              << ",\"global_npes\":" << globalNpes
-              << ",\"part_tol\":" << bssn::BSSN_LOAD_IMB_TOL
-              << ",\"wavelet_tol\":" << bssn::BSSN_WAVELET_TOL
-              << ",\"maxdepth\":" << bssn::BSSN_MAXDEPTH
-              << ",\"num_elements\":" << globalSzElem
-              << ",\"num_blocks\":" << globalSzBlk
-              << ",\"num_zip_dof\":" << globalSzZip
-              << ",\"num_unzip_dof\":" << globalSzUnzip
-              << ",\"lmin\":" << lmin_g
-              << ",\"lmax\":" << lmax_g
-              << ",\"ele_order\":" << bssn::BSSN_ELE_ORDER
-              << ",\"omp_threads\":" << bssn::BSSN_HYBRID_NTHREADS;
-    }
-
-    // Mirrors dendrolib_upstream/ODE/include/{ctx,ets}.h. If you reorder
-    // either enum there, update here.
-    enum CtxIdx {
-        CTX_IS_REMESH    = 0,
-        CTX_REMESH       = 1,
-        CTX_GRID_TRASFER = 2,
-        CTX_RHS          = 3,
-        CTX_UNZIP_WCOMM  = 5,
-        CTX_UNZIP        = 6,
-        CTX_ZIP_WCOMM    = 7,
-        CTX_ZIP          = 8,
-    };
-    enum EtsIdx {
-        ETS_EVOLVE   = 0,
-        ETS_STAGE_0  = 1,
-    };
-
-    // Legacy bssn::timer hooks don't tick under ETS; pick dendrolib values
-    // when supplied.
-    auto pick_app = [&](int ctx_idx, long double fallback) -> long double {
-        return (app_ctxpt && ctx_idx < (int)app_ctxpt->size())
-                   ? (*app_ctxpt)[ctx_idx].snap
-                   : fallback;
-    };
-    auto pick_ets = [&](int ets_idx, long double fallback) -> long double {
-        return (ets_ctxpt && ets_idx < (int)ets_ctxpt->size())
-                   ? (*ets_ctxpt)[ets_idx].snap
-                   : fallback;
-    };
-
-    // ---- phase block -----------------------------------------------------
-    if (os) (*os) << ",\"phase\":{";
-    bool first = true;
-#define BSSN_JSONL_PHASE_RAW(name, snap_value) \
-    do {                                                                  \
-        if (os && !first) (*os) << ",";                                   \
-        first = false;                                                    \
-        emit_timer_triplet(os, name, snap_value, comm);                   \
-    } while (0)
-
-    BSSN_JSONL_PHASE_RAW("balance",       t_bal.snap);
-    BSSN_JSONL_PHASE_RAW("mesh",          t_mesh.snap);
-    BSSN_JSONL_PHASE_RAW("rk_step",
-                         pick_ets(ETS_EVOLVE, t_rkStep.snap));
-    // unzip = local interp (CTX::UNZIP); unzip_wcomm = unzip + ghost-comm.
-    BSSN_JSONL_PHASE_RAW("unzip",
-                         pick_app(CTX_UNZIP, t_unzip_sync.snap));
-    BSSN_JSONL_PHASE_RAW("unzip_wcomm",
-                         pick_app(CTX_UNZIP_WCOMM, t_unzip_sync.snap));
-    BSSN_JSONL_PHASE_RAW("deriv",         t_deriv.snap);
-    BSSN_JSONL_PHASE_RAW("rhs",           t_rhs.snap);
-    BSSN_JSONL_PHASE_RAW("rhs_ko",        t_rhs_ko.snap);
-    BSSN_JSONL_PHASE_RAW("bdyc",          t_bdyc.snap);
-    // Constraint computation (unzip + block loop + zip); feeds GW extraction.
-    BSSN_JSONL_PHASE_RAW("constraints",   t_cons.snap);
-    BSSN_JSONL_PHASE_RAW("zip",
-                         pick_app(CTX_ZIP, t_zip.snap));
-    BSSN_JSONL_PHASE_RAW("is_remesh",
-                         pick_app(CTX_IS_REMESH, t_isReMesh.snap));
-    BSSN_JSONL_PHASE_RAW("grid_transfer",
-                         pick_app(CTX_GRID_TRASFER, t_gridTransfer.snap));
-    BSSN_JSONL_PHASE_RAW("io_vtu",        t_ioVtu.snap);
-    BSSN_JSONL_PHASE_RAW("io_checkpoint", t_ioCheckPoint.snap);
-#undef BSSN_JSONL_PHASE_RAW
-    if (os) (*os) << "}";
-
-    // ---- unzip sub-phase breakdown --------------------------------------
-    // dendrolib mesh.tcc ticks these inside Mesh::unzip(). The "sync"
-    // naming is historical -- they tick under both ghost-exchange paths.
-    {
-        if (os) (*os) << ",\"unzip_breakdown\":{";
-        bool first_ub = true;
-#define BSSN_JSONL_UB(name, snap_value) \
-    do {                                                                  \
-        if (os && !first_ub) (*os) << ",";                                \
-        first_ub = false;                                                 \
-        emit_timer_triplet(os, name, snap_value, comm);                   \
-    } while (0)
-
-        long double face_sum = 0;
-        for (unsigned int i = 0; i < NUM_FACES; i++)
-            face_sum += dendro::timer::t_unzip_sync_face[i].snap;
-
-        BSSN_JSONL_UB("internal", dendro::timer::t_unzip_sync_internal.snap);
-        BSSN_JSONL_UB("p2c",      dendro::timer::t_unzip_p2c.snap);
-        BSSN_JSONL_UB("face",     face_sum);
-        BSSN_JSONL_UB("edge",     dendro::timer::t_unzip_sync_edge.snap);
-        BSSN_JSONL_UB("vtex",     dendro::timer::t_unzip_sync_vtex.snap);
-        BSSN_JSONL_UB("nodalval", dendro::timer::t_unzip_sync_nodalval.snap);
-        BSSN_JSONL_UB("cpy",      dendro::timer::t_unzip_sync_cpy.snap);
-        BSSN_JSONL_UB("async_internal",
-                      dendro::timer::t_unzip_async_internal.snap);
-        BSSN_JSONL_UB("async_external",
-                      dendro::timer::t_unzip_async_external.snap);
-        BSSN_JSONL_UB("async_comm",
-                      dendro::timer::t_unzip_async_comm.snap);
-#undef BSSN_JSONL_UB
-        if (os) (*os) << "}";
-    }
-
-    // ---- per-RK-stage block ---------------------------------------------
-    if (os) (*os) << ",\"rk_stage\":[";
-    for (unsigned int s = 0; s < 6; s++) {
-        if (os && s) (*os) << ",";
-        const long double stage_snap =
-            pick_ets(ETS_STAGE_0 + s, t_rkStage[s].snap);
-        double t      = static_cast<double>(stage_snap);
-        double tg[3]  = {0, 0, 0};
-        computeOverallStats(&t, tg, comm);
-        if (os) {
-            (*os) << "{\"min\":" << tg[0] << ",\"mean\":" << tg[1]
-                  << ",\"max\":" << tg[2] << "}";
-        }
-    }
-    if (os) (*os) << "]";
-
-    // ---- per-variable BC block (interior RHS is fused; see rhs.cpp) -----
-    if (os) (*os) << ",\"rhs_var\":{";
-    first = true;
-#define BSSN_JSONL_VAR(name, timer_expr) \
-    do {                                                                  \
-        if (os && !first) (*os) << ",";                                   \
-        first = false;                                                    \
-        emit_timer_triplet(os, name, (timer_expr).snap, comm);             \
-    } while (0)
-    BSSN_JSONL_VAR("a",   t_rhs_a);
-    BSSN_JSONL_VAR("b",   t_rhs_b);
-    BSSN_JSONL_VAR("gt",  t_rhs_gt);
-    BSSN_JSONL_VAR("chi", t_rhs_chi);
-    BSSN_JSONL_VAR("At",  t_rhs_At);
-    BSSN_JSONL_VAR("K",   t_rhs_K);
-    BSSN_JSONL_VAR("Gt",  t_rhs_Gt);
-    BSSN_JSONL_VAR("B",   t_rhs_B);
-#undef BSSN_JSONL_VAR
-    if (os) (*os) << "}";
-
-    if (os) {
-        (*os) << "}\n";
-        out.close();
-    }
-}
-
 }  // namespace timer
 
 }  // namespace bssn
@@ -4606,3 +4422,4 @@ void psi4ShpereDump(const ot::Mesh* mesh, DendroScalar** cVar,
 }
 
 }  // namespace GW
+
