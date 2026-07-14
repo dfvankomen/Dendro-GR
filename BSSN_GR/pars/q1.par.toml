@@ -169,6 +169,8 @@ BSSN_RK_TIME_END = 700.0
 # General multistep Runge-Kutta (TSRK family), reuses the previous two steps'
 # stage-derivative clouds; order 6, depth 2 (stores 8 extra derivative vectors):
 # 11 : RK6_TSRK
+# The method name may be given instead of the integer, e.g.
+#   BSSN_RK_TYPE = "RK6_TSRK"   (case-insensitive; "TSRK"/"MSRK3"/... also work)
 BSSN_RK_TYPE = 1
 
 # Preferred time step size (this is overwritten by the CFL factor! It's not used!)

@@ -5,6 +5,9 @@
 #ifndef DENDRO_5_0_GRDEF_H
 #define DENDRO_5_0_GRDEF_H
 
+#include <cctype>
+#include <string>
+
 #define Rx (bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0])
 #define Ry (bssn::BSSN_COMPD_MAX[1] - bssn::BSSN_COMPD_MIN[1])
 #define Rz (bssn::BSSN_COMPD_MAX[2] - bssn::BSSN_COMPD_MIN[2])
@@ -44,6 +47,49 @@ enum RKType {
     RK6,
     RK6_TSRK
 };
+
+// Canonical name for an RKType id (index-matched to ts::ETSType).
+inline const char* rk_type_name(unsigned int t) {
+    switch ((RKType)t) {
+        case RK3: return "RK3";
+        case RK4: return "RK4";
+        case RK5: return "RK5";
+        case RK4_MSRK2_1: return "RK4_MSRK2_1";
+        case RK4_MSRK2_2: return "RK4_MSRK2_2";
+        case RK4_MSRK3: return "RK4_MSRK3";
+        case RK4_RALSTON: return "RK4_RALSTON";
+        case RK45_CASH_KARP: return "RK45_CASH_KARP";
+        case RKF45: return "RKF45";
+        case RK5_NYSTROM: return "RK5_NYSTROM";
+        case RK6: return "RK6";
+        case RK6_TSRK: return "RK6_TSRK";
+        default: return "UNKNOWN";
+    }
+}
+
+// Map a case-insensitive method name (canonical or common alias) to its RKType
+// id; returns -1 if unrecognized. Lets parfiles use BSSN_RK_TYPE = "RK6_TSRK"
+// instead of the bare integer.
+inline int rk_type_from_string(const std::string& s) {
+    std::string k;
+    for (char c : s) k.push_back((char)std::toupper((unsigned char)c));
+    struct Alias { const char* name; int id; };
+    static const Alias table[] = {
+        {"RK3", RK3}, {"RK4", RK4}, {"RK5", RK5},
+        {"RK4_MSRK2_1", RK4_MSRK2_1}, {"MSRK2_1", RK4_MSRK2_1},
+        {"RK4_MSRK2_2", RK4_MSRK2_2}, {"MSRK2_2", RK4_MSRK2_2},
+        {"RK4_MSRK3", RK4_MSRK3},     {"MSRK3", RK4_MSRK3},
+        {"RK4_RALSTON", RK4_RALSTON}, {"RALSTON", RK4_RALSTON},
+        {"RK45_CASH_KARP", RK45_CASH_KARP}, {"CASH_KARP", RK45_CASH_KARP},
+        {"RKF45", RKF45},
+        {"RK5_NYSTROM", RK5_NYSTROM}, {"NYSTROM", RK5_NYSTROM},
+        {"RK6", RK6},
+        {"RK6_TSRK", RK6_TSRK}, {"TSRK", RK6_TSRK},
+    };
+    for (const auto& a : table)
+        if (k == a.name) return a.id;
+    return -1;
+}
 
 namespace bssn {
 /**@brief BSSN evolution variables*/

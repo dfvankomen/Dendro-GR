@@ -114,7 +114,18 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_LOAD_IMB_TOL        = parFile["BSSN_LOAD_IMB_TOL"];
     bssn::BSSN_RK_TIME_BEGIN       = parFile["BSSN_RK_TIME_BEGIN"];
     bssn::BSSN_RK_TIME_END         = parFile["BSSN_RK_TIME_END"];
-    bssn::BSSN_RK_TYPE             = parFile["BSSN_RK_TYPE"];
+    // BSSN_RK_TYPE accepts a method-name string (e.g. "RK6_TSRK") or its int id
+    if (parFile["BSSN_RK_TYPE"].is_string()) {
+        const int id = rk_type_from_string(
+            parFile["BSSN_RK_TYPE"].get<std::string>());
+        if (id < 0)
+            throw std::runtime_error(
+                "Unknown BSSN_RK_TYPE '" +
+                parFile["BSSN_RK_TYPE"].get<std::string>() + "'");
+        bssn::BSSN_RK_TYPE = (unsigned int)id;
+    } else {
+        bssn::BSSN_RK_TYPE = parFile["BSSN_RK_TYPE"];
+    }
     bssn::BSSN_RK45_TIME_STEP_SIZE = parFile["BSSN_RK45_TIME_STEP_SIZE"];
     bssn::BSSN_RK45_DESIRED_TOL    = parFile["BSSN_RK45_DESIRED_TOL"];
     bssn::BSSN_DIM                 = parFile["BSSN_DIM"];
@@ -548,8 +559,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << NRM << std::endl;
         sout << YLW << "\tBSSN_RK_TIME_END :" << bssn::BSSN_RK_TIME_END << NRM
              << std::endl;
-        sout << YLW << "\tBSSN_RK_TYPE :" << bssn::BSSN_RK_TYPE << NRM
-             << std::endl;
+        sout << YLW << "\tBSSN_RK_TYPE :" << bssn::BSSN_RK_TYPE << " ("
+             << rk_type_name(bssn::BSSN_RK_TYPE) << ")" << NRM << std::endl;
         sout << YLW
              << "\tBSSN_RK45_TIME_STEP_SIZE :" << bssn::BSSN_RK45_TIME_STEP_SIZE
              << NRM << std::endl;

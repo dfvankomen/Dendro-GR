@@ -298,6 +298,17 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     auto parFile = toml::parse(fName);
     std::unordered_set<std::string> used_params;
 
+    // BSSN_RK_TYPE may be given as a method-name string (e.g. "RK6_TSRK");
+    // normalize it to its integer id so the generic reader below is unchanged.
+    if (parFile.contains("BSSN_RK_TYPE") &&
+        parFile["BSSN_RK_TYPE"].is_string()) {
+        const std::string name = parFile["BSSN_RK_TYPE"].as_string();
+        const int id           = rk_type_from_string(name);
+        if (id < 0)
+            throw std::runtime_error("Unknown BSSN_RK_TYPE '" + name + "'");
+        parFile["BSSN_RK_TYPE"] = static_cast<std::int64_t>(id);
+    }
+
     auto set_param = [&](auto& pardata, const ParameterInformation& param) {
         // so, if it has the key then we set it, if not we print a warning
         if (pardata.contains(param.key)) {

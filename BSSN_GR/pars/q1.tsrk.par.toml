@@ -184,11 +184,12 @@ BSSN_RK_TIME_BEGIN = 0.0
 # PLEASE DO NOT CHANGE THIS FOR COMMITTING, CHANGE IT LOCALLY
 BSSN_RK_TIME_END = 0.5
 
-# RK Method to use -- see q1.par.toml for the full index list.
-# 11 = RK6_TSRK: general multistep RK (order 6, depth 2). Reuses the previous
-# two steps' stage-derivative clouds to cut ghost exchanges; stores 8 extra
+# RK Method to use -- see q1.par.toml for the full index list. Accepts either
+# the integer id or the (case-insensitive) method name.
+# RK6_TSRK: general multistep RK (order 6, depth 2). Reuses the previous two
+# steps' stage-derivative clouds to cut ghost exchanges; stores 8 extra
 # full-grid derivative vectors, so it costs ~2.5-3x the RK4 stepper memory.
-BSSN_RK_TYPE = 11
+BSSN_RK_TYPE = "RK6_TSRK"
 
 # Preferred time step size (this is overwritten by the CFL factor! It's not used!)
 BSSN_RK45_TIME_STEP_SIZE = 0.01
