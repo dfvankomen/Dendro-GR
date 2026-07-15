@@ -231,6 +231,13 @@ for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
     nodes, ranks, threads = map(int, m.groups())
     # per phase, mean over timed steps of the per-step max-across-ranks (the critical path)
     acc = {p: [] for p in PHASES}; nblocks = None
+    # Load imbalance = rhs max/mean across ranks (1.0 = perfect). Measured on rhs, NOT rk_step:
+    # the ghost exchange synchronizes ranks, so a rank that finishes early just blocks longer in
+    # comm and rk_step max/mean is ~1.000 regardless of how skewed the work is. rhs is the
+    # comm-free compute phase, so it exposes the skew the dynamic schedule exists to fix.
+    # Active ranks only (the emitter skips inactive ones) => understated if the mesh spans fewer
+    # ranks than exist.
+    imb = []
     for line in open(path):
         line = line.strip()
         if not line: continue
@@ -239,12 +246,15 @@ for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
         ph = rec.get("phase", {})
         for p in PHASES:
             if p in ph and "max" in ph[p]: acc[p].append(float(ph[p]["max"]))
+        r = ph.get("rhs")
+        if r and r.get("mean", 0) > 0: imb.append(float(r["max"]) / float(r["mean"]))
         if nblocks is None: nblocks = rec.get("num_blocks")
     v = {p: mean(acc[p]) for p in PHASES}
     rows.append(dict(mode="pure-MPI" if threads == 1 else "hybrid", nodes=nodes, ranks=ranks,
                      threads=threads, ranks_per_node=ranks // nodes if nodes else 0,
                      ghost_comm=v["unzip_wcomm"] - v["unzip"], num_blocks=nblocks,
-                     blocks_per_rank=(nblocks / ranks) if (nblocks and ranks) else float("nan"), **v))
+                     blocks_per_rank=(nblocks / ranks) if (nblocks and ranks) else float("nan"),
+                     imbalance=mean(imb), **v))
 
 base = {r["nodes"]: r["rk_step"] for r in rows if r["threads"] == 1}
 for r in rows:
@@ -252,10 +262,11 @@ for r in rows:
 rows.sort(key=lambda r: (r["nodes"], r["threads"]))
 
 cols = ["mode", "nodes", "ranks", "threads", "ranks_per_node", "rk_step", "rhs", "deriv",
-        "unzip", "unzip_wcomm", "ghost_comm", "zip", "num_blocks", "blocks_per_rank", "speedup"]
+        "unzip", "unzip_wcomm", "ghost_comm", "zip", "num_blocks", "blocks_per_rank",
+        "imbalance", "speedup"]
 hdr = {"rk_step": "rk_step_s", "rhs": "rhs_s", "deriv": "deriv_s", "unzip": "unzip_s",
        "unzip_wcomm": "unzip_wcomm_s", "ghost_comm": "ghost_comm_s", "zip": "zip_s",
-       "speedup": "speedup_vs_purempi"}
+       "imbalance": "rhs_imbalance_max_over_mean", "speedup": "speedup_vs_purempi"}
 fmt = lambda x: (f"{x:.4f}" if x == x else "") if isinstance(x, float) else ("" if x is None else str(x))
 with open(out_csv, "w") as fh:
     fh.write(",".join(hdr.get(c, c) for c in cols) + "\n")
