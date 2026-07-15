@@ -4331,6 +4331,248 @@ void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
 #endif
 }
 
+// JSONL profile emitter: one self-contained record per call to
+// <prefix>_steps.jsonl. All ranks must call (MPI reduction inside); only
+// active rank 0 writes. Consumer: plot_profile.py.
+//
+// ghost-comm is derivable as (unzip_wcomm - unzip) in the plotter.
+#define BSSN_PROFILE_JSONL_SCHEMA_VERSION 2
+
+namespace {
+// All ranks must call; only rank 0 receives a non-null `os`.
+inline void emit_timer_triplet(std::ostream* os, const char* key,
+                               long double snap_seconds, MPI_Comm comm) {
+    double t      = static_cast<double>(snap_seconds);
+    double tg[3]  = {0, 0, 0};
+    computeOverallStats(&t, tg, comm);
+    if (os) {
+        (*os) << "\"" << key << "\":{\"min\":" << tg[0]
+              << ",\"mean\":" << tg[1] << ",\"max\":" << tg[2] << "}";
+    }
+}
+}  // namespace
+
+void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
+                     const unsigned int currentStep,
+                     const std::vector<profiler_t>* ets_ctxpt,
+                     const std::vector<profiler_t>* app_ctxpt) {
+    if (!pMesh->isActive()) return;
+
+    MPI_Comm comm     = pMesh->getMPICommunicator();
+    int activeRank    = pMesh->getMPIRank();
+    int activeNpes    = pMesh->getMPICommSize();
+    int globalRank    = pMesh->getMPIRankGlobal();
+    int globalNpes    = pMesh->getMPICommSizeGlobal();
+
+    // File only opened on rank 0.
+    std::ofstream out;
+    std::ostream* os = nullptr;
+    if (!activeRank) {
+        char fName[256];
+        std::snprintf(fName, sizeof(fName), "%s_steps.jsonl", filePrefix);
+        out.open(fName, std::fstream::app);
+        if (out.fail()) {
+            std::cout << fName << " file open failed " << std::endl;
+            // proceed without writing; we still need all ranks to do reductions
+        } else {
+            os = &out;
+            out << std::scientific << std::setprecision(6);
+        }
+    }
+
+    // ---- header / mesh ---------------------------------------------------
+    DendroIntL localSz, globalSzElem = 0, globalSzZip = 0, globalSzUnzip = 0,
+                        globalSzBlk = 0;
+    localSz = pMesh->getNumLocalMeshElements();
+    par::Mpi_Reduce(&localSz, &globalSzElem, 1, MPI_SUM, 0, comm);
+    localSz = pMesh->getNumLocalMeshNodes();
+    par::Mpi_Reduce(&localSz, &globalSzZip, 1, MPI_SUM, 0, comm);
+    localSz = pMesh->getDegOfFreedomUnZip();
+    par::Mpi_Reduce(&localSz, &globalSzUnzip, 1, MPI_SUM, 0, comm);
+    localSz = (DendroIntL)pMesh->getLocalBlockList().size();
+    par::Mpi_Reduce(&localSz, &globalSzBlk, 1, MPI_SUM, 0, comm);
+
+    // min/max refinement level across ranks. Reduce over the ACTIVE comm only
+    // (this routine already early-returns for inactive ranks) -- do NOT call
+    // Mesh::computeMinMaxLevel here: it ends with a global Bcast that inactive
+    // ranks would never reach, deadlocking the solver.
+    unsigned int lmin_g = 0, lmax_g = 0;
+    {
+        const std::vector<ot::TreeNode>& allEle = pMesh->getAllElements();
+        const unsigned int eb = pMesh->getElementLocalBegin();
+        const unsigned int ee = pMesh->getElementLocalEnd();
+        unsigned int lmin_l = (ee > eb) ? allEle[eb].getLevel() : 0xFFFFFFFFu;
+        unsigned int lmax_l = (ee > eb) ? allEle[eb].getLevel() : 0u;
+        for (unsigned int e = eb + 1; e < ee; e++) {
+            const unsigned int lv = allEle[e].getLevel();
+            if (lv < lmin_l) lmin_l = lv;
+            if (lv > lmax_l) lmax_l = lv;
+        }
+        par::Mpi_Reduce(&lmin_l, &lmin_g, 1, MPI_MIN, 0, comm);
+        par::Mpi_Reduce(&lmax_l, &lmax_g, 1, MPI_MAX, 0, comm);
+    }
+
+    if (os) {
+        (*os) << "{"
+              << "\"schema_version\":" << BSSN_PROFILE_JSONL_SCHEMA_VERSION
+              << ",\"step\":" << currentStep
+              << ",\"active_npes\":" << activeNpes
+              << ",\"global_npes\":" << globalNpes
+              << ",\"part_tol\":" << bssn::BSSN_LOAD_IMB_TOL
+              << ",\"wavelet_tol\":" << bssn::BSSN_WAVELET_TOL
+              << ",\"maxdepth\":" << bssn::BSSN_MAXDEPTH
+              << ",\"num_elements\":" << globalSzElem
+              << ",\"num_blocks\":" << globalSzBlk
+              << ",\"num_zip_dof\":" << globalSzZip
+              << ",\"num_unzip_dof\":" << globalSzUnzip
+              << ",\"lmin\":" << lmin_g
+              << ",\"lmax\":" << lmax_g
+              << ",\"ele_order\":" << bssn::BSSN_ELE_ORDER
+              << ",\"omp_threads\":" << bssn::BSSN_HYBRID_NTHREADS;
+    }
+
+    // Mirrors dendrolib_upstream/ODE/include/{ctx,ets}.h. If you reorder
+    // either enum there, update here.
+    enum CtxIdx {
+        CTX_IS_REMESH    = 0,
+        CTX_REMESH       = 1,
+        CTX_GRID_TRASFER = 2,
+        CTX_RHS          = 3,
+        CTX_UNZIP_WCOMM  = 5,
+        CTX_UNZIP        = 6,
+        CTX_ZIP_WCOMM    = 7,
+        CTX_ZIP          = 8,
+    };
+    enum EtsIdx {
+        ETS_EVOLVE   = 0,
+        ETS_STAGE_0  = 1,
+    };
+
+    // Legacy bssn::timer hooks don't tick under ETS; pick dendrolib values
+    // when supplied.
+    auto pick_app = [&](int ctx_idx, long double fallback) -> long double {
+        return (app_ctxpt && ctx_idx < (int)app_ctxpt->size())
+                   ? (*app_ctxpt)[ctx_idx].snap
+                   : fallback;
+    };
+    auto pick_ets = [&](int ets_idx, long double fallback) -> long double {
+        return (ets_ctxpt && ets_idx < (int)ets_ctxpt->size())
+                   ? (*ets_ctxpt)[ets_idx].snap
+                   : fallback;
+    };
+
+    // ---- phase block -----------------------------------------------------
+    if (os) (*os) << ",\"phase\":{";
+    bool first = true;
+#define BSSN_JSONL_PHASE_RAW(name, snap_value) \
+    do {                                                                  \
+        if (os && !first) (*os) << ",";                                   \
+        first = false;                                                    \
+        emit_timer_triplet(os, name, snap_value, comm);                   \
+    } while (0)
+
+    BSSN_JSONL_PHASE_RAW("balance",       t_bal.snap);
+    BSSN_JSONL_PHASE_RAW("mesh",          t_mesh.snap);
+    BSSN_JSONL_PHASE_RAW("rk_step",
+                         pick_ets(ETS_EVOLVE, t_rkStep.snap));
+    // unzip = local interp (CTX::UNZIP); unzip_wcomm = unzip + ghost-comm.
+    BSSN_JSONL_PHASE_RAW("unzip",
+                         pick_app(CTX_UNZIP, t_unzip_sync.snap));
+    BSSN_JSONL_PHASE_RAW("unzip_wcomm",
+                         pick_app(CTX_UNZIP_WCOMM, t_unzip_sync.snap));
+    BSSN_JSONL_PHASE_RAW("deriv",         t_deriv.snap);
+    BSSN_JSONL_PHASE_RAW("rhs",           t_rhs.snap);
+    BSSN_JSONL_PHASE_RAW("rhs_ko",        t_rhs_ko.snap);
+    BSSN_JSONL_PHASE_RAW("bdyc",          t_bdyc.snap);
+    // Constraint computation (unzip + block loop + zip); feeds GW extraction.
+    BSSN_JSONL_PHASE_RAW("constraints",   t_cons.snap);
+    BSSN_JSONL_PHASE_RAW("zip",
+                         pick_app(CTX_ZIP, t_zip.snap));
+    BSSN_JSONL_PHASE_RAW("is_remesh",
+                         pick_app(CTX_IS_REMESH, t_isReMesh.snap));
+    BSSN_JSONL_PHASE_RAW("grid_transfer",
+                         pick_app(CTX_GRID_TRASFER, t_gridTransfer.snap));
+    BSSN_JSONL_PHASE_RAW("io_vtu",        t_ioVtu.snap);
+    BSSN_JSONL_PHASE_RAW("io_checkpoint", t_ioCheckPoint.snap);
+#undef BSSN_JSONL_PHASE_RAW
+    if (os) (*os) << "}";
+
+    // ---- unzip sub-phase breakdown --------------------------------------
+    // dendrolib mesh.tcc ticks these inside Mesh::unzip(). The "sync"
+    // naming is historical -- they tick under both ghost-exchange paths.
+    {
+        if (os) (*os) << ",\"unzip_breakdown\":{";
+        bool first_ub = true;
+#define BSSN_JSONL_UB(name, snap_value) \
+    do {                                                                  \
+        if (os && !first_ub) (*os) << ",";                                \
+        first_ub = false;                                                 \
+        emit_timer_triplet(os, name, snap_value, comm);                   \
+    } while (0)
+
+        long double face_sum = 0;
+        for (unsigned int i = 0; i < NUM_FACES; i++)
+            face_sum += dendro::timer::t_unzip_sync_face[i].snap;
+
+        BSSN_JSONL_UB("internal", dendro::timer::t_unzip_sync_internal.snap);
+        BSSN_JSONL_UB("p2c",      dendro::timer::t_unzip_p2c.snap);
+        BSSN_JSONL_UB("face",     face_sum);
+        BSSN_JSONL_UB("edge",     dendro::timer::t_unzip_sync_edge.snap);
+        BSSN_JSONL_UB("vtex",     dendro::timer::t_unzip_sync_vtex.snap);
+        BSSN_JSONL_UB("nodalval", dendro::timer::t_unzip_sync_nodalval.snap);
+        BSSN_JSONL_UB("cpy",      dendro::timer::t_unzip_sync_cpy.snap);
+        BSSN_JSONL_UB("async_internal",
+                      dendro::timer::t_unzip_async_internal.snap);
+        BSSN_JSONL_UB("async_external",
+                      dendro::timer::t_unzip_async_external.snap);
+        BSSN_JSONL_UB("async_comm",
+                      dendro::timer::t_unzip_async_comm.snap);
+#undef BSSN_JSONL_UB
+        if (os) (*os) << "}";
+    }
+
+    // ---- per-RK-stage block ---------------------------------------------
+    if (os) (*os) << ",\"rk_stage\":[";
+    for (unsigned int s = 0; s < 6; s++) {
+        if (os && s) (*os) << ",";
+        const long double stage_snap =
+            pick_ets(ETS_STAGE_0 + s, t_rkStage[s].snap);
+        double t      = static_cast<double>(stage_snap);
+        double tg[3]  = {0, 0, 0};
+        computeOverallStats(&t, tg, comm);
+        if (os) {
+            (*os) << "{\"min\":" << tg[0] << ",\"mean\":" << tg[1]
+                  << ",\"max\":" << tg[2] << "}";
+        }
+    }
+    if (os) (*os) << "]";
+
+    // ---- per-variable BC block (interior RHS is fused; see rhs.cpp) -----
+    if (os) (*os) << ",\"rhs_var\":{";
+    first = true;
+#define BSSN_JSONL_VAR(name, timer_expr) \
+    do {                                                                  \
+        if (os && !first) (*os) << ",";                                   \
+        first = false;                                                    \
+        emit_timer_triplet(os, name, (timer_expr).snap, comm);             \
+    } while (0)
+    BSSN_JSONL_VAR("a",   t_rhs_a);
+    BSSN_JSONL_VAR("b",   t_rhs_b);
+    BSSN_JSONL_VAR("gt",  t_rhs_gt);
+    BSSN_JSONL_VAR("chi", t_rhs_chi);
+    BSSN_JSONL_VAR("At",  t_rhs_At);
+    BSSN_JSONL_VAR("K",   t_rhs_K);
+    BSSN_JSONL_VAR("Gt",  t_rhs_Gt);
+    BSSN_JSONL_VAR("B",   t_rhs_B);
+#undef BSSN_JSONL_VAR
+    if (os) (*os) << "}";
+
+    if (os) {
+        (*os) << "}\n";
+        out.close();
+    }
+}
+
 }  // namespace timer
 
 }  // namespace bssn
