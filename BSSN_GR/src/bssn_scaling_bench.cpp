@@ -43,6 +43,8 @@ struct BenchOpts {
     // weak-scaling per-rank grain (BSSN_DENDRO_GRAIN_SZ); -1 = use param file.
     int grain          = -1;
     std::string prefix = "bssn_bench";
+    // print mesh/state fingerprints; digests must not vary with threads
+    bool fingerprint   = false;
 };
 
 void usage(const char* a0) {
@@ -60,7 +62,9 @@ void usage(const char* a0) {
         << "  --grain N            per-rank grain (BSSN_DENDRO_GRAIN_SZ); weak "
            "mode keeps ~N elems/rank\n"
         << "  --prefix P           output prefix for <P>_steps.jsonl (default "
-           "bssn_bench)\n";
+           "bssn_bench)\n"
+        << "  --fingerprint        print mesh + state digests and exit after "
+           "steps; digests MUST be identical across OMP_NUM_THREADS\n";
 }
 
 BenchOpts parse(int argc, char** argv) {
@@ -91,6 +95,8 @@ BenchOpts parse(int argc, char** argv) {
             o.grain = std::stoi(need("--grain"));
         else if (a == "--prefix")
             o.prefix = need("--prefix");
+        else if (a == "--fingerprint")
+            o.fingerprint = true;
         else
             std::cerr << "[bench] ignoring unknown arg: " << a << "\n";
     }
@@ -225,6 +231,9 @@ int main(int argc, char** argv) {
         DendroIntL ge = 0, gb = 0;
         par::Mpi_Reduce(&le, &ge, 1, MPI_SUM, 0, comm);
         par::Mpi_Reduce(&lb, &gb, 1, MPI_SUM, 0, comm);
+        // Mesh digests BEFORE any evolution: a mesh-construction change shows up
+        // here, isolated from anything the RHS/unzip threading might do.
+        if (opt.fingerprint) bssn::meshFingerprint(cmesh, "mesh");
         if (!rank)
             std::cout << "[bench] elements=" << ge << " (" << ge / npes
                       << "/rank)  blocks=" << gb << " (" << gb / npes
@@ -272,6 +281,16 @@ int main(int argc, char** argv) {
             std::cout << "[bench] step " << step
                       << (rel < opt.warmup ? " (warmup)" : " (timed)")
                       << " t=" << ets->curr_time() << std::endl;
+    }
+
+    if (opt.fingerprint) {
+        // State digest AFTER the timed steps: proves the answers are identical,
+        // not just the mesh. Bit-exact by construction across threads, so any
+        // difference is a real race or a reordered reduction.
+        DendroScalar* eVar[bssn::BSSN_NUM_VARS];
+        bssnCtx->get_evolution_vars().to_2d(eVar);
+        bssn::stateFingerprint(ets->get_mesh(), eVar, bssn::BSSN_NUM_VARS,
+                               "evolved");
     }
 
     if (!rank)

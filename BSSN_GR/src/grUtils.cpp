@@ -11,6 +11,8 @@
 
 #include <mpi.h>
 
+#include <cstdint>
+#include <cstdio>
 #include <tuple>
 
 #include "base.h"
@@ -2840,6 +2842,128 @@ decode_bh_locs(const std::string& bh1_str, const std::string& bh2_str,
     }
 
     return std::make_tuple(bh_locs, time_vector);
+}
+
+namespace {
+
+// FNV-1a 64. Chosen for being order-sensitive and trivially reproducible across
+// builds/compilers -- a reordered E2N map must produce a different digest.
+constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;
+constexpr uint64_t FNV_PRIME  = 1099511628211ULL;
+
+inline void hash_bytes(uint64_t& h, const void* p, size_t n) {
+    const unsigned char* b = static_cast<const unsigned char*>(p);
+    for (size_t i = 0; i < n; i++) {
+        h ^= static_cast<uint64_t>(b[i]);
+        h *= FNV_PRIME;
+    }
+}
+
+// Fold every rank's local digest into one, IN RANK ORDER, so the result is
+// deterministic and also detects data migrating between ranks. XOR/sum would be
+// order-insensitive and would miss exactly that.
+inline uint64_t combine_ranks(uint64_t local, MPI_Comm comm) {
+    int rank, npes;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &npes);
+    std::vector<uint64_t> all(rank == 0 ? npes : 0);
+    MPI_Gather(&local, 1, MPI_UINT64_T, all.data(), 1, MPI_UINT64_T, 0, comm);
+    if (rank) return 0;
+    uint64_t h = FNV_OFFSET;
+    for (int r = 0; r < npes; r++) hash_bytes(h, &all[r], sizeof(uint64_t));
+    return h;
+}
+
+inline void report(const char* tag, const char* field, uint64_t local,
+                   MPI_Comm comm, int rank) {
+    const uint64_t g = combine_ranks(local, comm);
+    if (!rank)
+        printf("[fingerprint] %-10s %-8s %016lx\n", tag, field,
+               (unsigned long)g);
+}
+
+}  // namespace
+
+void meshFingerprint(const ot::Mesh* pMesh, const char* tag) {
+    // Inactive ranks hold no mesh but MUST still reach the gathers below.
+    MPI_Comm comm = pMesh->getMPIGlobalCommunicator();
+    int rank;
+    MPI_Comm_rank(comm, &rank);
+    const bool act = pMesh->isActive();
+
+    uint64_t h_ele = FNV_OFFSET, h_e2e = FNV_OFFSET, h_e2n = FNV_OFFSET,
+             h_dg = FNV_OFFSET, h_blk = FNV_OFFSET, h_sm = FNV_OFFSET;
+
+    if (act) {
+        const std::vector<ot::TreeNode>& ele = pMesh->getAllElements();
+        for (size_t i = 0; i < ele.size(); i++) {
+            const unsigned int c[4] = {ele[i].getX(), ele[i].getY(),
+                                       ele[i].getZ(), ele[i].getLevel()};
+            hash_bytes(h_ele, c, sizeof(c));
+        }
+
+        const std::vector<unsigned int>& e2e = pMesh->getE2EMapping();
+        if (!e2e.empty())
+            hash_bytes(h_e2e, e2e.data(), e2e.size() * sizeof(unsigned int));
+
+        const std::vector<unsigned int>& e2n = pMesh->getE2NMapping();
+        if (!e2n.empty())
+            hash_bytes(h_e2n, e2n.data(), e2n.size() * sizeof(unsigned int));
+
+        const std::vector<unsigned int>& dg = pMesh->getE2NMapping_DG();
+        if (!dg.empty())
+            hash_bytes(h_dg, dg.data(), dg.size() * sizeof(unsigned int));
+
+        const std::vector<ot::Block>& blk = pMesh->getLocalBlockList();
+        for (size_t i = 0; i < blk.size(); i++) {
+            const ot::TreeNode bn = blk[i].getBlockNode();
+            const unsigned int f[8] = {
+                bn.getX(),       bn.getY(),
+                bn.getZ(),       bn.getLevel(),
+                blk[i].getAllocationSzX(), blk[i].getAllocationSzY(),
+                blk[i].getAllocationSzZ(), blk[i].getRegularGridLev()};
+            hash_bytes(h_blk, f, sizeof(f));
+            const DendroIntL off = blk[i].getOffset();
+            hash_bytes(h_blk, &off, sizeof(off));
+        }
+
+        // Scatter map: the ghost exchange's wiring. A reordered send/recv list
+        // silently permutes ghost data.
+        const std::vector<unsigned int>& sSM = pMesh->getSendNodeSM();
+        const std::vector<unsigned int>& rSM = pMesh->getRecvNodeSM();
+        if (!sSM.empty())
+            hash_bytes(h_sm, sSM.data(), sSM.size() * sizeof(unsigned int));
+        if (!rSM.empty())
+            hash_bytes(h_sm, rSM.data(), rSM.size() * sizeof(unsigned int));
+    }
+
+    report(tag, "elements", h_ele, comm, rank);
+    report(tag, "e2e", h_e2e, comm, rank);
+    report(tag, "e2n", h_e2n, comm, rank);
+    report(tag, "e2n_dg", h_dg, comm, rank);
+    report(tag, "blocks", h_blk, comm, rank);
+    report(tag, "scattermap", h_sm, comm, rank);
+}
+
+void stateFingerprint(const ot::Mesh* pMesh, const DendroScalar* const* vars,
+                      unsigned int nVars, const char* tag) {
+    MPI_Comm comm = pMesh->getMPIGlobalCommunicator();
+    int rank;
+    MPI_Comm_rank(comm, &rank);
+
+    uint64_t h = FNV_OFFSET;
+    if (pMesh->isActive() && vars) {
+        // Local nodes only: ghost values are copies of some other rank's
+        // local nodes, so hashing them would double-count and make the digest
+        // depend on the partition rather than on the solution.
+        const unsigned int nb = pMesh->getNodeLocalBegin();
+        const unsigned int ne = pMesh->getNodeLocalEnd();
+        for (unsigned int v = 0; v < nVars; v++)
+            if (vars[v])
+                hash_bytes(h, vars[v] + nb,
+                           (size_t)(ne - nb) * sizeof(DendroScalar));
+    }
+    report(tag, "state", h, comm, rank);
 }
 
 }  // end of namespace bssn

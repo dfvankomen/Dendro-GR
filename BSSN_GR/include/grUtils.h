@@ -297,6 +297,35 @@ std::tuple<std::vector<std::pair<Point, Point>>, std::vector<double>>
 decode_bh_locs(const std::string& bh1_str, const std::string& bh2_str,
                const std::string& time_str);
 
+/**
+ * @brief Order-sensitive fingerprint of the mesh structure, one hash per
+ * construction stage, printed on rank 0 as `[fingerprint] <tag> <field> ...`.
+ *
+ * Guards mesh-construction changes (e.g. threading buildE2EMap / buildE2NMap /
+ * performBlocksSetup): the mesh is a deterministic function of the octree, so
+ * these hashes MUST NOT change with OMP_NUM_THREADS or with DENDRO_HYBRID_OMP.
+ * Hashing is deliberately order-sensitive -- a reordered E2N map is exactly the
+ * silent failure we are hunting, and it would change every numeric result.
+ *
+ * Per-field (not one lumped hash) so a divergence localizes to the stage that
+ * caused it: `e2n` differing while `e2e` matches points at buildE2NMap.
+ *
+ * All ranks must call (gathers to rank 0). Rank-ordered, so it also detects
+ * work migrating between ranks.
+ */
+void meshFingerprint(const ot::Mesh* pMesh, const char* tag);
+
+/**
+ * @brief Order-sensitive fingerprint of evolved state bits (all DOFs, all vars).
+ *
+ * The numerics half of the mesh guard: `meshFingerprint` proves the mesh is
+ * identical, this proves the answers are. Hashes raw bit patterns, so it is a
+ * bit-exactness check, not a tolerance check -- which is the standard
+ * `DENDRO_HYBRID_OMP=OFF` must meet.
+ */
+void stateFingerprint(const ot::Mesh* pMesh, const DendroScalar* const* vars,
+                      unsigned int nVars, const char* tag);
+
 }  // end of namespace bssn
 
 namespace bssn {
