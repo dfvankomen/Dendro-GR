@@ -47,23 +47,32 @@ line per step.
 
 ### The ghost exchange is mostly `Waitall`, and `Waitall` is imbalance
 
-Measured 2026-07-16 (8 cores, depth 9, B/rank 36): **`ghost_wait_s` is 85% of the
-exchange at `T=1`**; `pack` + `unpack` together are 15%. So the exchange is dominated
-by `MPI_Waitall`, and a rank sits in `Waitall` mainly because its **neighbours are
-still computing** — that is load imbalance billed to comm, not wire time. Read a
-rising `ghost_pack_wait_s` as an imbalance signal first.
+Measured 2026-07-16 (8 cores, depth 9, B/rank 36, properly bound): **`ghost_wait_s`
+is ~62% of the exchange** at `T=1`/`T=2`, with `pack`+`unpack` making up the rest. A
+rank sits in `Waitall` largely because its **neighbours are still computing** — load
+imbalance billed to comm, not wire time. Read a rising `ghost_pack_wait_s` as an
+imbalance signal first, and never as a measurement of the network.
 
-This also means arguments about ghost **volume** are arguing about a minority of the
-cost. Two further corrections to the volume intuition, both worth knowing:
+Two corrections to the ghost-**volume** intuition:
 
-- Raising `T` genuinely cuts the job's **aggregate** ghost volume — total ghost bytes
-  go as `R·(V/R)^(2/3) ∝ R^(1/3)`, which falls as ranks fall. That intuition is
-  correct, but the timers are **per-rank**, and per-rank ghost volume goes as
-  `(V/R)^(2/3)`, which **rises ~2.5× at T=4**. Fewer ranks each move more bytes. The
-  aggregate win is real and simply invisible to this instrument.
+- Raising `T` cuts the job's **aggregate** ghost volume — total ghost bytes go as
+  `R·(V/R)^(2/3) ∝ R^(1/3)`, falling as ranks fall. But the timers are **per-rank**,
+  and asymptotically per-rank ghost volume goes as `(V/R)^(2/3)`, which *rises* as
+  `R` falls. Which effect you see depends on `R`: at the small `R` of a single node
+  the partition has few cuts, so per-rank surface *falls* with `R` too and the
+  exchange shrinks with `T` (measured: 50.7 → 10.7 ms from `R=8` to `R=2`). Do not
+  extrapolate that to 768 ranks, where the `(V/R)^(2/3)` asymptote governs.
 - `pack`/`unpack` are threaded over **neighbour ranks**, not nodes
   (`mesh.tcc:934`, `:1027`), so their parallelism is capped by neighbour count and a
   single large face message cannot be split across threads. Real, but small.
+
+> Both of these numbers were first measured wrong. Exporting `OMP_PROC_BIND=close`
+> and `OMP_PLACES=cores` **without** giving `mpirun` a binding (`--map-by
+> ppr:R:node:pe=T --bind-to core`) leaves every rank with `Cpus_allowed_list 0-15`,
+> and each rank's OpenMP runtime then pins to the *first* place in that list — every
+> rank lands on core 0. That inflated `Waitall` to 85% of the exchange and made a
+> 4× phantom "hybrid win". Check `grep Cpus_allowed_list /proc/self/status` before
+> believing any binding.
 
 ## Reading the CSV
 
