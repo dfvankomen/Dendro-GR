@@ -4635,10 +4635,34 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
                          pick_app(CTX_UNZIP, t_unzip_sync.snap));
     BSSN_JSONL_PHASE_RAW("unzip_wcomm",
                          pick_app(CTX_UNZIP_WCOMM, t_unzip_sync.snap));
-    BSSN_JSONL_PHASE_RAW("deriv",         t_deriv.snap);
-    BSSN_JSONL_PHASE_RAW("rhs",           t_rhs.snap);
-    BSSN_JSONL_PHASE_RAW("rhs_ko",        t_rhs_ko.snap);
-    BSSN_JSONL_PHASE_RAW("bdyc",          t_bdyc.snap);
+    // rhs_wall: the whole RHS phase, rank wall time. CTX_RHS brackets bssnRHS()
+    // from OUTSIDE the omp region (bssnCtx.cpp:200-218), so it covers every
+    // block on every thread. Quote THIS for any cross-config comparison.
+    //
+    // The _t0 timers below are the sub-phase breakdown. They are started inside
+    // the threaded block loop (rhs.cpp:53), and profiler_t::start/stop
+    // early-return on worker threads (dendrolib/src/profiler.cpp:28,34) to avoid
+    // racing the shared counter -- so each accumulates only THREAD 0's elapsed
+    // time in that sub-phase. Because thread 0 runs concurrently with its peers,
+    // that is ~the rank's wall time for the sub-phase WHEN THE THREADS ARE
+    // BALANCED; under imbalance thread 0 need not be the critical path, so they
+    // understate. The _t0 suffix marks that caveat -- it does not mean "divide
+    // by T".
+    //
+    // Two traps, both measured (R=2, depth 9, gcc, 2026-07-16):
+    //   1. t_rhs EXCLUDES t_deriv -- it starts AFTER the deriv calls
+    //      (rhs.cpp:189-205, then :221). Hence rhs_eqn_t0, not rhs_t0. Treating
+    //      the old "rhs" key as the whole RHS understates it by ~2x and makes
+    //      any rk_step - rhs - uwcomm subtraction meaningless.
+    //   2. t_rhs_ko is a SUBSET of t_rhs (profile_params.h:31), not a sibling.
+    //      Adding it double-counts by ~12%.
+    // The identity that does hold: deriv_t0 + rhs_eqn_t0 + bdyc_t0 == rhs_wall
+    // (matched to <0.2% at T=1 and T=2). Use it to check these numbers.
+    BSSN_JSONL_PHASE_RAW("rhs_wall",      pick_app(CTX_RHS, t_rhs.snap));
+    BSSN_JSONL_PHASE_RAW("deriv_t0",      t_deriv.snap);
+    BSSN_JSONL_PHASE_RAW("rhs_eqn_t0",    t_rhs.snap);
+    BSSN_JSONL_PHASE_RAW("rhs_ko_t0",     t_rhs_ko.snap);
+    BSSN_JSONL_PHASE_RAW("bdyc_t0",       t_bdyc.snap);
     // Constraint computation (unzip + block loop + zip); feeds GW extraction.
     BSSN_JSONL_PHASE_RAW("constraints",   t_cons.snap);
     BSSN_JSONL_PHASE_RAW("zip",

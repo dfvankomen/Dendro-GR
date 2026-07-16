@@ -50,7 +50,7 @@ TOTAL_CORES=$(( CORES_PER_NODE * NNODES ))
 MPI_LAUNCH="${MPI_LAUNCH:-mpirun}"       # or srun (set SRUN_MPI plugin)
 SRUN_MPI="${SRUN_MPI:-pmix}"
 
-THREADS_LIST="${THREADS_LIST:-1 2 4}"    # threads/rank; 1 = pure-MPI. Keep each a per-socket divisor.
+THREADS_LIST="${THREADS_LIST:-1 2 4}"    # threads/rank; 1 = hybrid-T1 (NOT pure MPI). Per-socket divisors.
 
 # PROFILE=roofline: instead of the sweep, measure one single-node config under likwid
 # (MEM_DP counters = achieved memory bandwidth + DP GFLOP/s + operational intensity) and a
@@ -221,7 +221,7 @@ echo ""; echo "## parsing -> $OUT_CSV"
 python3 - "$OUTDIR" "$OUT_CSV" <<'PYEOF'
 import glob, json, os, re, sys
 outdir, out_csv = sys.argv[1], sys.argv[2]
-PHASES = ["rk_step", "rhs", "deriv", "unzip", "unzip_wcomm", "zip"]
+PHASES = ["rk_step", "rhs_wall", "unzip", "unzip_wcomm", "zip"]
 mean = lambda xs: sum(xs) / len(xs) if xs else float("nan")
 
 rows = []
@@ -231,10 +231,13 @@ for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
     nodes, ranks, threads = map(int, m.groups())
     # per phase, mean over timed steps of the per-step max-across-ranks (the critical path)
     acc = {p: [] for p in PHASES}; nblocks = None
-    # Load imbalance = rhs max/mean across ranks (1.0 = perfect). Measured on rhs, NOT rk_step:
-    # the ghost exchange synchronizes ranks, so a rank that finishes early just blocks longer in
-    # comm and rk_step max/mean is ~1.000 regardless of how skewed the work is. rhs is the
-    # comm-free compute phase, so it exposes the skew the dynamic schedule exists to fix.
+    # Load imbalance = rhs_wall max/mean across ranks (1.0 = perfect). Measured on rhs_wall,
+    # NOT rk_step: the ghost exchange synchronizes ranks, so a rank that finishes early just
+    # blocks longer in comm and rk_step max/mean is ~1.000 regardless of how skewed the work is.
+    # rhs_wall is the comm-free compute phase, so it exposes the skew the dynamic schedule
+    # exists to fix.
+    # rhs_wall, NOT the old "rhs" key: that was a thread-0 sample (~blocks_per_rank/T), so its
+    # max/mean mixed rank skew with thread-0's luck under schedule(dynamic,1).
     # Active ranks only (the emitter skips inactive ones) => understated if the mesh spans fewer
     # ranks than exist.
     imb = []
@@ -246,13 +249,17 @@ for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
         ph = rec.get("phase", {})
         for p in PHASES:
             if p in ph and "max" in ph[p]: acc[p].append(float(ph[p]["max"]))
-        r = ph.get("rhs")
+        r = ph.get("rhs_wall")
         if r and r.get("mean", 0) > 0: imb.append(float(r["max"]) / float(r["mean"]))
         if nblocks is None: nblocks = rec.get("num_blocks")
     v = {p: mean(acc[p]) for p in PHASES}
-    rows.append(dict(mode="pure-MPI" if threads == 1 else "hybrid", nodes=nodes, ranks=ranks,
+    # mode: "hybrid-T1", never "pure-MPI". This binary is built -DDENDRO_HYBRID_OMP=ON, which
+    # forces DENDRO_UNZIP_OMP_EFFECTIVE=ON (dendrolib/CMakeLists.txt:296), so even at T=1 it runs
+    # the OMP unzip path and pays its all_dg tax (findings/unzip_openmp.txt: 0.84x vs flag-OFF at
+    # t=1). A real pure-MPI baseline needs a second flag-OFF build; see BASELINE_OFF below.
+    rows.append(dict(mode="hybrid-T1" if threads == 1 else "hybrid", nodes=nodes, ranks=ranks,
                      threads=threads, ranks_per_node=ranks // nodes if nodes else 0,
-                     ghost_comm=v["unzip_wcomm"] - v["unzip"], num_blocks=nblocks,
+                     ghost_pack_wait=v["unzip_wcomm"] - v["unzip"], num_blocks=nblocks,
                      blocks_per_rank=(nblocks / ranks) if (nblocks and ranks) else float("nan"),
                      imbalance=mean(imb), **v))
 
@@ -261,12 +268,16 @@ for r in rows:
     b = base.get(r["nodes"]); r["speedup"] = (b / r["rk_step"]) if (b and r["rk_step"] > 0) else float("nan")
 rows.sort(key=lambda r: (r["nodes"], r["threads"]))
 
-cols = ["mode", "nodes", "ranks", "threads", "ranks_per_node", "rk_step", "rhs", "deriv",
-        "unzip", "unzip_wcomm", "ghost_comm", "zip", "num_blocks", "blocks_per_rank",
+cols = ["mode", "nodes", "ranks", "threads", "ranks_per_node", "rk_step", "rhs_wall",
+        "unzip", "unzip_wcomm", "ghost_pack_wait", "zip", "num_blocks", "blocks_per_rank",
         "imbalance", "speedup"]
-hdr = {"rk_step": "rk_step_s", "rhs": "rhs_s", "deriv": "deriv_s", "unzip": "unzip_s",
-       "unzip_wcomm": "unzip_wcomm_s", "ghost_comm": "ghost_comm_s", "zip": "zip_s",
-       "imbalance": "rhs_imbalance_max_over_mean", "speedup": "speedup_vs_purempi"}
+# ghost_pack_wait = unzip_wcomm - unzip. NOT wire time: UNZIP_WCOMM brackets the whole
+# Ctx::unzip (ctx.h:664-796) with UNZIP nested inside it, so the difference is
+# pack + Isend/Irecv + Waitall + unpack. The Waitall also absorbs rank load imbalance.
+# It cannot distinguish "network slower" from "gather less parallel" -- step 2 splits it.
+hdr = {"rk_step": "rk_step_s", "rhs_wall": "rhs_wall_s", "unzip": "unzip_s",
+       "unzip_wcomm": "unzip_wcomm_s", "ghost_pack_wait": "ghost_pack_wait_s", "zip": "zip_s",
+       "imbalance": "rhs_wall_imbalance_max_over_mean", "speedup": "speedup_vs_hybrid_T1"}
 fmt = lambda x: (f"{x:.4f}" if x == x else "") if isinstance(x, float) else ("" if x is None else str(x))
 with open(out_csv, "w") as fh:
     fh.write(",".join(hdr.get(c, c) for c in cols) + "\n")
@@ -284,5 +295,8 @@ PYEOF
 
 echo ""; echo "== $OUT_CSV =="
 column -t -s, "$OUT_CSV" 2>/dev/null || cat "$OUT_CSV"
-echo "(headline rk_step_s; ghost_comm_s = the inter-node comm hybrid shrinks; speedup>1 = hybrid wins."
+echo "(headline rk_step_s; speedup>1 = hybrid beats hybrid-T1, which is NOT pure MPI."
+echo " ghost_pack_wait_s = pack+Isend/Irecv+Waitall+unpack, NOT wire time -- fewer ranks each pack"
+echo " MORE bytes (per-rank ghost ~ (V/R)^(2/3) RISES with T even as job-aggregate volume falls),"
+echo " so this rising is expected and is not evidence against hybrid."
 echo " phase times carry profiler-barrier overhead -> read them relative, not absolute.)"

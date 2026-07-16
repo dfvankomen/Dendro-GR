@@ -23,34 +23,83 @@ to the script and see [`../PORTING.md`](../PORTING.md).
 ## How it works
 
 Total cores are held fixed (`cores/node × nodes`); the sweep varies OpenMP
-threads/rank `T` (so ranks `R = totalcores/T`). `T=1` is pure-MPI; `T>1` is hybrid.
-Same cores, same nodes → compute is constant and only the **number of MPI ranks
-exchanging ghost cells** changes: bigger `T` = fewer ranks = fewer/larger inter-node
-messages. Pure-MPI and hybrid are the *same binary* — pure-MPI is just
-`OMP_NUM_THREADS=1`. The benchmark `bssnScalingBench` runs the full per-step compute
-(no remesh/IO) and writes one JSON line per step.
+threads/rank `T` (so ranks `R = totalcores/T`). Same cores, same nodes → compute is
+constant and only the **number of MPI ranks exchanging ghost cells** changes: bigger
+`T` = fewer ranks = fewer/larger inter-node messages. The benchmark
+`bssnScalingBench` runs the full per-step compute (no remesh/IO) and writes one JSON
+line per step.
+
+> **`T=1` is NOT pure MPI.** It is *hybrid-with-one-thread*, and the CSV labels it
+> `hybrid-T1` for that reason. The binary is built `-DDENDRO_HYBRID_OMP=ON`, which
+> forces `DENDRO_UNZIP_OMP_EFFECTIVE=ON` (`dendrolib/CMakeLists.txt:296`). So even at
+> `T=1` it takes the OpenMP unzip path and pays that path's `all_dg` cost — measured
+> at **0.84× vs flag-OFF** in `dendrolib/findings/unzip_openmp.txt`. Real pure MPI is
+> a *separate flag-OFF build*. Every "hybrid vs pure-MPI" number produced before
+> 2026-07-16 actually compared hybrid against hybrid-T1 and so **understated the gap**.
+
+### Why "less communication" does not mean a smaller `ghost_pack_wait_s`
+
+Raising `T` genuinely cuts the job's **aggregate** ghost volume: total ghost bytes go
+as `R·(V/R)^(2/3) ∝ R^(1/3)`, which falls as ranks fall. That intuition is correct.
+But the timers are **per-rank**, and per-rank ghost volume goes as `(V/R)^(2/3)`,
+which **rises ~2.5× at T=4**. Fewer ranks each move more bytes. The aggregate win is
+real and simply invisible to this instrument. Do not read a rising
+`ghost_pack_wait_s` as evidence against hybrid.
 
 ## Reading the CSV
 
 | column | meaning |
 |--------|---------|
 | `rk_step_s` | **headline** — mean wall time per RK step (lower = better) |
-| `rhs_s` `deriv_s` `zip_s` | compute phases (should stay ~flat across the sweep) |
-| `ghost_comm_s` | `unzip_wcomm − unzip` = the inter-node **communication** hybrid shrinks |
+| `rhs_wall_s` `unzip_s` `zip_s` | compute phases (should stay ~flat across the sweep) |
+| `ghost_pack_wait_s` | `unzip_wcomm − unzip` = pack + Isend/Irecv + **Waitall** + unpack. **Not wire time.** |
 | `blocks_per_rank` | **saturation** — keep ≥ 16 or results are noise (script warns if low) |
-| `speedup_vs_purempi` | pure-MPI rk_step / this rk_step (>1 → hybrid wins) |
+| `speedup_vs_hybrid_T1` | hybrid-T1 rk_step / this rk_step (>1 → more threads help) |
 
-**Hybrid winning** = flat compute, falling `ghost_comm_s`, rising speedup. If
-`ghost_comm_s` is already tiny you're not comm-bound — use more nodes.
+**Hybrid winning** = flat `rhs_wall_s`, rising speedup.
 
+> ### Timer semantics — read before quoting any phase number
+>
+> **Quote `rhs_wall_s` for any cross-config comparison.** It comes from `CTX_RHS`,
+> which brackets `bssnRHS()` from *outside* the OpenMP region, so it is the whole RHS
+> phase as rank wall time.
+>
+> The JSONL also carries the sub-phase breakdown `deriv_t0`, `rhs_eqn_t0`,
+> `rhs_ko_t0`, `bdyc_t0`. These start *inside* the threaded block loop, and
+> `profiler_t::start/stop` early-return on worker threads
+> (`dendrolib/src/profiler.cpp:28,34`) to avoid racing the shared counter — so each
+> accumulates only **thread 0's elapsed time** in that sub-phase. Since thread 0 runs
+> concurrently with its peers, that ≈ the rank's wall time for the sub-phase **when
+> the threads are balanced**; under imbalance thread 0 need not be the critical path,
+> so they understate. `_t0` marks that caveat — it does *not* mean "divide by `T`".
+>
+> Two traps, both measured (R=2, depth 9, 2026-07-16):
+>
+> 1. **`t_rhs` excludes `t_deriv`** — it starts *after* the deriv calls
+>    (`rhs.cpp:189-205`, then `:221`). Hence `rhs_eqn_t0`, not `rhs_t0`. Reading the
+>    old `rhs` key as the whole RHS understates it by ~2×.
+> 2. **`t_rhs_ko` is a _subset_ of `t_rhs`** (`profile_params.h:31`), not a sibling.
+>    Adding it double-counts by ~12%.
+>
+> The identity that does hold, and that you should use as a check:
+>
+> ```
+> deriv_t0 + rhs_eqn_t0 + bdyc_t0  ==  rhs_wall        (< 0.2% at T=1 and T=2)
+> ```
+>
+> This is not hypothetical. The old `rhs` key was fed into a
+> `rk_step − rhs − uwcomm` subtraction to infer a serial residue; because `rhs`
+> was only the equation loop, that residue silently included all of `deriv`, and the
+> conclusion drawn from it was wrong.
+>
 > Profiler barriers (needed to emit the JSONL) inflate the unzip phases, so read
-> phase times as **relative** (pure-MPI vs hybrid), not absolute.
+> phase times as **relative**, not absolute.
 
 ## Sizing the mesh
 
 The mesh is fixed by the parfile and does **not** grow with node count, so the busiest
-config (pure-MPI) needs `blocks_per_rank ≥ 16`. The default `q1` BBH grid is ~1100 blocks
-— enough for N=1–2, but at N≥4 pure-MPI starves (1–2 blocks/rank) and the numbers aren't
+config (`T=1`) needs `blocks_per_rank ≥ 16`. The default `q1` BBH grid is ~1100 blocks
+— enough for N=1–2, but at N≥4 `T=1` starves (1–2 blocks/rank) and the numbers aren't
 reliable. **To saturate N=4/N=8, use the higher-mass-ratio grid** — more AMR blocks with the
 same production `ob0` large-block layout that actually shows the hybrid win:
 
@@ -92,7 +141,7 @@ well below it means there's locality/prefetch headroom. Sweep `ROOFLINE_T` to se
 | var | default | notes |
 |-----|---------|-------|
 | `SITE` | `stampede3` | preset bundle: modules + `CPU_ARCH` + `CORES_PER_NODE` + `DENDROLIB_DIR` + MPI fabric. Also `chpc`, or `none` (load modules yourself). |
-| `THREADS_LIST` | `1 2 4` | threads/rank; `1` = pure-MPI. Keep each a divisor of the per-**socket** core count. |
+| `THREADS_LIST` | `1 2 4` | threads/rank; `1` = hybrid-T1, **not** pure MPI (see above). Keep each a divisor of the per-**socket** core count. |
 | `GRID`/`LEV` | `bbh`/`7` | `uniform` + `LEV` to saturate many nodes (see above) |
 | `OCT2BLK_LEV` | `31` uniform / `0` bbh | block fusion: `0` = fused big blocks (production RHS), `31` = no fusion, many small blocks. Baked into the build; changing it triggers a separate `build_hybrid_ob<N>/`. |
 | `MEM_CHECK` | `on` | uniform-grid RAM preflight; aborts with a node count before an OOM. Set `off` to bypass the estimate. |

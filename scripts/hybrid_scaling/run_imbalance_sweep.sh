@@ -21,9 +21,15 @@
 # across depths at FIXED T (where R is constant) instead; that comparison is
 # sound and is what shows quantization imbalance decaying with bpr.
 #
-# Imbalance is read from rhs, NOT rk_step: the ghost exchange synchronizes
+# Imbalance is read from rhs_wall, NOT rk_step: the ghost exchange synchronizes
 # ranks, so a rank that finishes early just blocks longer in comm and rk_step
 # max/mean reads ~1.000 regardless of skew.
+#
+# rhs_wall, NOT the old "rhs" key. "rhs" was a THREAD-0 SAMPLE: it is started
+# inside the threaded block loop and profiler_t::start/stop early-return on
+# worker threads, so it only ever timed the blocks thread 0 happened to run
+# (~blocks_per_rank/T). It also excluded t_deriv. rhs_wall comes from CTX_RHS,
+# which brackets bssnRHS() from outside the omp region = true rank wall time.
 #
 # Single-socket laptop caveat: absolute speedups are compressed by the 2-channel
 # memory wall (see Single Node Split Sweep, ~4.5% at best). We are testing the
@@ -90,7 +96,7 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
         except json.JSONDecodeError: continue
         ph = rec.get("phase", {})
         if "rk_step" in ph: rk.append(float(ph["rk_step"]["max"]))
-        r = ph.get("rhs")
+        r = ph.get("rhs_wall")
         if r:
             rhs.append(float(r["max"]))
             if r.get("mean", 0) > 0: imb.append(float(r["max"])/float(r["mean"]))
@@ -124,7 +130,7 @@ rows.sort(key=lambda r: (r["depth"], r["threads"]))
 
 cols = ["depth","blocks","bpr_t1","ranks","threads","bpr","rk","rhs","imb","speedup"]
 hdr  = {"bpr_t1":"blocks_per_rank_at_T1","bpr":"blocks_per_rank","rk":"rk_step_s",
-        "rhs":"rhs_s","imb":"rhs_imbalance_max_over_mean","speedup":"speedup_vs_T1"}
+        "rhs":"rhs_wall_s","imb":"rhs_wall_imbalance_max_over_mean","speedup":"speedup_vs_T1"}
 fmt  = lambda x: (f"{x:.4f}" if x == x else "") if isinstance(x, float) else ("" if x is None else str(x))
 csv = os.path.join(outdir, "imbalance_sweep.csv")
 with open(csv, "w") as fh:
