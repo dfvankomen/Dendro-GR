@@ -119,31 +119,59 @@ if [[ "$GRID" == uniform && "${MEM_CHECK:-on}" != off ]]; then
   fi
 fi
 
-# --- build once (hybrid path + profile counters for the JSONL) ---------------
-BIN="$BUILD_DIR/BSSN_GR/bssnScalingBench"
-if [[ ! -x "$BIN" ]]; then
-  echo "## building (once) ..."
-  cmake -S "$REPO" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCPU_ARCH="$CPU_ARCH" \
-        -DDENDRO_dendrolib_DIR="$DENDROLIB_DIR" -DDENDRO_HYBRID_OMP=ON \
+# --- builds -------------------------------------------------------------------
+# TWO binaries, not one, because "run the hybrid binary at OMP_NUM_THREADS=1" is NOT
+# pure MPI. -DDENDRO_HYBRID_OMP=ON forces DENDRO_UNZIP_OMP_EFFECTIVE=ON
+# (dendrolib/CMakeLists.txt:295), and that path allocates + zero-fills a per-rank
+# all_dg buffer (mesh.tcc:11295) the serial path never touches. Measured cost at T=1
+# with zero threading benefit: ~13% on unzip, ~6% on rk_step (8 cores, depth 9,
+# 2026-07-16). So T=1 is "hybrid-T1" and the CSV labels it that way.
+#
+# The baseline MUST also set -DDENDRO_UNZIP_SPEEDUP=ON. dendrolib/CMakeLists.txt:302
+# says:
+#     if(DENDRO_UNZIP_SPEEDUP OR DENDRO_UNZIP_OMP_EFFECTIVE)
+#       set(DENDRO_UNZIP_SCATTER_FAST_EFFECTIVE ON) ... TENSOR_SIMD ... SPEEDUP ...
+# i.e. DENDRO_HYBRID_OMP=ON silently ALSO enables the integer-index scatter fast path
+# and the SIMD tensor kernels, which are MPI-safe and have nothing to do with
+# threading. A bare -DDENDRO_HYBRID_OMP=OFF baseline therefore gives up those too
+# (measured: unzip 193ms vs 117ms, ~39% slower) and would FLATTER hybrid by crediting
+# it with unrelated optimizations. UNZIP_SPEEDUP=ON isolates the threading variable.
+# BASELINE_OFF=off skips the baseline if you only want the T-trend.
+BASELINE_OFF="${BASELINE_OFF:-on}"
+BUILD_DIR_OFF="${BUILD_DIR}_puremip"
+
+build_variant() {  # $1=builddir  $2=extra cmake args...  (first arg after dir is the tag)
+  local bdir="$1" tag="$2"; shift 2
+  local bin="$bdir/BSSN_GR/bssnScalingBench"
+  if [[ -x "$bin" ]]; then echo "## reusing build $bin (rm -rf $bdir to rebuild)"; return 0; fi
+  echo "## building $tag ($*) ..."
+  cmake -S "$REPO" -B "$bdir" -DCMAKE_BUILD_TYPE=Release -DCPU_ARCH="$CPU_ARCH" \
+        -DDENDRO_dendrolib_DIR="$DENDROLIB_DIR" \
         -DOCT2BLK_COARSEST_LEV="$OCT2BLK_LEV" \
-        -DENABLE_DENDRO_PROFILE_COUNTERS=ON $CASCADE_FLAG >"$OUTDIR/configure.log" 2>&1 \
-    || { echo "## CONFIGURE FAILED -- $OUTDIR/configure.log"; tail -20 "$OUTDIR/configure.log"; exit 1; }
-  cmake --build "$BUILD_DIR" --target bssnScalingBench -j"$JOBS" >"$OUTDIR/build.log" 2>&1 \
-    || { echo "## BUILD FAILED -- $OUTDIR/build.log"; tail -20 "$OUTDIR/build.log"; exit 1; }
-else
-  echo "## reusing build $BIN (rm -rf $BUILD_DIR to rebuild)"
-fi
+        -DENABLE_DENDRO_PROFILE_COUNTERS=ON $CASCADE_FLAG "$@" \
+        >"$OUTDIR/configure_${tag}.log" 2>&1 \
+    || { echo "## CONFIGURE FAILED ($tag) -- $OUTDIR/configure_${tag}.log"; tail -20 "$OUTDIR/configure_${tag}.log"; exit 1; }
+  grep -E "unzip/zip speedups|hybrid OpenMP" "$OUTDIR/configure_${tag}.log" | sed 's/^/   /'
+  cmake --build "$bdir" --target bssnScalingBench -j"$JOBS" >"$OUTDIR/build_${tag}.log" 2>&1 \
+    || { echo "## BUILD FAILED ($tag) -- $OUTDIR/build_${tag}.log"; tail -20 "$OUTDIR/build_${tag}.log"; exit 1; }
+}
+
+BIN="$BUILD_DIR/BSSN_GR/bssnScalingBench"
+BIN_OFF="$BUILD_DIR_OFF/BSSN_GR/bssnScalingBench"
+build_variant "$BUILD_DIR" hybrid -DDENDRO_HYBRID_OMP=ON
+[[ "$BASELINE_OFF" == on ]] && \
+  build_variant "$BUILD_DIR_OFF" puremip -DDENDRO_HYBRID_OMP=OFF -DDENDRO_UNZIP_SPEEDUP=ON
 
 # --- launch one split: R ranks x T threads. Pinning is what makes hybrid work. -
 run_split() {
-  local R="$1" T="$2" RPN="$3" PFX="$4"
+  local R="$1" T="$2" RPN="$3" PFX="$4" EXE="${5:-$BIN}"
   export OMP_NUM_THREADS="$T" OMP_PROC_BIND=close OMP_PLACES=cores
   local args=("$PARFILE" --grid "$GRID" --lev "$LEV" --steps "$STEPS" --warmup "$WARMUP" --prefix "$PFX")
   if [[ "$MPI_LAUNCH" == srun ]]; then
     srun --mpi="$SRUN_MPI" --nodes="$NNODES" --ntasks="$R" --ntasks-per-node="$RPN" \
-         --cpus-per-task="$T" --cpu-bind=cores --distribution=block:block "$BIN" "${args[@]}"
+         --cpus-per-task="$T" --cpu-bind=cores --distribution=block:block "$EXE" "${args[@]}"
   else
-    mpirun --np "$R" --map-by "ppr:${RPN}:node:pe=${T}" --bind-to core "$BIN" "${args[@]}"
+    mpirun --np "$R" --map-by "ppr:${RPN}:node:pe=${T}" --bind-to core "$EXE" "${args[@]}"
   fi
 }
 
@@ -207,11 +235,22 @@ PYEOF
 if [[ "$PROFILE" == roofline ]]; then run_roofline; exit $?; fi
 
 # --- sweep -------------------------------------------------------------------
+# The real pure-MPI reference: DENDRO_HYBRID_OMP=OFF + UNZIP_SPEEDUP=ON, one rank per
+# core. This is the only row that is honestly "pure MPI"; every T in THREADS_LIST
+# (including T=1) runs the hybrid binary and its OMP unzip path.
+if [[ "$BASELINE_OFF" == on ]]; then
+  RPN=$CORES_PER_NODE; R=$(( RPN * NNODES ))
+  PFX="$OUTDIR/run_N${NNODES}_r${R}_t1_off"; rm -f "${PFX}_steps.jsonl"
+  echo "===== baseline: pure-MPI (HYBRID_OMP=OFF, UNZIP_SPEEDUP=ON) ranks=$R ranks/node=$RPN ====="
+  run_split "$R" 1 "$RPN" "$PFX" "$BIN_OFF" >"${PFX}.log" 2>&1
+  [[ -s "${PFX}_steps.jsonl" ]] && echo "## ok" || { echo "## FAILED (no JSONL):"; tail -15 "${PFX}.log"; }
+fi
+
 for T in $THREADS_LIST; do
   (( CORES_PER_NODE % T == 0 )) || { echo "## skip T=$T (does not divide $CORES_PER_NODE cores/node)"; continue; }
   RPN=$(( CORES_PER_NODE / T )); R=$(( RPN * NNODES ))
   PFX="$OUTDIR/run_N${NNODES}_r${R}_t${T}"; rm -f "${PFX}_steps.jsonl"
-  echo "===== T=$T ($([[ $T == 1 ]] && echo pure-MPI || echo hybrid)) ranks=$R ranks/node=$RPN ====="
+  echo "===== T=$T (hybrid$([[ $T == 1 ]] && echo '-T1, NOT pure MPI')) ranks=$R ranks/node=$RPN ====="
   run_split "$R" "$T" "$RPN" "$PFX" >"${PFX}.log" 2>&1
   [[ -s "${PFX}_steps.jsonl" ]] && echo "## ok" || { echo "## FAILED (no JSONL):"; tail -15 "${PFX}.log"; }
 done
@@ -227,9 +266,10 @@ mean = lambda xs: sum(xs) / len(xs) if xs else float("nan")
 
 rows = []
 for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
-    m = re.search(r"run_N(\d+)_r(\d+)_t(\d+)_steps\.jsonl$", os.path.basename(path))
+    m = re.search(r"run_N(\d+)_r(\d+)_t(\d+)(_off)?_steps\.jsonl$", os.path.basename(path))
     if not m: continue
-    nodes, ranks, threads = map(int, m.groups())
+    nodes, ranks, threads = map(int, m.groups()[:3])
+    is_off = m.group(4) is not None   # DENDRO_HYBRID_OMP=OFF build => real pure MPI
     # per phase, mean over timed steps of the per-step max-across-ranks (the critical path)
     acc = {p: [] for p in PHASES}; nblocks = None
     # Load imbalance = rhs_wall max/mean across ranks (1.0 = perfect). Measured on rhs_wall,
@@ -254,24 +294,33 @@ for path in sorted(glob.glob(os.path.join(outdir, "run_N*_steps.jsonl"))):
         if r and r.get("mean", 0) > 0: imb.append(float(r["max"]) / float(r["mean"]))
         if nblocks is None: nblocks = rec.get("num_blocks")
     v = {p: mean(acc[p]) for p in PHASES}
-    # mode: "hybrid-T1", never "pure-MPI". This binary is built -DDENDRO_HYBRID_OMP=ON, which
-    # forces DENDRO_UNZIP_OMP_EFFECTIVE=ON (dendrolib/CMakeLists.txt:296), so even at T=1 it runs
-    # the OMP unzip path and pays its all_dg tax (findings/unzip_openmp.txt: 0.84x vs flag-OFF at
-    # t=1). A real pure-MPI baseline needs a second flag-OFF build; see BASELINE_OFF below.
-    rows.append(dict(mode="hybrid-T1" if threads == 1 else "hybrid", nodes=nodes, ranks=ranks,
+    # mode: only the flag-OFF build is "pure-MPI". The hybrid binary at T=1 is "hybrid-T1":
+    # -DDENDRO_HYBRID_OMP=ON forces DENDRO_UNZIP_OMP_EFFECTIVE=ON (dendrolib/CMakeLists.txt:296),
+    # so even at T=1 it runs the OMP unzip path and pays its all_dg cost (0.84x vs flag-OFF at
+    # t=1, findings/unzip_openmp.txt).
+    mode = "pure-MPI" if is_off else ("hybrid-T1" if threads == 1 else "hybrid")
+    rows.append(dict(mode=mode, nodes=nodes, ranks=ranks,
                      threads=threads, ranks_per_node=ranks // nodes if nodes else 0,
                      ghost_pack_wait=v["unzip_wcomm"] - v["unzip"], num_blocks=nblocks,
                      blocks_per_rank=(nblocks / ranks) if (nblocks and ranks) else float("nan"),
                      imbalance=mean(imb), **v))
 
-base = {r["nodes"]: r["rk_step"] for r in rows if r["threads"] == 1}
+# Two baselines, deliberately. speedup_vs_hybrid_T1 is the T-trend (does threading help?).
+# speedup_vs_pure_mpi is the one that answers "should we ship this?" -- and the gap between
+# the two IS the all_dg cost the hybrid binary pays even at T=1. If the pure-MPI row is
+# missing (BASELINE_OFF=off), that column is blank rather than silently falling back to
+# hybrid-T1 and calling it pure MPI.
+base_hyb1 = {r["nodes"]: r["rk_step"] for r in rows if r["threads"] == 1 and r["mode"] != "pure-MPI"}
+base_pure = {r["nodes"]: r["rk_step"] for r in rows if r["mode"] == "pure-MPI"}
 for r in rows:
-    b = base.get(r["nodes"]); r["speedup"] = (b / r["rk_step"]) if (b and r["rk_step"] > 0) else float("nan")
-rows.sort(key=lambda r: (r["nodes"], r["threads"]))
+    b, p = base_hyb1.get(r["nodes"]), base_pure.get(r["nodes"])
+    r["speedup"]      = (b / r["rk_step"]) if (b and r["rk_step"] > 0) else float("nan")
+    r["speedup_pure"] = (p / r["rk_step"]) if (p and r["rk_step"] > 0) else float("nan")
+rows.sort(key=lambda r: (r["nodes"], r["mode"] != "pure-MPI", r["threads"]))
 
 cols = ["mode", "nodes", "ranks", "threads", "ranks_per_node", "rk_step", "rhs_wall",
         "unzip", "unzip_wcomm", "ghost_pack_wait", "ghost_pack", "ghost_wait", "ghost_unpack",
-        "zip", "num_blocks", "blocks_per_rank", "imbalance", "speedup"]
+        "zip", "num_blocks", "blocks_per_rank", "imbalance", "speedup", "speedup_pure"]
 # ghost_pack_wait = unzip_wcomm - unzip, the whole exchange lumped together. The three
 # ghost_* columns break it down and sum back to it within ~1% (on means; do NOT check the
 # identity on the max columns -- different ranks are the max for different sub-timers, so
@@ -286,7 +335,8 @@ hdr = {"rk_step": "rk_step_s", "rhs_wall": "rhs_wall_s", "unzip": "unzip_s",
        "unzip_wcomm": "unzip_wcomm_s", "ghost_pack_wait": "ghost_pack_wait_s",
        "ghost_pack": "ghost_pack_s", "ghost_wait": "ghost_wait_s",
        "ghost_unpack": "ghost_unpack_s", "zip": "zip_s",
-       "imbalance": "rhs_wall_imbalance_max_over_mean", "speedup": "speedup_vs_hybrid_T1"}
+       "imbalance": "rhs_wall_imbalance_max_over_mean", "speedup": "speedup_vs_hybrid_T1",
+       "speedup_pure": "speedup_vs_pure_mpi"}
 fmt = lambda x: (f"{x:.4f}" if x == x else "") if isinstance(x, float) else ("" if x is None else str(x))
 with open(out_csv, "w") as fh:
     fh.write(",".join(hdr.get(c, c) for c in cols) + "\n")
@@ -304,7 +354,10 @@ PYEOF
 
 echo ""; echo "== $OUT_CSV =="
 column -t -s, "$OUT_CSV" 2>/dev/null || cat "$OUT_CSV"
-echo "(headline rk_step_s; speedup>1 = hybrid beats hybrid-T1, which is NOT pure MPI."
+echo "(headline rk_step_s. speedup_vs_pure_mpi is the ship/no-ship number, measured against the"
+echo " DENDRO_HYBRID_OMP=OFF build; speedup_vs_hybrid_T1 is only the T-trend within the hybrid"
+echo " binary. The gap between the two at T=1 is what the hybrid unzip path costs before any"
+echo " threading happens (all_dg, mesh.tcc:11295)."
 echo " ghost_pack_wait_s = pack+Isend/Irecv+Waitall+unpack, NOT wire time -- fewer ranks each pack"
 echo " MORE bytes (per-rank ghost ~ (V/R)^(2/3) RISES with T even as job-aggregate volume falls),"
 echo " so this rising is expected and is not evidence against hybrid."

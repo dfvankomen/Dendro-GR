@@ -30,12 +30,20 @@ constant and only the **number of MPI ranks exchanging ghost cells** changes: bi
 line per step.
 
 > **`T=1` is NOT pure MPI.** It is *hybrid-with-one-thread*, and the CSV labels it
-> `hybrid-T1` for that reason. The binary is built `-DDENDRO_HYBRID_OMP=ON`, which
-> forces `DENDRO_UNZIP_OMP_EFFECTIVE=ON` (`dendrolib/CMakeLists.txt:296`). So even at
-> `T=1` it takes the OpenMP unzip path and pays that path's `all_dg` cost — measured
-> at **0.84× vs flag-OFF** in `dendrolib/findings/unzip_openmp.txt`. Real pure MPI is
-> a *separate flag-OFF build*. Every "hybrid vs pure-MPI" number produced before
-> 2026-07-16 actually compared hybrid against hybrid-T1 and so **understated the gap**.
+> `hybrid-T1`. The binary is built `-DDENDRO_HYBRID_OMP=ON`, which forces
+> `DENDRO_UNZIP_OMP_EFFECTIVE=ON` (`dendrolib/CMakeLists.txt:295`), so even at `T=1`
+> it takes the OpenMP unzip path and pays that path's `all_dg` cost
+> (`mesh.tcc:11295`) with no threading to offset it — measured at **~13% on unzip,
+> ~6% on `rk_step`** (8 cores, depth 9, 2026-07-16). Every "hybrid vs pure-MPI"
+> number produced before 2026-07-16 actually compared hybrid against hybrid-T1.
+>
+> The sweep therefore builds a **second binary** for the baseline, and it must be
+> `-DDENDRO_HYBRID_OMP=OFF -DDENDRO_UNZIP_SPEEDUP=ON`, **not** bare `OFF`. Per
+> `dendrolib/CMakeLists.txt:302`, `DENDRO_HYBRID_OMP=ON` *also* silently enables the
+> integer-index scatter fast path and the SIMD tensor kernels — both MPI-safe and
+> unrelated to threading. A bare-`OFF` baseline gives those up too (measured: unzip
+> 193 ms vs 117 ms, **39% slower**) and would **flatter** hybrid by crediting it with
+> optimizations it didn't earn. `UNZIP_SPEEDUP=ON` isolates the threading variable.
 
 ### The ghost exchange is mostly `Waitall`, and `Waitall` is imbalance
 
