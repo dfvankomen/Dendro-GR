@@ -115,6 +115,30 @@ cost. Two further corrections to the volume intuition, both worth knowing:
 > Profiler barriers (needed to emit the JSONL) inflate the unzip phases, so read
 > phase times as **relative**, not absolute.
 
+### Build hygiene: the flag under test must be the ONLY difference
+
+The sweep builds two binaries and pins `DENDRO_USE_NEW_DERIVS=OFF` and
+`DVEC_ZERO_ALLOC=ON` on both, and it **refuses to reuse a build tree** whose recorded
+`.sweep_flags` don't match what the sweep needs.
+
+That is not paranoia. On 2026-07-16 a hand-built pair silently differed in
+`DENDRO_USE_NEW_DERIVS`, which swaps the entire RHS translation unit
+(`BSSN_GR/CMakeLists.txt:92` selects `rhs_experimental.cpp` instead of `rhs.cpp`).
+The two binaries were running **different physics**, which produced a bogus
+"`unzip_scatter_batch` is not bit-exact" verdict and a bogus `all_dg` timing. A
+CMake build tree keeps its *own* cached options, so a directory configured in an
+earlier session does not take today's defaults — and the binary looks identical from
+the outside. If you build variants by hand, diff the caches first:
+
+```bash
+diff <(grep -E '^DENDRO_|^BSSN_|^DVEC_' a/CMakeCache.txt|sort) \
+     <(grep -E '^DENDRO_|^BSSN_|^DVEC_' b/CMakeCache.txt|sort)
+```
+
+And when a bit-exactness gate PASSES, prove it can fail — run it against a
+known-different build. Two separate false PASSes were produced that day by diffing
+empty files and by diffing a constant awk field.
+
 ## Sizing the mesh
 
 The mesh is fixed by the parfile and does **not** grow with node count, so the busiest

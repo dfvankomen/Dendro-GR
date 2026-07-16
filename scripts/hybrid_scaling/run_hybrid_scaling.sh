@@ -140,25 +140,60 @@ fi
 BASELINE_OFF="${BASELINE_OFF:-on}"
 BUILD_DIR_OFF="${BUILD_DIR}_puremip"
 
-build_variant() {  # $1=builddir  $2=extra cmake args...  (first arg after dir is the tag)
+# Pinned on EVERY variant so the only difference between binaries is the flag under
+# test. These are not defaults you can rely on: a build tree configured in an earlier
+# session keeps its own cached values, and DENDRO_USE_NEW_DERIVS in particular swaps
+# the whole RHS translation unit (BSSN_GR/CMakeLists.txt:92 picks rhs_experimental.cpp
+# over rhs.cpp), while DVEC_ZERO_ALLOC switches calloc/malloc for the unzip padding.
+# On 2026-07-16 an unpinned pair differed in both, which produced a bogus "not
+# bit-exact" verdict and a bogus all_dg timing -- the binaries were running different
+# physics. Pin them; do not remove.
+PIN_FLAGS=(-DDENDRO_USE_NEW_DERIVS=OFF -DDVEC_ZERO_ALLOC=ON)
+
+build_variant() {  # $1=builddir  $2=tag  $3..=extra cmake args
   local bdir="$1" tag="$2"; shift 2
   local bin="$bdir/BSSN_GR/bssnScalingBench"
-  if [[ -x "$bin" ]]; then echo "## reusing build $bin (rm -rf $bdir to rebuild)"; return 0; fi
-  echo "## building $tag ($*) ..."
+  local want="$*"
+  if [[ -x "$bin" ]]; then
+    # NEVER reuse blind. A stale tree can hold different flags than we asked for, and
+    # the binary looks identical from the outside. Record what each tree was built
+    # with and refuse to reuse a mismatch.
+    if [[ -f "$bdir/.sweep_flags" ]] && [[ "$(cat "$bdir/.sweep_flags")" == "$want ${PIN_FLAGS[*]}" ]]; then
+      echo "## reusing build $bin"; return 0
+    fi
+    echo "## STALE BUILD: $bdir was configured with"
+    echo "##     $(cat "$bdir/.sweep_flags" 2>/dev/null || echo '<unknown - no .sweep_flags>')"
+    echo "##   but this sweep needs"
+    echo "##     $want ${PIN_FLAGS[*]}"
+    echo "##   Reusing it would compare binaries that differ in more than the flag under test."
+    echo "##   Remove it and re-run:  rm -rf $bdir"
+    exit 1
+  fi
+  echo "## building $tag ($want) ..."
   cmake -S "$REPO" -B "$bdir" -DCMAKE_BUILD_TYPE=Release -DCPU_ARCH="$CPU_ARCH" \
         -DDENDRO_dendrolib_DIR="$DENDROLIB_DIR" \
         -DOCT2BLK_COARSEST_LEV="$OCT2BLK_LEV" \
-        -DENABLE_DENDRO_PROFILE_COUNTERS=ON $CASCADE_FLAG "$@" \
+        -DENABLE_DENDRO_PROFILE_COUNTERS=ON $CASCADE_FLAG "${PIN_FLAGS[@]}" "$@" \
         >"$OUTDIR/configure_${tag}.log" 2>&1 \
     || { echo "## CONFIGURE FAILED ($tag) -- $OUTDIR/configure_${tag}.log"; tail -20 "$OUTDIR/configure_${tag}.log"; exit 1; }
   grep -E "unzip/zip speedups|hybrid OpenMP" "$OUTDIR/configure_${tag}.log" | sed 's/^/   /'
   cmake --build "$bdir" --target bssnScalingBench -j"$JOBS" >"$OUTDIR/build_${tag}.log" 2>&1 \
     || { echo "## BUILD FAILED ($tag) -- $OUTDIR/build_${tag}.log"; tail -20 "$OUTDIR/build_${tag}.log"; exit 1; }
+  echo "$want ${PIN_FLAGS[*]}" > "$bdir/.sweep_flags"
 }
+
+# UNZIP_BATCH: routes Ctx::unzip through Mesh::unzip_scatter_batch, which reuses a
+# dof=1-sized DG scratch instead of materializing and zero-filling
+# (numTotalElements * dof * nPe) doubles per call. Verified bit-exact against
+# BATCH=OFF (R=2, T=4; gate confirmed non-vacuous against a known-different build),
+# and measured 2.0x faster unzip / -18% rk_step at R=8 T=1 on 2026-07-16. ON by
+# default here; UNZIP_BATCH=off to measure the old path.
+UNZIP_BATCH="${UNZIP_BATCH:-on}"
+BATCH_FLAG="-DDENDRO_UNZIP_BATCH=$([[ "$UNZIP_BATCH" == on ]] && echo ON || echo OFF)"
 
 BIN="$BUILD_DIR/BSSN_GR/bssnScalingBench"
 BIN_OFF="$BUILD_DIR_OFF/BSSN_GR/bssnScalingBench"
-build_variant "$BUILD_DIR" hybrid -DDENDRO_HYBRID_OMP=ON
+build_variant "$BUILD_DIR" hybrid -DDENDRO_HYBRID_OMP=ON "$BATCH_FLAG"
 [[ "$BASELINE_OFF" == on ]] && \
   build_variant "$BUILD_DIR_OFF" puremip -DDENDRO_HYBRID_OMP=OFF -DDENDRO_UNZIP_SPEEDUP=ON
 
