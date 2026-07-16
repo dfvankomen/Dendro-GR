@@ -2763,8 +2763,37 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac) {
         bssn::BSSN_DERIV_WORKSPACE = nullptr;
     }
 
+    // One workspace slab per thread so the RHS block loop can be threaded under
+    // DENDRO_HYBRID_OMP; each thread indexes WORKSPACE + tid * stride. Without
+    // the flag this is a single slab (n_threads = 1) -> identical to before.
+    bssn::BSSN_DERIV_WORKSPACE_STRIDE =
+        (size_t)s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS;
+#ifdef DENDRO_HYBRID_OMP
+    const unsigned int n_threads = (unsigned int)omp_get_max_threads();
+#else
+    const unsigned int n_threads = 1;
+#endif
+    // Single source of truth for the threaded-region thread count: every
+    // tid-indexed parallel region (RHS, constraints) pins num_threads() to this
+    // so omp_get_thread_num() can never index past the slabs allocated here.
+    bssn::BSSN_HYBRID_NTHREADS = n_threads;
     bssn::BSSN_DERIV_WORKSPACE =
-        new double[s_fac * max_blk_sz * bssn::BSSN_NUM_DERIVS];
+        new double[(size_t)n_threads * bssn::BSSN_DERIV_WORKSPACE_STRIDE];
+#ifdef DENDRO_HYBRID_OMP
+    // NUMA first-touch: each thread zeroes its own slab so the pages bind to the
+    // thread's local node (first-touch policy) instead of all landing on the
+    // master's node -- matters on multi-socket machines.
+    if (n_threads > 1) {
+#pragma omp parallel num_threads(n_threads)
+        {
+            const unsigned int tid = (unsigned int)omp_get_thread_num();
+            double* slab           = bssn::BSSN_DERIV_WORKSPACE +
+                           (size_t)tid * bssn::BSSN_DERIV_WORKSPACE_STRIDE;
+            for (size_t i = 0; i < bssn::BSSN_DERIV_WORKSPACE_STRIDE; i++)
+                slab[i] = 0.0;
+        }
+    }
+#endif
 }
 
 void deallocate_bssn_deriv_workspace() {
