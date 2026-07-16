@@ -82,7 +82,7 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
     m = re.search(r"d(\d+)_t(\d+)_steps\.jsonl$", os.path.basename(path))
     if not m: continue
     depth, threads = int(m.group(1)), int(m.group(2))
-    rk, rhs, imb, nb, ranks = [], [], [], None, None
+    rk, rhs, imb, nb, ranks, omp = [], [], [], None, None, None
     for line in open(path):
         line = line.strip()
         if not line: continue
@@ -97,8 +97,17 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
         if nb is None: nb = rec.get("num_blocks")
         # active_npes, not CORES/T: the mesh may not span every rank
         if ranks is None: ranks = rec.get("active_npes")
+        if omp is None: omp = rec.get("omp_threads")
     if not rk:
         print(f"  !! no usable records in {os.path.basename(path)} -- skipped")
+        continue
+    # CANARY: omp_threads IS BSSN_HYBRID_NTHREADS. If it doesn't track
+    # OMP_NUM_THREADS the BSSN omp regions ran num_threads(1) and this row is
+    # meaningless -- it measures "more blocks per rank, same one thread". That
+    # failure is bit-exact and silent (see 9bb8f45), so nothing else catches it.
+    if omp is not None and omp != threads:
+        print(f"  !! BOGUS: depth={depth} T={threads} but omp_threads={omp} "
+              f"-- hybrid path DEAD, row discarded. Check BSSN_HYBRID_NTHREADS.")
         continue
     rows.append(dict(depth=depth, threads=threads, ranks=ranks, blocks=nb,
                      bpr=(nb/ranks if (nb and ranks) else float("nan")),
