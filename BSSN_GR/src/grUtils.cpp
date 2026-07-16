@@ -2317,13 +2317,13 @@ double computeWTolDCoords(double x, double y, double z, double* hx) {
         double rad[3];
         rad[0]    = 3.0 * m1;
         rad[1]    = 4.0 * rad[0];
-        rad[3]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
 
         double e1 = CalTolHelper(T_CURRENT, d1, rad, eps, toffset);
 
         rad[0]    = 3.0 * m2;
         rad[1]    = 4.0 * rad[0];
-        rad[3]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
+        rad[2]    = GW::BSSN_GW_RADAII[GW::BSSN_GW_NUM_RADAII - 1];
         double e2 = CalTolHelper(T_CURRENT, d2, rad, eps, toffset);
 
         return std::min(e1, e2);
@@ -3082,6 +3082,7 @@ void resetSnapshot() {
 
     t_deriv.snapreset();
     t_rhs.snapreset();
+    t_rhs_ko.snapreset();
 
     t_rhs_a.snapreset();
     t_rhs_b.snapreset();
@@ -3096,6 +3097,7 @@ void resetSnapshot() {
 
     t_zip.snapreset();
     t_rkStep.snapreset();
+    for (unsigned int s = 0; s < 6; s++) t_rkStage[s].snapreset();
     t_isReMesh.snapreset();
     t_gridTransfer.snapreset();
     t_ioVtu.snapreset();
