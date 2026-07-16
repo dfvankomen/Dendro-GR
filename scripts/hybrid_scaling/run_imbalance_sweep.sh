@@ -31,14 +31,26 @@
 # (~blocks_per_rank/T). It also excluded t_deriv. rhs_wall comes from CTX_RHS,
 # which brackets bssnRHS() from outside the omp region = true rank wall time.
 #
-# Single-socket laptop caveat: absolute speedups are compressed by the 2-channel
-# memory wall (see Single Node Split Sweep, ~4.5% at best). We are testing the
-# SHAPE of imbalance-vs-T, not the magnitude of the speedup.
+# Single-socket laptop caveat: we are testing the SHAPE of speedup-vs-B, not the
+# magnitude. (An earlier version of this comment blamed compressed speedups on "the
+# 2-channel memory wall". Treat that with suspicion: the hybrid path's apparent
+# bandwidth problem turned out to be all_dg -- a per-rank DRAM-sized DG scratch the
+# OMP unzip zero-fills on EVERY call and the serial path never allocates. It is now
+# removed here via DENDRO_UNZIP_BATCH=ON. Don't reach for "memory wall" again without
+# a roofline measurement.)
+#
+# BASELINE: speedup_vs_T1 is measured against T=1 OF THIS SAME HYBRID BINARY, which is
+# NOT pure MPI -- it still runs the OMP unzip path. That is the right baseline for the
+# question here (does raising T help?), but it is NOT the ship/no-ship number. For
+# hybrid-vs-pure-MPI use run_hybrid_scaling.sh, which builds a real
+# DENDRO_HYBRID_OMP=OFF + DENDRO_UNZIP_SPEEDUP=ON baseline binary.
 set -euo pipefail
 
 REPO="${REPO:-/home/denv/research/dendrogr_dfvk}"
 DENDROLIB="${DENDROLIB:-/home/denv/research/dendrolib_dfvk_copy}"
-BUILD="${BUILD:-$REPO/build_hybrid}"
+# NOT build_hybrid: that tree is hand-configured and has held different flags than this
+# sweep needs (see the build block below). Own our own tree so the config is ours.
+BUILD="${BUILD:-$REPO/build_imbalance}"
 BIN="$BUILD/BSSN_GR/bssnScalingBench"
 BASE_PAR="${BASE_PAR:-$REPO/scripts/hybrid_scaling/q1.scaling.par.toml}"
 OUTDIR="${OUTDIR:-$PWD/imbalance_sweep}"
@@ -52,12 +64,34 @@ WARMUP="${WARMUP:-2}"
 mkdir -p "$OUTDIR"
 echo "sweep: cores=$CORES depths=[$DEPTHS] threads=[$THREADS_LIST] steps=$STEPS -> $OUTDIR"
 
+# Pinned, and NOT reused blind. A CMake tree keeps its OWN cached options, so a tree
+# configured in another session does not take today's defaults -- and the binary looks
+# identical from the outside. DENDRO_USE_NEW_DERIVS swaps the whole RHS translation unit
+# (BSSN_GR/CMakeLists.txt picks rhs_experimental.cpp over rhs.cpp) and DVEC_ZERO_ALLOC
+# switches calloc/malloc for the unzip padding. On 2026-07-16 an unpinned pair differing
+# in both produced a bogus "not bit-exact" verdict and a bogus timing -- the binaries
+# were running different physics. This sweep compares T within ONE binary, so a stale
+# tree would not corrupt its internal comparison, but it WOULD make these numbers
+# incomparable to run_hybrid_scaling.sh's. Pin them; do not remove.
+WANT_FLAGS="-DDENDRO_HYBRID_OMP=ON -DDENDRO_UNZIP_BATCH=ON -DDENDRO_USE_NEW_DERIVS=OFF -DDVEC_ZERO_ALLOC=ON -DOCT2BLK_COARSEST_LEV=0"
+if [[ -x "$BIN" ]] && [[ "$(cat "$BUILD/.sweep_flags" 2>/dev/null)" != "$WANT_FLAGS" ]]; then
+  echo "STALE BUILD: $BUILD was configured with"
+  echo "    $(cat "$BUILD/.sweep_flags" 2>/dev/null || echo '<unknown - no .sweep_flags>')"
+  echo "  but this sweep needs"
+  echo "    $WANT_FLAGS"
+  echo "  Remove it and re-run:  rm -rf $BUILD"
+  exit 2
+fi
 [[ -x "$BIN" ]] || {
-  echo "building $BIN ..."
+  echo "building $BIN ($WANT_FLAGS) ..."
+  # shellcheck disable=SC2086
   cmake -S "$REPO" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DCPU_ARCH=native \
-        -DDENDRO_dendrolib_DIR="$DENDROLIB" -DDENDRO_HYBRID_OMP=ON \
-        -DENABLE_DENDRO_PROFILE_COUNTERS=ON -DOCT2BLK_COARSEST_LEV=0 >/dev/null
-  cmake --build "$BUILD" --target bssnScalingBench -j"$(nproc)" >/dev/null
+        -DDENDRO_dendrolib_DIR="$DENDROLIB" \
+        -DENABLE_DENDRO_PROFILE_COUNTERS=ON $WANT_FLAGS >/dev/null || {
+    echo "configure FAILED"; exit 2; }
+  cmake --build "$BUILD" --target bssnScalingBench -j"$(nproc)" >/dev/null || {
+    echo "build FAILED"; exit 2; }
+  echo "$WANT_FLAGS" > "$BUILD/.sweep_flags"
 }
 
 for D in $DEPTHS; do
