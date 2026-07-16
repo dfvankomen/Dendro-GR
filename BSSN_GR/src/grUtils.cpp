@@ -3080,6 +3080,10 @@ void resetSnapshot() {
     dendro::timer::t_unzip_async_external.snapreset();
     dendro::timer::t_unzip_async_comm.snapreset();
 
+    dendro::timer::t_ghost_pack.snapreset();
+    dendro::timer::t_ghost_wait.snapreset();
+    dendro::timer::t_ghost_unpack.snapreset();
+
     t_deriv.snapreset();
     t_rhs.snapreset();
     t_rhs_ko.snapreset();
@@ -4630,11 +4634,25 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
     BSSN_JSONL_PHASE_RAW("mesh",          t_mesh.snap);
     BSSN_JSONL_PHASE_RAW("rk_step",
                          pick_ets(ETS_EVOLVE, t_rkStep.snap));
-    // unzip = local interp (CTX::UNZIP); unzip_wcomm = unzip + ghost-comm.
+    // unzip = local interp (CTX::UNZIP); unzip_wcomm = the WHOLE Ctx::unzip,
+    // i.e. unzip + pack + post + wait + unpack (ctx.h:664-796, UNZIP nested
+    // inside). So unzip_wcomm - unzip is the ghost exchange, and the three
+    // timers below break THAT down. Do not call unzip_wcomm a comm timer.
     BSSN_JSONL_PHASE_RAW("unzip",
                          pick_app(CTX_UNZIP, t_unzip_sync.snap));
     BSSN_JSONL_PHASE_RAW("unzip_wcomm",
                          pick_app(CTX_UNZIP_WCOMM, t_unzip_sync.snap));
+    // Ghost exchange split (rank wall; started outside any parallel region).
+    // ghost_pack/ghost_unpack are threaded over NEIGHBOUR RANKS, not nodes, so
+    // their parallelism is capped by neighbour count -- raising T gives them
+    // fewer ranks to spread over more threads while each rank packs MORE bytes
+    // (per-rank ghost ~ (V/R)^(2/3) rises ~2.5x at T=4 even though the job's
+    // aggregate ghost volume falls as R^(1/3)).
+    // ghost_wait is an UPPER BOUND on wire time, never a measurement: it also
+    // absorbs neighbour load imbalance.
+    BSSN_JSONL_PHASE_RAW("ghost_pack",    dendro::timer::t_ghost_pack.snap);
+    BSSN_JSONL_PHASE_RAW("ghost_wait",    dendro::timer::t_ghost_wait.snap);
+    BSSN_JSONL_PHASE_RAW("ghost_unpack",  dendro::timer::t_ghost_unpack.snap);
     // rhs_wall: the whole RHS phase, rank wall time. CTX_RHS brackets bssnRHS()
     // from OUTSIDE the omp region (bssnCtx.cpp:200-218), so it covers every
     // block on every thread. Quote THIS for any cross-config comparison.

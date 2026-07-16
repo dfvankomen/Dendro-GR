@@ -221,7 +221,8 @@ echo ""; echo "## parsing -> $OUT_CSV"
 python3 - "$OUTDIR" "$OUT_CSV" <<'PYEOF'
 import glob, json, os, re, sys
 outdir, out_csv = sys.argv[1], sys.argv[2]
-PHASES = ["rk_step", "rhs_wall", "unzip", "unzip_wcomm", "zip"]
+PHASES = ["rk_step", "rhs_wall", "unzip", "unzip_wcomm", "zip",
+          "ghost_pack", "ghost_wait", "ghost_unpack"]
 mean = lambda xs: sum(xs) / len(xs) if xs else float("nan")
 
 rows = []
@@ -269,14 +270,22 @@ for r in rows:
 rows.sort(key=lambda r: (r["nodes"], r["threads"]))
 
 cols = ["mode", "nodes", "ranks", "threads", "ranks_per_node", "rk_step", "rhs_wall",
-        "unzip", "unzip_wcomm", "ghost_pack_wait", "zip", "num_blocks", "blocks_per_rank",
-        "imbalance", "speedup"]
-# ghost_pack_wait = unzip_wcomm - unzip. NOT wire time: UNZIP_WCOMM brackets the whole
-# Ctx::unzip (ctx.h:664-796) with UNZIP nested inside it, so the difference is
-# pack + Isend/Irecv + Waitall + unpack. The Waitall also absorbs rank load imbalance.
-# It cannot distinguish "network slower" from "gather less parallel" -- step 2 splits it.
+        "unzip", "unzip_wcomm", "ghost_pack_wait", "ghost_pack", "ghost_wait", "ghost_unpack",
+        "zip", "num_blocks", "blocks_per_rank", "imbalance", "speedup"]
+# ghost_pack_wait = unzip_wcomm - unzip, the whole exchange lumped together. The three
+# ghost_* columns break it down and sum back to it within ~1% (on means; do NOT check the
+# identity on the max columns -- different ranks are the max for different sub-timers, so
+# summing maxima overshoots by ~40%).
+#
+# Measured 2026-07-16 (8 cores, depth 9, B/rank 36): ghost_wait is 85% of the exchange at
+# T=1 and pack+unpack together are 15%. The exchange is dominated by Waitall, and Waitall is
+# mostly ranks waiting on slower NEIGHBOURS -- load imbalance billed to comm, not wire time.
+# So a rising ghost_pack_wait_s is usually an imbalance signal, not a network signal, and
+# arguments about ghost VOLUME are arguing about a minority of the cost.
 hdr = {"rk_step": "rk_step_s", "rhs_wall": "rhs_wall_s", "unzip": "unzip_s",
-       "unzip_wcomm": "unzip_wcomm_s", "ghost_pack_wait": "ghost_pack_wait_s", "zip": "zip_s",
+       "unzip_wcomm": "unzip_wcomm_s", "ghost_pack_wait": "ghost_pack_wait_s",
+       "ghost_pack": "ghost_pack_s", "ghost_wait": "ghost_wait_s",
+       "ghost_unpack": "ghost_unpack_s", "zip": "zip_s",
        "imbalance": "rhs_wall_imbalance_max_over_mean", "speedup": "speedup_vs_hybrid_T1"}
 fmt = lambda x: (f"{x:.4f}" if x == x else "") if isinstance(x, float) else ("" if x is None else str(x))
 with open(out_csv, "w") as fh:

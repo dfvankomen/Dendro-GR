@@ -37,14 +37,25 @@ line per step.
 > a *separate flag-OFF build*. Every "hybrid vs pure-MPI" number produced before
 > 2026-07-16 actually compared hybrid against hybrid-T1 and so **understated the gap**.
 
-### Why "less communication" does not mean a smaller `ghost_pack_wait_s`
+### The ghost exchange is mostly `Waitall`, and `Waitall` is imbalance
 
-Raising `T` genuinely cuts the job's **aggregate** ghost volume: total ghost bytes go
-as `R·(V/R)^(2/3) ∝ R^(1/3)`, which falls as ranks fall. That intuition is correct.
-But the timers are **per-rank**, and per-rank ghost volume goes as `(V/R)^(2/3)`,
-which **rises ~2.5× at T=4**. Fewer ranks each move more bytes. The aggregate win is
-real and simply invisible to this instrument. Do not read a rising
-`ghost_pack_wait_s` as evidence against hybrid.
+Measured 2026-07-16 (8 cores, depth 9, B/rank 36): **`ghost_wait_s` is 85% of the
+exchange at `T=1`**; `pack` + `unpack` together are 15%. So the exchange is dominated
+by `MPI_Waitall`, and a rank sits in `Waitall` mainly because its **neighbours are
+still computing** — that is load imbalance billed to comm, not wire time. Read a
+rising `ghost_pack_wait_s` as an imbalance signal first.
+
+This also means arguments about ghost **volume** are arguing about a minority of the
+cost. Two further corrections to the volume intuition, both worth knowing:
+
+- Raising `T` genuinely cuts the job's **aggregate** ghost volume — total ghost bytes
+  go as `R·(V/R)^(2/3) ∝ R^(1/3)`, which falls as ranks fall. That intuition is
+  correct, but the timers are **per-rank**, and per-rank ghost volume goes as
+  `(V/R)^(2/3)`, which **rises ~2.5× at T=4**. Fewer ranks each move more bytes. The
+  aggregate win is real and simply invisible to this instrument.
+- `pack`/`unpack` are threaded over **neighbour ranks**, not nodes
+  (`mesh.tcc:934`, `:1027`), so their parallelism is capped by neighbour count and a
+  single large face message cannot be split across threads. Real, but small.
 
 ## Reading the CSV
 
@@ -52,7 +63,8 @@ real and simply invisible to this instrument. Do not read a rising
 |--------|---------|
 | `rk_step_s` | **headline** — mean wall time per RK step (lower = better) |
 | `rhs_wall_s` `unzip_s` `zip_s` | compute phases (should stay ~flat across the sweep) |
-| `ghost_pack_wait_s` | `unzip_wcomm − unzip` = pack + Isend/Irecv + **Waitall** + unpack. **Not wire time.** |
+| `ghost_pack_wait_s` | `unzip_wcomm − unzip` = the whole exchange. **Not wire time.** |
+| `ghost_pack_s` `ghost_wait_s` `ghost_unpack_s` | that exchange, split. Sum back to `ghost_pack_wait_s` within ~1% **on means** |
 | `blocks_per_rank` | **saturation** — keep ≥ 16 or results are noise (script warns if low) |
 | `speedup_vs_hybrid_T1` | hybrid-T1 rk_step / this rk_step (>1 → more threads help) |
 
