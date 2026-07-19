@@ -22,6 +22,10 @@ REPO="$HERE"; while [[ "$REPO" != / && ! -f "$REPO/CMakeLists.txt" ]]; do REPO="
 SITE="${SITE:-stampede3}"
 case "$SITE" in
   stampede3)                                       # Sapphire Rapids, Omni-Path fabric
+    # sapphirerapids needs GCC >= 11 / Clang >= 12 / ICX; CMake now errors with the
+    # remedy if the loaded compiler is older. Do NOT "fix" that by switching to
+    # native: Stampede3 has SPR/ICX/SKX partitions and builds usually happen on a
+    # login node, so native bakes in the build host's ISA under the benchmark.
     : "${CPU_ARCH:=sapphirerapids}"; SITE_CORES=112
     : "${DENDROLIB_DIR:=$HOME/Projects/dendro/DVK_experimental/Dendro-5.01}"
     export OMPI_MCA_mtl="${OMPI_MCA_mtl:-ofi}" FI_PROVIDER="${FI_PROVIDER:-opx}" ;;  # select Omni-Path, not TCP

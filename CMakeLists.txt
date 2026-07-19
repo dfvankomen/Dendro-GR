@@ -35,6 +35,7 @@ set(CPU_ARCH_STRINGS
     "native"
     "znver1" "znver2" "znver3" "znver4"
     "haswell" "broadwell" "skylake-avx512" "cascadelake" "icelake-server"
+    "sapphirerapids"
     "generic_avx2" "x86-64-v3"
 )
 set_property(CACHE CPU_ARCH PROPERTY STRINGS ${CPU_ARCH_STRINGS})
@@ -50,6 +51,21 @@ elseif(CPU_ARCH IN_LIST CPU_ARCH_STRINGS)
 else()
   message(FATAL_ERROR "Unknown CPU_ARCH: ${CPU_ARCH}")
 endif()
+
+# A named -march is only understood by new enough compilers (e.g. sapphirerapids needs
+# GCC >= 11 / Clang >= 12 / ICX). Fail here with the remedy rather than deep in a TU.
+include(CheckCXXCompilerFlag)
+foreach(_f IN LISTS ARCH_FLAGS)
+  string(MAKE_C_IDENTIFIER "HAVE_ARCH${_f}" _have)
+  check_cxx_compiler_flag("${_f}" ${_have})
+  if(NOT ${_have})
+    message(FATAL_ERROR
+      "CPU_ARCH=${CPU_ARCH} produces '${_f}', which ${CMAKE_CXX_COMPILER_ID} "
+      "${CMAKE_CXX_COMPILER_VERSION} does not accept. Load a newer compiler, or pick a "
+      "CPU_ARCH it supports (e.g. icelake-server for an AVX-512 host). Do NOT silently "
+      "fall back to a different arch: it changes the ISA under a benchmark.")
+  endif()
+endforeach()
 
 # by setting compile options, we're forcing things to be set properly
 add_compile_options(${ARCH_FLAGS})
