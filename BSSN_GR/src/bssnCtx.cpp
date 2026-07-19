@@ -171,6 +171,8 @@ int BSSNCtx::rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
 
     return 0;
 }
+#endif  // end #if 0 — only rhs_blkwise (unused) is disabled; the ENUTS block
+        // hooks below are LIVE (needed by ExplicitNUTS, e.g. bssnSolverNUTS).
 
 int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
                      unsigned int dof, unsigned int local_blk_id,
@@ -222,12 +224,27 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
     ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
 
+    // bssnrhs now takes (blk_time, uZipConstVars). In the standard formalism the
+    // constraint pointers are dead (formed but never read), but bssnrhs still
+    // does &uZipConstVars[v][offset], so hand it a VALID block-aligned array:
+    // slice the ctx's mesh-level constraint unzip at this block's offset and
+    // call with offset 0 (matching the block-local in/out buffers). If a
+    // constraint-coupled term (CAHD) were ever enabled under NUTS these values
+    // would be whatever the last compute_constraint_variables() left -- a
+    // pre-existing block-wise-RHS limitation, not introduced here.
+    DendroScalar* consFull[bssn::BSSN_CONSTRAINT_NUM_VARS];
+    m_var[VL::CPU_CV_UZ_IN].to_2d(consFull);
+    const unsigned int cvOffset = blkList[blk].getOffset();
+    const DendroScalar* consBlk[bssn::BSSN_CONSTRAINT_NUM_VARS];
+    for (unsigned int v = 0; v < bssn::BSSN_CONSTRAINT_NUM_VARS; v++)
+        consBlk[v] = consFull[v] + cvOffset;
+
 #ifdef BSSN_RHS_STAGED_COMP
     bssnrhs_sep(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-                bflag);
+                bflag, blk_time, (const DendroScalar**)consBlk);
 #else
     bssnrhs(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-            bflag);
+            bflag, blk_time, (const DendroScalar**)consBlk);
 #endif
 
 #ifdef __PROFILE_CTX__
@@ -353,7 +370,6 @@ int BSSNCtx::post_timestep_blk(DendroScalar* in, unsigned int dof,
     delete[] unzipIn;
     return 0;
 }
-#endif
 
 int BSSNCtx::initialize() {
     if (bssn::BSSN_RESTORE_SOLVER) {

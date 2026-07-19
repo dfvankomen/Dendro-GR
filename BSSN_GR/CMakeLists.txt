@@ -172,6 +172,10 @@ macro(bssn_add_executable TARGET_NAME)
 endmacro()
 
 bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
+# ENUTS (LTS) driver -- accuracy vehicle for the LTS RK4 convergence-order test
+# on the nonlinear BSSN system (mirrors em4NUTS). Links thanks to the #if 0 fix
+# in bssnCtx.cpp that re-enables the ENUTS block hooks ExplicitNUTS needs.
+bssn_add_executable(bssnSolverNUTS src/bssn_nuts.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
