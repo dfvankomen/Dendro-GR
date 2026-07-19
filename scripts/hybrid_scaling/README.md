@@ -74,6 +74,44 @@ Two corrections to the ghost-**volume** intuition:
 > 4× phantom "hybrid win". Check `grep Cpus_allowed_list /proc/self/status` before
 > believing any binding.
 
+### `unzip_wcomm` is not a comm timer, and it *contains* `ghost_wait`
+
+The name misleads and has already been misread once off-site. `unzip_wcomm`
+(`CTXPROFILE::UNZIP_WCOMM`, started `ctx.h:664`, stopped `:817`) brackets the whole of
+`Ctx::unzip`: **local interpolation + pack + Isend/Irecv + Waitall + unpack**. The
+plain `unzip` counter is nested *inside* it (`ctx.h:694-707`, `:745-775`), which is why
+the script derives `ghost_pack_wait = unzip_wcomm − unzip` (`run_hybrid_scaling.sh:339`).
+
+Consequences, all of which have bitten someone:
+
+- **`ghost_wait` ⊂ `unzip_wcomm`.** Only `ghost_wait` is a real wait — it brackets the
+  two `MPI_Waitall` calls and nothing else (`mesh.tcc:1013-1021`). Do **not** add
+  `unzip_wcomm` and `ghost_wait` into a phase budget; you will double-count.
+- **Ghost volume is set by partition *surface*, not by block count.** Buffer sizes come
+  from the nodal scatter map — `nodeSendCount[p]` counts nodes this rank owns that a
+  remote stencil needs (`mesh.cpp:5034`, `:6137`). Adding blocks to a rank *without*
+  extending its boundary adds zero bytes. So "4× the blocks ⇒ 4× the ghosts" is wrong
+  twice over: the driver is surface, and the surface term is `(V/R)^(2/3)` ≈ **2.5×**
+  at `T=4`, not 4×.
+- **The MPI itself is serial even at `HYBRID_OMP=ON`.** `Mpi_Irecv` (`mesh.tcc:917`),
+  `Mpi_Isend` (`:956`) and both `Waitall` (`:1015`) sit outside any parallel region, so
+  `T−1` threads idle through the entire wait. Only pack/unpack are threaded, and only
+  over neighbour ranks (≲26).
+- **Nothing separates the wait from the previous step's compute.** The step's only
+  barrier is `pMesh->waitAll()` at the *end* of evolve (`ets.h:592`); `rhs()` opens
+  `UNZIP_WCOMM` as its first statement (`bssnCtx.cpp:187-191`). Every imbalance
+  accumulated since the last barrier lands in the next `Waitall`.
+
+Corollary for large-`R` runs: if a rising `unzip_wcomm` were really ghost *bytes*, it
+would track the `2.5×` surface term. A rise much smaller than that is imbalance and
+serial-MPI idle, not wire time — diagnose `rhs_wall` spread across ranks first.
+
+> `DENDRO_UNZIP_OVERLAP` unzips interior blocks *between* `readFromGhostBegin` and
+> `readFromGhostEnd` (`ctx.h:680-724`), moving time out of `ghost_wait` into `unzip`
+> with no comm change. `ghost_wait` is therefore **not comparable across that flag**.
+> `UNZIP_BATCH` and `UNZIP_OVERLAP` are mutually exclusive at configure time
+> (`dendrolib CMakeLists.txt:329-331`).
+
 ## Reading the CSV
 
 | column | meaning |
