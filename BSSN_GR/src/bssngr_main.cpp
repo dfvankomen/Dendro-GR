@@ -73,18 +73,12 @@ int main(int argc, char** argv) {
     }
 
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
-    // RHS loop uses schedule(runtime) -> OMP_SCHEDULE tunes it (e.g. "static").
-    // Default to dynamic,1 (historical) when unset.
+    // Early default for the RHS loop's schedule(runtime): dynamic,1 (historical)
+    // when OMP_SCHEDULE is unset. The authoritative resolution (which also honors
+    // the parfile BSSN_HYBRID_RHS_SCHEDULE) happens after readParamFile via
+    // bssn::set_rhs_omp_schedule(); the effective value is logged there.
     if (std::getenv("OMP_SCHEDULE") == nullptr)
         omp_set_schedule(omp_sched_dynamic, 1);
-    if (!rank) {
-        omp_sched_t sched_kind;
-        int sched_chunk;
-        omp_get_schedule(&sched_kind, &sched_chunk);
-        std::cout << "[hybrid] RHS block schedule kind=" << (int)sched_kind
-                  << " chunk=" << sched_chunk
-                  << " (override via OMP_SCHEDULE, e.g. static)" << std::endl;
-    }
 #endif
 
     // --- CPU capability gate -----------------------------------------
@@ -229,6 +223,34 @@ int main(int argc, char** argv) {
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
+
+#if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
+    // Resolve the RHS block-loop schedule now that the parfile is parsed:
+    // BSSN_HYBRID_RHS_SCHEDULE (parfile) > OMP_SCHEDULE (env) > dynamic,1.
+    // (Also re-applied in allocate_bssn_deriv_workspace(); this is the early,
+    // authoritative resolution + the startup log line for A/B runs.)
+    bssn::set_rhs_omp_schedule();
+    if (!rank) {
+        omp_sched_t sched_kind;
+        int sched_chunk;
+        omp_get_schedule(&sched_kind, &sched_chunk);
+        // Mask the omp_sched_monotonic modifier (high bit) that OMP_SCHEDULE=...
+        // sets, so the base kind reads cleanly (1=static 2=dynamic 3=guided
+        // 4=auto).
+        const int base = (int)sched_kind & 0x7fffffff;
+        const char* name = (base == 1)   ? "static"
+                           : (base == 2) ? "dynamic"
+                           : (base == 3) ? "guided"
+                           : (base == 4) ? "auto"
+                                         : "unknown";
+        std::cout << "[hybrid] RHS block schedule (effective): " << name
+                  << " chunk=" << sched_chunk << "  (kind_raw=" << (int)sched_kind
+                  << "; set via parfile BSSN_HYBRID_RHS_SCHEDULE or OMP_SCHEDULE; "
+                     "bare 'static' = NUMA-local contiguous partition -- see the "
+                     "RHS NUMA Tax)"
+                  << std::endl;
+    }
+#endif
 
     // get the current time
     auto now    = std::chrono::system_clock::now();

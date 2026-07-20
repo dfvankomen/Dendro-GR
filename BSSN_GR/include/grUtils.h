@@ -289,6 +289,14 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac);
 /**@brief deallocates the bssn derivs var space*/
 void deallocate_bssn_deriv_workspace();
 
+/**@brief Resolve the OpenMP run-sched ICV for the production RHS block loop
+ * (rhs.cpp uses schedule(runtime)). Precedence: parfile BSSN_HYBRID_RHS_SCHEDULE
+ * > OMP_SCHEDULE env > historical dynamic,1. Idempotent; no-op unless built with
+ * DENDRO_HYBRID_OMP. Called from allocate_bssn_deriv_workspace() (the chokepoint
+ * every RHS entry point hits) so the default is dynamic,1 even for binaries that
+ * never set OMP_SCHEDULE (e.g. the scaling bench). */
+void set_rhs_omp_schedule();
+
 std::tuple<std::string, std::string, std::string> encode_bh_locs(
     const std::vector<std::pair<Point, Point>>& bh_history,
     const std::vector<double>& bh_times);

@@ -235,6 +235,9 @@ double BSSN_SSL_SIGMA                           = 20.0;
 double* BSSN_DERIV_WORKSPACE                    = nullptr;
 size_t BSSN_DERIV_WORKSPACE_STRIDE             = 0;
 unsigned int BSSN_HYBRID_NTHREADS               = 1;
+// "" => honor OMP_SCHEDULE env / historical dynamic,1 default (bit-identical to
+// the old hardcoded schedule). See bssn::set_rhs_omp_schedule().
+std::string BSSN_HYBRID_RHS_SCHEDULE            = "";
 
 ////    log file parameters    /////////////////////////////////////////
 // dendro log file output filename base
@@ -553,6 +556,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_CAHD_C", bssn::BSSN_CAHD_C, UseInitialValue},
         // lambda and xi are added later
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
+        {"BSSN_HYBRID_RHS_SCHEDULE", bssn::BSSN_HYBRID_RHS_SCHEDULE,
+         UseInitialValue},
         {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
         {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, UseInitialValue},
         {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY, UseInitialValue},

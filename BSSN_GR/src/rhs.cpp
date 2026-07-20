@@ -1,5 +1,9 @@
 #include "rhs.h"
 
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
 #include "gr.h"
 #include "hadrhs.h"
 #include "parameters.h"
@@ -7,14 +11,46 @@
 using namespace std;
 using namespace bssn;
 
+#ifndef BSSN_ENABLE_CUDA
+// One block's RHS: derive its geometry from the block list and call the vector
+// kernel. Factored out of bssnRHS so the plain, schedule(runtime), and
+// cost-balanced-static loops all share ONE body (the per-block locals live here,
+// so no private() clause is needed and every loop is numerically identical).
+static inline void bssnrhs_one_block(double **uzipVarsRHS,
+                                     const double **uZipVars,
+                                     const ot::Block *blkList, unsigned int blk,
+                                     const Point &pt_min, const Point &pt_max,
+                                     unsigned int PW, double curr_time,
+                                     const double **uZipConstVars) {
+    unsigned int sz[3];
+    double ptmin[3], ptmax[3];
+    const unsigned int offset = blkList[blk].getOffset();
+    sz[0]                     = blkList[blk].getAllocationSzX();
+    sz[1]                     = blkList[blk].getAllocationSzY();
+    sz[2]                     = blkList[blk].getAllocationSzZ();
+
+    const unsigned int bflag  = blkList[blk].getBlkNodeFlag();
+
+    const double dx           = blkList[blk].computeDx(pt_min, pt_max);
+    const double dy           = blkList[blk].computeDy(pt_min, pt_max);
+    const double dz           = blkList[blk].computeDz(pt_min, pt_max);
+
+    ptmin[0] = GRIDX_TO_X(blkList[blk].getBlockNode().minX()) - PW * dx;
+    ptmin[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().minY()) - PW * dy;
+    ptmin[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().minZ()) - PW * dz;
+
+    ptmax[0] = GRIDX_TO_X(blkList[blk].getBlockNode().maxX()) + PW * dx;
+    ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
+    ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
+
+    bssnrhs(uzipVarsRHS, uZipVars, offset, ptmin, ptmax, sz, bflag, curr_time,
+            uZipConstVars);
+}
+#endif
+
 void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
              const ot::Block *blkList, unsigned int numBlocks,
              const double curr_time, const double **uZipConstVars) {
-    unsigned int offset;
-    double ptmin[3], ptmax[3];
-    unsigned int sz[3];
-    unsigned int bflag;
-    double dx, dy, dz;
     const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
                        bssn::BSSN_COMPD_MIN[2]);
     const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
@@ -49,35 +85,56 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
 
     // Hybrid path: blocks are independent (disjoint output via offset; each
     // thread uses its own deriv workspace slab). Old-style stencils are
-    // stateless, so threading the block loop here is race-free.
+    // stateless, so threading the block loop here is race-free. Every variant
+    // below computes each block exactly once, so all are bit-identical.
 #ifdef DENDRO_HYBRID_OMP
-#pragma omp parallel for schedule(dynamic, 1) \
-    num_threads(bssn::BSSN_HYBRID_NTHREADS)   \
-    private(offset, sz, bflag, dx, dy, dz, ptmin, ptmax)
-#endif
-    for (unsigned int blk = 0; blk < numBlocks; blk++) {
-        offset   = blkList[blk].getOffset();
-        sz[0]    = blkList[blk].getAllocationSzX();
-        sz[1]    = blkList[blk].getAllocationSzY();
-        sz[2]    = blkList[blk].getAllocationSzZ();
-
-        bflag    = blkList[blk].getBlkNodeFlag();
-
-        dx       = blkList[blk].computeDx(pt_min, pt_max);
-        dy       = blkList[blk].computeDy(pt_min, pt_max);
-        dz       = blkList[blk].computeDz(pt_min, pt_max);
-
-        ptmin[0] = GRIDX_TO_X(blkList[blk].getBlockNode().minX()) - PW * dx;
-        ptmin[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().minY()) - PW * dy;
-        ptmin[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().minZ()) - PW * dz;
-
-        ptmax[0] = GRIDX_TO_X(blkList[blk].getBlockNode().maxX()) + PW * dx;
-        ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
-        ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
-
-        bssnrhs(uzipVarsRHS, (const double **)uZipVars, offset, ptmin, ptmax,
-                sz, bflag, curr_time, (const double **)uZipConstVars);
+    const unsigned int NT = bssn::BSSN_HYBRID_NTHREADS;
+    if (NT > 1 && bssn::BSSN_HYBRID_RHS_SCHEDULE == "balanced") {
+        // Cost-balanced STATIC: each thread owns a contiguous block range whose
+        // unzip-buffer footprint was first-touched on its own node (dvec.h, same
+        // partition). Delivers thread balance AND NUMA locality -- the fix for
+        // the RHS NUMA Tax (static first-touch vs dynamic consume). O(numBlocks)
+        // to partition; negligible vs the RHS.
+        std::vector<unsigned int> part(NT + 1);
+        ot::computeBalancedBlockPartition(blkList, numBlocks, NT, part.data());
+        // Opt-in, one-time canary so a bit-exact gate can PROVE this path ran
+        // (a silent fallback to schedule(runtime) would also be bit-exact).
+        // BSSN_RHS_NUMA_VERBOSE=1 to enable; silent otherwise.
+        static bool s_bal_canary = false;
+        if (!s_bal_canary && std::getenv("BSSN_RHS_NUMA_VERBOSE") != nullptr) {
+            s_bal_canary = true;
+            int r_ = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &r_);
+            if (r_ == 0)
+                std::fprintf(stderr,
+                             "[rhs-numa] balanced consume ACTIVE: NT=%u "
+                             "numBlocks=%u part=[0,%u,...,%u]\n",
+                             NT, numBlocks, (NT > 1 ? part[1] : numBlocks),
+                             part[NT]);
+        }
+#pragma omp parallel num_threads(NT)
+        {
+            const unsigned int t = (unsigned int)omp_get_thread_num();
+            for (unsigned int blk = part[t]; blk < part[t + 1]; blk++)
+                bssnrhs_one_block(uzipVarsRHS, uZipVars, blkList, blk, pt_min,
+                                  pt_max, PW, curr_time, uZipConstVars);
+        }
+    } else {
+        // schedule(runtime): policy picked at run time without a rebuild, via
+        // parfile BSSN_HYBRID_RHS_SCHEDULE or OMP_SCHEDULE (resolved once in
+        // bssn::set_rhs_omp_schedule(); default dynamic,1 -- bit-identical to the
+        // old hardcode). "dynamic,1" = fine-grained load balance; "static" =
+        // thread-owned contiguous partition. See the RHS NUMA Tax.
+#pragma omp parallel for schedule(runtime) num_threads(NT)
+        for (unsigned int blk = 0; blk < numBlocks; blk++)
+            bssnrhs_one_block(uzipVarsRHS, uZipVars, blkList, blk, pt_min, pt_max,
+                              PW, curr_time, uZipConstVars);
     }
+#else
+    for (unsigned int blk = 0; blk < numBlocks; blk++)
+        bssnrhs_one_block(uzipVarsRHS, uZipVars, blkList, blk, pt_min, pt_max, PW,
+                          curr_time, uZipConstVars);
+#endif
 #endif
 }
 

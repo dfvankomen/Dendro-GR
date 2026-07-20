@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>  // std::getenv for the RHS-schedule resolver
+#include <string>
 #include <tuple>
 
 #include "base.h"
@@ -2793,6 +2795,12 @@ void allocate_bssn_deriv_workspace(const ot::Mesh* pMesh, unsigned int s_fac) {
                 slab[i] = 0.0;
         }
     }
+
+    // Resolve the RHS block-loop schedule (parfile > OMP_SCHEDULE > dynamic,1)
+    // now that BSSN_HYBRID_NTHREADS is known. This is the chokepoint every RHS
+    // entry point reaches, so the default stays dynamic,1 even for binaries that
+    // never touch OMP_SCHEDULE (e.g. the scaling bench). Idempotent on remesh.
+    set_rhs_omp_schedule();
 #endif
 }
 
@@ -2801,6 +2809,67 @@ void deallocate_bssn_deriv_workspace() {
         delete[] bssn::BSSN_DERIV_WORKSPACE;
         bssn::BSSN_DERIV_WORKSPACE = nullptr;
     }
+}
+
+void set_rhs_omp_schedule() {
+#if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
+    // Precedence: explicit parfile BSSN_HYBRID_RHS_SCHEDULE ("kind[,chunk]") >
+    // OMP_SCHEDULE env > historical default dynamic,1. Values "", "env",
+    // "runtime" mean "do not override". A bare "static" (chunk 0) is the
+    // NUMA-locality variant: each thread owns a contiguous block range that
+    // matches the static first-touch of the unzip buffers (see the RHS NUMA Tax).
+    const std::string& spec = bssn::BSSN_HYBRID_RHS_SCHEDULE;
+
+    // "balanced" is the cost-balanced NUMA-aware path (rhs.cpp uses a manual
+    // per-thread partition, not an OMP schedule kind) paired with a block-major
+    // first-touch of the unzip buffers. Flag the first-touch here -- this runs
+    // before the buffers are allocated (main after readParamFile; the scaling
+    // bench likewise) so the placement is set on the FIRST allocation. Any other
+    // value clears it, keeping the default flat first-touch.
+    ot::g_padded_numa_first_touch = (spec == "balanced");
+    if (spec == "balanced") {
+        // consume uses the manual partition; leave the run-sched ICV at the
+        // historical default so any other schedule(runtime) loops are unchanged.
+        if (std::getenv("OMP_SCHEDULE") == nullptr)
+            omp_set_schedule(omp_sched_dynamic, 1);
+        return;
+    }
+    if (!spec.empty() && spec != "env" && spec != "runtime") {
+        std::string kind_s  = spec;
+        int chunk           = -1;  // <0 => use the kind's natural default below
+        const size_t comma  = spec.find(',');
+        if (comma != std::string::npos) {
+            kind_s = spec.substr(0, comma);
+            try {
+                chunk = std::stoi(spec.substr(comma + 1));
+            } catch (...) {
+                chunk = -1;
+            }
+        }
+        omp_sched_t kind = omp_sched_dynamic;
+        bool ok          = true;
+        if (kind_s == "static" || kind_s == "STATIC")
+            kind = omp_sched_static;
+        else if (kind_s == "dynamic" || kind_s == "DYNAMIC")
+            kind = omp_sched_dynamic;
+        else if (kind_s == "guided" || kind_s == "GUIDED")
+            kind = omp_sched_guided;
+        else if (kind_s == "auto" || kind_s == "AUTO")
+            kind = omp_sched_auto;
+        else
+            ok = false;
+        if (ok) {
+            // chunk 0 => implementation default (even contiguous split for
+            // static); keep the historical chunk 1 for an unspecified dynamic.
+            if (chunk < 0) chunk = (kind == omp_sched_dynamic) ? 1 : 0;
+            omp_set_schedule(kind, chunk);
+        } else if (std::getenv("OMP_SCHEDULE") == nullptr) {
+            omp_set_schedule(omp_sched_dynamic, 1);
+        }
+    } else if (std::getenv("OMP_SCHEDULE") == nullptr) {
+        omp_set_schedule(omp_sched_dynamic, 1);
+    }
+#endif
 }
 
 std::tuple<std::string, std::string, std::string> encode_bh_locs(

@@ -450,6 +450,16 @@ extern size_t BSSN_DERIV_WORKSPACE_STRIDE;
  * allocated slabs/pool. Stays 1 when the flag is off. */
 extern unsigned int BSSN_HYBRID_NTHREADS;
 
+/**@brief: OpenMP schedule for the production RHS block loop (rhs.cpp, which uses
+ * schedule(runtime)). Format "kind[,chunk]" with kind in
+ * {static,dynamic,guided,auto}; "" / "env" / "runtime" mean "do not override"
+ * (honor OMP_SCHEDULE / the historical dynamic,1 default). A bare "static" is the
+ * NUMA-locality variant -- each thread owns a contiguous block range matching the
+ * static first-touch of the unzip buffers. Only consulted under DENDRO_HYBRID_OMP.
+ * See bssn::set_rhs_omp_schedule(). Precedence: this parfile value > OMP_SCHEDULE
+ * env > dynamic,1. */
+extern std::string BSSN_HYBRID_RHS_SCHEDULE;
+
 /** @brief: Nyquist goal for nyquist-based refinement **/
 extern unsigned int BSSN_NYQUIST_M;
 

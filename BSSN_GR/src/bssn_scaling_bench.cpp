@@ -125,6 +125,11 @@ int main(int argc, char** argv) {
     bssn::readParamFile(opt.param_file.c_str(), comm);
     if (opt.id_type >= 0) bssn::BSSN_ID_TYPE = (unsigned int)opt.id_type;
     if (opt.grain > 0) bssn::BSSN_DENDRO_GRAIN_SZ = (unsigned int)opt.grain;
+    // Resolve the RHS schedule (and set the block-major first-touch flag for the
+    // "balanced" mode) BEFORE the ctx allocates the unzip buffers below, so the
+    // NUMA first-touch placement is established on the first allocation. Mirrors
+    // the solver's post-readParamFile call. No-op unless DENDRO_HYBRID_OMP.
+    bssn::set_rhs_omp_schedule();
     _InitializeHcurve(bssn::BSSN_DIM);
     m_uiMaxDepth                   = bssn::BSSN_MAXDEPTH;
     bssn::BSSN_PROFILE_FILE_PREFIX = opt.prefix;
