@@ -1720,8 +1720,16 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
                        m_uiMesh->getMPIGlobalCommunicator());
     BSSN_LTS_TS_OFFSET = lts_offset_max;
 
-    if (m_uiMesh->isActive() && (!(m_uiMesh->getMPIRankGlobal())))
+    if (m_uiMesh->isActive() && (!(m_uiMesh->getMPIRankGlobal()))) {
         std::cout << "LTS offset : " << BSSN_LTS_TS_OFFSET << std::endl;
+        // fix ③ proof-of-fire: report the effective (post-cap) max sub-cycle
+        // ratio so a sweep run proves which DENDRO_LTS_RATIO_CAP was applied.
+        const char* rc = getenv("DENDRO_LTS_RATIO_CAP");
+        std::cout << "LTS ratio cap (DENDRO_LTS_RATIO_CAP) : "
+                  << (rc ? rc : "unset")
+                  << " ; effective max sub-cycle ratio : "
+                  << getBlkTimestepFac(lmin, lmin, lmax) << std::endl;
+    }
 
     return BSSN_LTS_TS_OFFSET;
 }
@@ -1729,11 +1737,36 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
 unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
                                         unsigned int lmax) {
     const unsigned int ldiff = BSSN_LTS_TS_OFFSET;
+    unsigned int fac;
     if ((lmax - blev) <= ldiff)
-        return 1;
-    else {
-        return 1u << (lmax - blev - ldiff);
-    }
+        fac = 1;
+    else
+        fac = 1u << (lmax - blev - ldiff);
+
+    // fix ③ (opt-in): cap the coarse<->fine sub-cycle ratio to trade LTS
+    // speedup for accuracy. The LTS interface is asymptotically 1st order
+    // (bssnSolverNUTS GTS=4.00 gate; see Repartitioning logs 2026-07-17/18);
+    // bounding the max dt ratio limits how many sub-cycle interfaces a signal
+    // crosses, shrinking the accumulated 1st-order term. cap==0 (unset) = no
+    // cap = bit-identical default. This is the ONLY choke point for the ratio:
+    // update_ele_timestep, the pt%BLK_DT scheduler, coarset_t and the
+    // per-element m_uiEleDT the correction operator reads all derive from here,
+    // so a single clamp stays self-consistent. The cap is snapped DOWN to a
+    // power of two so the sub-cycle factor ladder {1,2,4,...} stays nested.
+    // Independent of BSSN_LTS_TS_OFFSET / eta (physical gauge damping) — clamps
+    // from the top, leaves the eta-driven floor untouched.
+    static const unsigned int ratio_cap = []() -> unsigned int {
+        const char* e = getenv("DENDRO_LTS_RATIO_CAP");
+        if (e == nullptr) return 0u;
+        const int c = atoi(e);
+        if (c <= 1) return (c == 1) ? 1u : 0u;  // <=0 disables; 1 => GTS-like
+        unsigned int p = 1u;
+        while ((p << 1) <= (unsigned int)c) p <<= 1;  // largest pow2 <= c
+        return p;
+    }();
+    if (ratio_cap != 0u && fac > ratio_cap) fac = ratio_cap;
+
+    return fac;
 }
 
 void BSSNCtx::evolve_bh_loc() {
