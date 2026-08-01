@@ -372,6 +372,23 @@ int main(int argc, char** argv) {
                         if (!pmesh->getMPIRank())
                             printf("post merger grid level = (%d, %d)\n", lmin,
                                    lmax);
+                        // per-remesh element count in the NLSM-CUDA format so
+                        // the amr-sync bench parser gets a mesh_evolution
+                        // trajectory for BSSN too (mirrors nlsm_cuda.cu:427).
+                        {
+                            DendroIntL localElems =
+                                pmesh->getNumLocalMeshElements();
+                            DendroIntL globalElems = 0;
+                            par::Mpi_Reduce(&localElems, &globalElems, 1,
+                                            MPI_SUM, 0,
+                                            pmesh->getMPIGlobalCommunicator());
+                            if (!pmesh->getMPIRank())
+                                printf(
+                                    "[ETS] Remesh step %lld: elements=%lld "
+                                    "lmin=%d lmax=%d\n",
+                                    (long long)step, (long long)globalElems,
+                                    lmin, lmax);
+                        }
 
                         // calculate the minimum dx
                         bssn::BSSN_CURRENT_MIN_DX =
