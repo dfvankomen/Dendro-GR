@@ -3,9 +3,9 @@ name: Dendro-GR Testing
 # these tests should only be run on these specific branches
 on:
   push:
-    branches: ["master", "workflowtesting"]
+    branches: ["master", "experimental", "workflowtesting"]
   pull_request:
-    branches: ["master"]
+    branches: ["master", "experimental"]
 
 # Define any environment variables that we want to use
 env:
@@ -30,3 +30,35 @@ jobs:
         run: cmake --build ${{github.workspace}}/build --parallel $(nproc) --config ${{env.BUILD_TYPE}} --target bssnSolver
       - name: Test BSSN Solver with "Small" tests
         run: cd ${{github.workspace}}/build/BSSN_GR ; mpirun -np 4 ./bssnSolver ../../BSSN_GR/pars/q1.tinytest.par.toml
+
+  # WITH_CUDA is OFF by default, so nothing else compiles bssnCtxGPU.cu -- GPU
+  # code can sit broken indefinitely. Runners have no GPU, so this is a
+  # compile+link gate only; it exists to catch drift from the CPU context.
+  build-cuda:
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git ca-certificates \
+            libopenmpi-dev openmpi-bin \
+            libgsl-dev libblas-dev liblapack-dev gfortran
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: CMake Configuration (CUDA)
+        # architecture is pinned because the runner has no GPU to detect from
+        run: |
+          cmake -S . -B ${{github.workspace}}/build-cuda -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+            -DWITH_CUDA=ON \
+            -DCMAKE_CUDA_ARCHITECTURES=80 \
+            -DBSSN_ENABLE_VTU_CONSTRAINT_OUT=OFF \
+            -DBSSN_ENABLE_VTU_OUTPUT=OFF \
+            -DBSSN_EXTRACT_GRAVITATIONAL_WAVES=OFF
+      - name: Build bssnSolverCUDA
+        run: cmake --build ${{github.workspace}}/build-cuda --parallel $(nproc) --target bssnSolverCUDA
