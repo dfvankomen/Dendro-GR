@@ -65,11 +65,9 @@ void readParamFile(const char* fName, MPI_Comm comm) {
         fNameStr.compare(fNameStr.size() - tomlSuffix.size(),
                          tomlSuffix.size(), tomlSuffix) == 0;
 
-    // JSON parameter files are gone. They were read by a hand-written
-    // readParamJSONFile() that duplicated every key already declared in
-    // parameters.cpp's TOML lists, so each new parameter had to be added in two
-    // places and was silently absent from whichever reader was forgotten.
-    // TOML is now the only path; every .par.json in BSSN_GR/pars/ has a .toml twin.
+    // JSON parameter files are gone: the hand-written reader duplicated every
+    // key already declared in parameters.cpp, so each new parameter had to be
+    // added twice. Every .par.json in BSSN_GR/pars/ has a .toml twin.
     if (!isToml) {
         if (!rank) {
             std::cerr << RED << "ERROR: " << NRM << "'" << fNameStr

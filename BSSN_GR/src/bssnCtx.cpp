@@ -1088,6 +1088,11 @@ int BSSNCtx::write_checkpt() {
         checkPoint["DENDRO_BSSN_BH_MERGE_TIME"] = m_dMergeTime;
         checkPoint["DENDRO_BSSN_BH_MERGE_STEP"] = m_uiMergeStep;
 
+        // Must round-trip: it reset to false on restart, which re-wrote the
+        // permanent slot-3 snapshot and dropped AMR_FAC_POST_MERGER.
+        checkPoint["DENDRO_BSSN_MERGED_CHKPT_WRITTEN"] =
+            bssn::BSSN_MERGED_CHKPT_WRITTEN;
+
         // BH history + QoIs (base91); replaces the old encode_bh_locs path
         checkPoint["DENDRO_BSSN_BH_HISTORY"] = m_bhHistory->encode();
 
@@ -1339,6 +1344,16 @@ int BSSNCtx::restore_checkpt() {
 
                 // make sure they're set internally and externally
                 set_bh_merge_time(mergeTime, mergeStep);
+            }
+
+            // Older checkpoints predate this key; BH_MERGE latches on the same
+            // 0.1 separation test, so it is an exact stand-in.
+            if (checkPoint.find("DENDRO_BSSN_MERGED_CHKPT_WRITTEN") !=
+                checkPoint.end()) {
+                bssn::BSSN_MERGED_CHKPT_WRITTEN =
+                    checkPoint["DENDRO_BSSN_MERGED_CHKPT_WRITTEN"];
+            } else {
+                bssn::BSSN_MERGED_CHKPT_WRITTEN = m_bIsBHMerged;
             }
 
             // restore BH location/QoI history (new blob or legacy formats)
