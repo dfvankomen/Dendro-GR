@@ -981,6 +981,20 @@ int BSSNCtxGPU::restore_checkpt() {
     deallocate_bssn_deriv_workspace();
     allocate_bssn_deriv_workspace(m_uiMesh, 1);
 
+    // initialize() returns as soon as the restore completes, so init_grid() --
+    // the only other place these are set on this path -- never runs. Without
+    // this the deriv function pointers stay null and the first call through
+    // them (physical_constraints, from write_vtu) jumps to 0x0, and min_dx
+    // keeps the pre-restore mesh's value.
+    set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
+
+    unsigned int lmin, lmax;
+    m_uiMesh->computeMinMaxLevel(lmin, lmax);
+    bssn::BSSN_CURRENT_MIN_DX =
+        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
+         ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
+         ((double)(1u << (m_uiMaxDepth))));
+
     unsigned int localSz    = m_uiMesh->getNumLocalMeshElements();
     unsigned int totalElems = 0;
     par::Mpi_Allreduce(&localSz, &totalElems, 1, MPI_SUM, comm);
