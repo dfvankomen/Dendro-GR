@@ -101,17 +101,17 @@ void computeDerivativeIndicators(const double* u, const unsigned int* sz,
     hess_l2 = h * h * sqrt(hess_sum / static_cast<double>(n));
 }
 
-bool useSobolevRefineIndicator(const unsigned int var_id) {
-    for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++)
-        if (bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
+bool useWeight1SobolevRefineIndicator(const unsigned int var_id) {
+    for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS; i++)
+        if (bssn::BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
             return true;
 
     return false;
 }
 
-bool useWeakSobolevRefineIndicator(const unsigned int var_id) {
-    for (unsigned int i = 0; i < bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS; i++)
-        if (bssn::BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
+bool useWeight2SobolevRefineIndicator(const unsigned int var_id) {
+    for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS; i++)
+        if (bssn::BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES[i] == var_id)
             return true;
 
     return false;
@@ -125,10 +125,10 @@ double computeWeightedWaveletIndicator(const double raw_l_max,
     double first_weight  = 0.0;
     double second_weight = 0.0;
 
-    if (useSobolevRefineIndicator(var_id)) {
+    if (useWeight1SobolevRefineIndicator(var_id)) {
         first_weight  = bssn::BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT;
         second_weight = bssn::BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT;
-    } else if (useWeakSobolevRefineIndicator(var_id)) {
+    } else if (useWeight2SobolevRefineIndicator(var_id)) {
         first_weight  = bssn::BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT;
         second_weight = bssn::BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT;
     } else {

@@ -252,24 +252,24 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         bssn::BSSN_REFINE_VARIABLE_INDICES[i] =
             parFile["BSSN_REFINE_VARIABLE_INDICES"][i];
 
-    if (parFile.find("BSSN_NUM_SOB_REFINE_VARS") != parFile.end())
-        bssn::BSSN_NUM_SOB_REFINE_VARS =
-            parFile["BSSN_NUM_SOB_REFINE_VARS"];
+    if (parFile.find("BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS") != parFile.end())
+        bssn::BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS =
+            parFile["BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS"];
 
-    if (parFile.find("BSSN_SOB_REFINE_VARIABLE_INDICES") != parFile.end())
-        for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++)
-            bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i] =
-                parFile["BSSN_SOB_REFINE_VARIABLE_INDICES"][i];
+    if (parFile.find("BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES") != parFile.end())
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS; i++)
+            bssn::BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES[i] =
+                parFile["BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES"][i];
 
-    if (parFile.find("BSSN_NUM_WEAK_SOB_REFINE_VARS") != parFile.end())
-        bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS =
-            parFile["BSSN_NUM_WEAK_SOB_REFINE_VARS"];
+    if (parFile.find("BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS") != parFile.end())
+        bssn::BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS =
+            parFile["BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS"];
 
-    if (parFile.find("BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES") !=
+    if (parFile.find("BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES") !=
         parFile.end())
-        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS; i++)
-            bssn::BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[i] =
-                parFile["BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES"][i];
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS; i++)
+            bssn::BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES[i] =
+                parFile["BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES"][i];
 
     bssn::BSSN_NUM_EVOL_VARS_VTU_OUTPUT =
         parFile["BSSN_NUM_EVOL_VARS_VTU_OUTPUT"];
@@ -481,14 +481,14 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
                   << std::endl;
         exit(0);
     }
-    if (BSSN_NUM_SOB_REFINE_VARS > BSSN_NUM_VARS) {
-        std::cout << "Error[parameter file]: Number of Sobolev-refined "
+    if (BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS > BSSN_NUM_VARS) {
+        std::cout << "Error[parameter file]: Number of weight-set-1 Sobolev-refined "
                      "variables should be less than number of BSSN_NUM_VARS"
                   << std::endl;
         exit(0);
     }
-    if (BSSN_NUM_WEAK_SOB_REFINE_VARS > BSSN_NUM_VARS) {
-        std::cout << "Error[parameter file]: Number of weak Sobolev-refined "
+    if (BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS > BSSN_NUM_VARS) {
+        std::cout << "Error[parameter file]: Number of weight-set-2 Sobolev-refined "
                      "variables should be less than number of BSSN_NUM_VARS"
                   << std::endl;
         exit(0);
@@ -727,20 +727,20 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << bssn::BSSN_REFINE_VARIABLE_INDICES[bssn::BSSN_NUM_REFINE_VARS -
                                                    1]
              << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_NUM_SOB_REFINE_VARS :"
-             << bssn::BSSN_NUM_SOB_REFINE_VARS << NRM << std::endl;
-        sout << YLW << "\tBSSN_SOB_REFINE_VARIABLE_INDICES :[";
-        for (unsigned int i = 0; i < bssn::BSSN_NUM_SOB_REFINE_VARS; i++) {
+        sout << YLW << "\tBSSN_NUM_WEIGHT_1_SOB_REFINE_VARS :"
+             << bssn::BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS << NRM << std::endl;
+        sout << YLW << "\tBSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES :[";
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS; i++) {
             if (i > 0) sout << ", ";
-            sout << bssn::BSSN_SOB_REFINE_VARIABLE_INDICES[i];
+            sout << bssn::BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES[i];
         }
         sout << "]" << NRM << std::endl;
-        sout << YLW << "\tBSSN_NUM_WEAK_SOB_REFINE_VARS :"
-             << bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS << NRM << std::endl;
-        sout << YLW << "\tBSSN_WEAK_SOB_REFINE_VARIABLE_INDICES :[";
-        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEAK_SOB_REFINE_VARS; i++) {
+        sout << YLW << "\tBSSN_NUM_WEIGHT_2_SOB_REFINE_VARS :"
+             << bssn::BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS << NRM << std::endl;
+        sout << YLW << "\tBSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES :[";
+        for (unsigned int i = 0; i < bssn::BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS; i++) {
             if (i > 0) sout << ", ";
-            sout << bssn::BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[i];
+            sout << bssn::BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES[i];
         }
         sout << "]" << NRM << std::endl;
 

@@ -142,17 +142,17 @@ extern unsigned int BSSN_NUM_REFINE_VARS;
 /**@brief indices of refine var ids*/
 extern unsigned int BSSN_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
 
-/**@brief number of refine variables that use Sobolev derivative weighting*/
-extern unsigned int BSSN_NUM_SOB_REFINE_VARS;
+/**@brief number of refine variables that use Sobolev weight set 1*/
+extern unsigned int BSSN_NUM_WEIGHT_1_SOB_REFINE_VARS;
 
-/**@brief indices of refine variables that use Sobolev derivative weighting*/
-extern unsigned int BSSN_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
+/**@brief indices of refine variables that use Sobolev weight set 1*/
+extern unsigned int BSSN_WEIGHT_1_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
 
-/**@brief number of refine variables that use weak Sobolev derivative weighting*/
-extern unsigned int BSSN_NUM_WEAK_SOB_REFINE_VARS;
+/**@brief number of refine variables that use Sobolev weight set 2*/
+extern unsigned int BSSN_NUM_WEIGHT_2_SOB_REFINE_VARS;
 
-/**@brief indices of refine variables that use weak Sobolev derivative weighting*/
-extern unsigned int BSSN_WEAK_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
+/**@brief indices of refine variables that use Sobolev weight set 2*/
+extern unsigned int BSSN_WEIGHT_2_SOB_REFINE_VARIABLE_INDICES[BSSN_NUM_VARS];
 
 /**@brief number of evolution variables written to vtu files*/
 extern unsigned int BSSN_NUM_EVOL_VARS_VTU_OUTPUT;
