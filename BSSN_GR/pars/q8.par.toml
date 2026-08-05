@@ -126,6 +126,11 @@ BSSN_GW_REFINE_WTOL = 0.00001
 # Maximum Wavelet Tolerence
 BSSN_WAVELET_TOL_MAX = 0.00001
 
+BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT = 1.0
+BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT = 1.0
+BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT = 1.0e-4
+BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT = 1.0e-6
+
 # Nyquist-based refinement: goal spherical harmonic order m to resolve
 # (=0 to disable)
 BSSN_NYQUIST_M = 0

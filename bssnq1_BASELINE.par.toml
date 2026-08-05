@@ -130,6 +130,11 @@ BSSN_USE_WAVELET_TOL_FUNCTION = 3
 # Maximum Wavelet Tolerence
 BSSN_WAVELET_TOL_MAX = 0.001
 
+BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT = 1.0
+BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT = 1.0
+BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT = 1.0e-4
+BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT = 1.0e-6
+
 # Wavelet Tolerence Radius 0 (for "shell" based wavelet)
 BSSN_WAVELET_TOL_FUNCTION_R0 = 20.0
 # Wavelet Tolerence Radius 0 (for "shell" based wavelet)
