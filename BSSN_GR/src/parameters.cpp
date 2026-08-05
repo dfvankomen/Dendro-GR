@@ -834,15 +834,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_BH1_MASS = BH1.getBHMass();
     bssn::BSSN_BH2_MASS = BH2.getBHMass();
 
-    // quick check to see if we're divsible
-    if (AEH::AEH_SOLVER_FREQ > 0) {
-        if ((bssn::BSSN_IO_OUTPUT_FREQ % AEH::AEH_SOLVER_FREQ != 0)) {
-            std::cerr << "Error[parameter file]: BSSN_IO_OUTPUT_FREQ ("
-                      << bssn::BSSN_IO_OUTPUT_FREQ << ") must be a multiple of "
-                      << "AEH_SOLVER_FREQ (" << AEH::AEH_SOLVER_FREQ << ")\n";
-            exit(EXIT_FAILURE);
-        }
-    }
+    // NOTE: BSSN_IO_OUTPUT_FREQ used to be required to be a multiple of
+    // AEH_SOLVER_FREQ. Nothing at IO cadence reads horizon data -- write_vtu
+    // touches none of it, BHaHAHA writes its own diagnostics on its own
+    // schedule, and the one QoI consumer (the rBH_lim HOOK in dataUtils.cpp) is
+    // commented out and would key off BSSN_REMESH_TEST_FREQ anyway. Both
+    // drivers now gate the AH solve independently, so the two are unrelated.
 
     // if the parFile has the AEH "dictionary"
     if (parFile.contains("AEH_PARAMS")) {
