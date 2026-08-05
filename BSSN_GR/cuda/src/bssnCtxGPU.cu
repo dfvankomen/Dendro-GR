@@ -830,12 +830,37 @@ int BSSNCtxGPU::restore_checkpt() {
         }
     }
 
-    // parsed on rank 0 only here, so publish the latch to every rank
+    // The .cp is parsed on rank 0 only here (the CPU ctx parses on every rank),
+    // so everything it sets has to be published. m_uiTinfo and the scalars are
+    // broadcast below; these are the ones that were being dropped.
     {
         unsigned int mergedLatch =
             (unsigned int)bssn::BSSN_MERGED_CHKPT_WRITTEN;
         par::Mpi_Bcast(&mergedLatch, 1, 0, comm);
         bssn::BSSN_MERGED_CHKPT_WRITTEN = (mergedLatch != 0);
+
+        unsigned int isMerged = (unsigned int)m_bIsBHMerged;
+        double mergeTime      = m_dMergeTime;
+        unsigned int mergeStep = m_uiMergeStep;
+        par::Mpi_Bcast(&isMerged, 1, 0, comm);
+        par::Mpi_Bcast(&mergeTime, 1, 0, comm);
+        par::Mpi_Bcast(&mergeStep, 1, 0, comm);
+        if (rank) {
+            m_bIsBHMerged = (isMerged != 0);
+            set_bh_merge_time(mergeTime, mergeStep);
+        }
+
+        // BH history feeds isRemeshBH, which every rank evaluates -- a rank-0
+        // -only history means ranks disagree about where to refine.
+        std::string blob;
+        if (!rank && m_bhHistory) blob = m_bhHistory->encode();
+        unsigned int blobLen = (unsigned int)blob.size();
+        par::Mpi_Bcast(&blobLen, 1, 0, comm);
+        if (blobLen) {
+            blob.resize(blobLen);
+            MPI_Bcast(&blob[0], (int)blobLen, MPI_CHAR, 0, comm);
+            if (rank && m_bhHistory) m_bhHistory->restore(blob);
+        }
     }
 
     par::Mpi_Allreduce(&restoreStatus, &restoreStatusGlobal, 1, MPI_MAX, comm);
