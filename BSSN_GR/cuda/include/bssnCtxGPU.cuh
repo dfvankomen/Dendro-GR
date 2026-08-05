@@ -157,6 +157,10 @@ class BSSNCtxGPU : public ts::Ctx<BSSNCtxGPU, DendroScalar, unsigned int> {
     /**@brief: write to vtu. */
     int write_vtu();
 
+    /**@brief run the BHaHAHA apparent-horizon solver. Host-side, on the CPU
+     * copy of the evolution vars -- caller must have synced it from device. */
+    void findAH();
+
     /**@brief: writes checkpoint*/
     int write_checkpt();
 

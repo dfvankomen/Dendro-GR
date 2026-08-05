@@ -1541,9 +1541,9 @@ int BSSNCtx::restore_checkpt() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
 
-    // finally restore the aeh_chkpt_file. Absent for GPU-written checkpoints --
-    // BSSNCtxGPU never calls find_horizons, so it has no AH state to save. Say
-    // so once on rank 0 rather than letting every rank print an open failure.
+    // finally restore the aeh_chkpt_file. Absent when the AH solver was off, or
+    // for GPU checkpoints written before the CUDA path ran BHaHAHA. Say so once
+    // on rank 0 rather than letting every rank print an open failure.
     if (!rank) {
         std::cout << "Now restoring AEH solver from checkpoint..." << std::endl;
     }
@@ -1561,9 +1561,7 @@ int BSSNCtx::restore_checkpt() {
         }
     } else if (!rank) {
         std::cout << YLW << "WARNING: " << NRM << aeh_chkpt_file
-                  << " not found; the AH solver starts fresh. Expected for a "
-                     "GPU-written checkpoint."
-                  << std::endl;
+                  << " not found; the AH solver starts fresh." << std::endl;
     }
 
     if (!rank) {

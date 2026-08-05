@@ -423,6 +423,14 @@ int main(int argc, char** argv) {
                 bssnCtx->write_vtu();
                 bssnCtx->evolve_bh_loc();
 
+                // AH solve, on the host copy the D2H above just refreshed. Runs
+                // on the IO cadence rather than AEH_SOLVER_FREQ: the parfile
+                // check guarantees IO_OUTPUT_FREQ is a multiple of it, so this
+                // can only ever be LESS frequent than requested.
+                if (AEH::AEH_SOLVER_FREQ > 0 &&
+                    (step % AEH::AEH_SOLVER_FREQ) == 0)
+                    bssnCtx->findAH();
+
                 if ((step % bssn::BSSN_CHECKPT_FREQ) == 0)
                     bssnCtx->write_checkpt();
 

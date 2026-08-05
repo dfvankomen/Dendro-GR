@@ -418,6 +418,39 @@ int BSSNCtxGPU::init_grid() {
 
 int BSSNCtxGPU::finalize() { return 0; }
 
+// Mirrors BSSNCtx::findAH. BHaHAHA is host-side and runs every
+// AEH_SOLVER_FREQ steps, so there is nothing device-specific to do beyond
+// working from an already-synced host copy of the evolution vars.
+void BSSNCtxGPU::findAH() {
+    if (!m_uiMesh->isActive()) return;
+
+    DVec& m_evar     = m_var[VL::CPU_EV];
+    DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
+
+    m_uiMesh->readFromGhostBegin(m_evar.get_vec_ptr(), m_evar.get_dof());
+    m_uiMesh->readFromGhostEnd(m_evar.get_vec_ptr(), m_evar.get_dof());
+
+    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
+
+    DendroScalar* eVar[bssn::BSSN_NUM_VARS];
+    m_evar.to_2d(eVar);
+
+    std::vector<Point> bh_locations;
+    if (bssn::BSSN_ID_TYPE == 0 || bssn::BSSN_ID_TYPE == 1) {
+        bh_locations.push_back(bssn::BSSN_BH_LOC[0]);
+        bh_locations.push_back(bssn::BSSN_BH_LOC[1]);
+    }
+
+    AEH::ah_bah->find_horizons(m_uiMesh, (const double**)eVar,
+                               m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
+                               bh_locations);
+
+    if (m_bhHistory) {
+        for (unsigned int h = 0; h < AEH::ah_bah->get_num_horizons(); ++h)
+            m_bhHistory->set_horizon_qoi(h, AEH::ah_bah->get_horizon_qoi(h));
+    }
+}
+
 int BSSNCtxGPU::write_vtu() {
     if (!m_uiMesh->isActive()) return 0;
 
@@ -661,6 +694,12 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
         outfile << std::setw(4) << checkPoint << std::endl;
         outfile.close();
     }
+
+    // the GPU runs BHaHAHA too now, so it has AH state worth saving
+    const std::string aeh_chkpt_file = bssn::BSSN_CHKPT_FILE_PREFIX +
+                                       "_aeh_solver_checkpt-cp" +
+                                       std::to_string(cpIndex) + ".json";
+    AEH::ah_bah->create_checkpoint(m_uiMesh, aeh_chkpt_file);
 
     return 0;
 }
