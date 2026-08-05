@@ -150,13 +150,9 @@ int main(int argc, char** argv) {
         MPI_Abort(comm, 0);
     }
 
-    if (bssn::BSSN_GW_EXTRACT_FREQ > bssn::BSSN_IO_OUTPUT_FREQ) {
-        if (!rank)
-            std::cout
-                << " BSSN_GW_EXTRACT_FREQ  should be less BSSN_IO_OUTPUT_FREQ "
-                << std::endl;
-        MPI_Abort(comm, 0);
-    }
+    // NOTE: BSSN_GW_EXTRACT_FREQ used to be required to be <= IO_OUTPUT_FREQ,
+    // because write_vtu() lived inside the GW block and so really ran on the GW
+    // frequency. VTU output has its own gate now, so the two are independent.
 
     // 2. generate the initial grid.
     std::vector<ot::TreeNode> tmpNodes;
@@ -420,28 +416,48 @@ int main(int argc, char** argv) {
                 (bssn::BSSN_GW_EXTRACT_FREQ - 1))
                 cudaStreamSynchronize(s_gw);
 
+            // GW extraction: tied to the async D2H, so it stays here. Only the
+            // things that genuinely depend on the GW stream live in this block.
             if ((!is_gw_written) && (cudaStreamQuery(s_gw) == cudaSuccess)) {
                 ts_curr = bssnCtx->get_ts_info();
                 bssnCtx->set_ts_info(ts_gw_output);
                 bssnCtx->terminal_output();
-                bssnCtx->write_vtu();
                 bssnCtx->evolve_bh_loc();
-
-                if ((step % bssn::BSSN_CHECKPT_FREQ) == 0)
-                    bssnCtx->write_checkpt();
-
                 bssnCtx->set_ts_info(ts_curr);
                 is_gw_written = true;
                 did_d2h_sync  = true;
             }
 
-            // AH solve on its own cadence, like the CPU driver. It needs the
-            // host copy of the evolution vars, so sync unless the IO block
-            // above already did this step.
+            // Everything below runs on its own frequency, like the CPU driver.
+            // These used to sit inside the GW block, so VTU output actually
+            // fired on BSSN_GW_EXTRACT_FREQ and checkpoints were SKIPPED
+            // whenever CHECKPT_FREQ didn't line up with a GW step. Each does
+            // its own D2H unless the block above already did one this step.
+            if (bssn::BSSN_IO_OUTPUT_FREQ > 0 &&
+                (step % bssn::BSSN_IO_OUTPUT_FREQ) == 0) {
+                if (!did_d2h_sync) {
+                    bssnCtx->device_to_host_sync();
+                    did_d2h_sync = true;
+                }
+                bssnCtx->write_vtu();
+            }
+
             if (AEH::AEH_SOLVER_FREQ > 0 &&
                 (step % AEH::AEH_SOLVER_FREQ) == 0) {
-                if (!did_d2h_sync) bssnCtx->device_to_host_sync();
+                if (!did_d2h_sync) {
+                    bssnCtx->device_to_host_sync();
+                    did_d2h_sync = true;
+                }
                 bssnCtx->findAH();
+            }
+
+            if (bssn::BSSN_CHECKPT_FREQ > 0 &&
+                (step % bssn::BSSN_CHECKPT_FREQ) == 0) {
+                if (!did_d2h_sync) {
+                    bssnCtx->device_to_host_sync();
+                    did_d2h_sync = true;
+                }
+                bssnCtx->write_checkpt();
             }
 #endif
 
