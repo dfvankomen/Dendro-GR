@@ -338,6 +338,10 @@ int main(int argc, char** argv) {
              }*/
 
 #ifndef BSSN_PROFILE_SCALING_RUN
+            // did the IO block below already pull the evolution vars back to
+            // the host this step? the AH solve reuses it if so
+            bool did_d2h_sync = false;
+
             if ((step % bssn::BSSN_GW_EXTRACT_FREQ) == 0) {
                 if (!rank_global)
                     std::cout
@@ -423,19 +427,21 @@ int main(int argc, char** argv) {
                 bssnCtx->write_vtu();
                 bssnCtx->evolve_bh_loc();
 
-                // AH solve, on the host copy the D2H above just refreshed. Runs
-                // on the IO cadence rather than AEH_SOLVER_FREQ: the parfile
-                // check guarantees IO_OUTPUT_FREQ is a multiple of it, so this
-                // can only ever be LESS frequent than requested.
-                if (AEH::AEH_SOLVER_FREQ > 0 &&
-                    (step % AEH::AEH_SOLVER_FREQ) == 0)
-                    bssnCtx->findAH();
-
                 if ((step % bssn::BSSN_CHECKPT_FREQ) == 0)
                     bssnCtx->write_checkpt();
 
                 bssnCtx->set_ts_info(ts_curr);
                 is_gw_written = true;
+                did_d2h_sync  = true;
+            }
+
+            // AH solve on its own cadence, like the CPU driver. It needs the
+            // host copy of the evolution vars, so sync unless the IO block
+            // above already did this step.
+            if (AEH::AEH_SOLVER_FREQ > 0 &&
+                (step % AEH::AEH_SOLVER_FREQ) == 0) {
+                if (!did_d2h_sync) bssnCtx->device_to_host_sync();
+                bssnCtx->findAH();
             }
 #endif
 
