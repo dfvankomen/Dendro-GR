@@ -8,6 +8,8 @@
  *
  */
 #include "bssnCtxGPU.cuh"
+
+#include <filesystem>
 // CONST_MEM DEVICE_REAL device::refel_1d[2 * REFEL_CONST_MEM_MAX];
 
 namespace bssn {
@@ -566,11 +568,17 @@ int BSSNCtxGPU::write_checkpt() {
 
     const bool is_merged =
         ((bssn::BSSN_BH_LOC[0] - bssn::BSSN_BH_LOC[1]).abs() < 0.1);
+
+    // slot 3 is written ALONGSIDE the normal slot, not instead of it
     if (is_merged && !bssn::BSSN_MERGED_CHKPT_WRITTEN) {
-        cpIndex                         = 3;
         bssn::BSSN_MERGED_CHKPT_WRITTEN = true;
+        write_checkpt_to_slot(3);
     }
 
+    return write_checkpt_to_slot(cpIndex);
+}
+
+int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
     unsigned int rank = m_uiMesh->getMPIRank();
     unsigned int npes = m_uiMesh->getMPICommSize();
 
@@ -672,7 +680,31 @@ int BSSNCtxGPU::restore_checkpt() {
 
     unsigned int restoreFileIndex = 0;
 
-    for (unsigned int cpIndex = 0; cpIndex < 2; cpIndex++) {
+    // explicit slot skips the 0/1 scan; slot 3 is otherwise unreachable
+    bool useSlotOverride = false;
+    if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
+        const unsigned int slot = (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
+        unsigned int slotExists = 0;
+
+        if (!rank) {
+            sprintf(fName, "%s_step_%d.cp",
+                    bssn::BSSN_CHKPT_FILE_PREFIX.c_str(), slot);
+            slotExists = std::filesystem::exists(fName) ? 1 : 0;
+            if (!slotExists)
+                std::cout << "BSSN_RESTORE_CHECKPT_SLOT=" << slot
+                          << " requested but " << fName
+                          << " does not exist; falling back to auto-detect."
+                          << std::endl;
+        }
+        par::Mpi_Bcast(&slotExists, 1, 0, comm);
+
+        if (slotExists) {
+            useSlotOverride  = true;
+            restoreFileIndex = slot;
+        }
+    }
+
+    for (unsigned int cpIndex = 0; !useSlotOverride && cpIndex < 2; cpIndex++) {
         restoreStatus = 0;
 
         if (!rank) {
@@ -712,14 +744,17 @@ int BSSNCtxGPU::restore_checkpt() {
         }
     }
 
-    if (!rank) {
-        if (restoreStep[0] < restoreStep[1])
-            restoreFileIndex = 1;
-        else
-            restoreFileIndex = 0;
-    }
+    // must stay guarded, or an overridden slot is reset to 0 and broadcast
+    if (!useSlotOverride) {
+        if (!rank) {
+            if (restoreStep[0] < restoreStep[1])
+                restoreFileIndex = 1;
+            else
+                restoreFileIndex = 0;
+        }
 
-    par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
+        par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
+    }
 
     restoreStatus = 0;
     octree.clear();
@@ -765,7 +800,8 @@ int BSSNCtxGPU::restore_checkpt() {
                     checkPoint["DENDRO_BSSN_MERGED_CHKPT_WRITTEN"];
             }
 
-            restoreStep[restoreFileIndex] = m_uiTinfo._m_uiStep;
+            // NOTE: no restoreStep[restoreFileIndex] write here -- dead, and it
+            // overflowed the 2-element array for slot 3.
         }
     }
 

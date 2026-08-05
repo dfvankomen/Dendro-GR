@@ -1003,18 +1003,31 @@ int BSSNCtx::write_bh_coords() {
 int BSSNCtx::write_checkpt() {
     if (!m_uiMesh->isActive()) return 0;
 
-    dendro::logger::debug("Now writing checkpoint file");
-
     // every other checkpoint index should be 0 or 1, this allows "alternate"
     // file writing
-    unsigned int cpIndex = (m_uiTinfo._m_uiStep / bssn::BSSN_CHECKPT_FREQ) % 2;
+    const unsigned int cpIndex =
+        (m_uiTinfo._m_uiStep / bssn::BSSN_CHECKPT_FREQ) % 2;
 
     const bool is_merged =
         ((bssn::BSSN_BH_LOC[0] - bssn::BSSN_BH_LOC[1]).abs() < 0.1);
+
+    // Slot 3 is a permanent post-merger snapshot, written ALONGSIDE the normal
+    // alternating slot -- it used to replace it, which left exactly one usable
+    // checkpoint right when a crash would hurt most. Set the latch first so
+    // both files record it.
     if (is_merged && !bssn::BSSN_MERGED_CHKPT_WRITTEN) {
-        cpIndex                         = 3;
         bssn::BSSN_MERGED_CHKPT_WRITTEN = true;
+        dendro::logger::info(
+            "BHs merged: writing the permanent post-merger checkpoint to slot "
+            "3");
+        write_checkpt_to_slot(3);
     }
+
+    return write_checkpt_to_slot(cpIndex);
+}
+
+int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
+    dendro::logger::debug("Now writing checkpoint file");
 
     dendro::logger::debug("Will checkpoint to file index {}", cpIndex);
 
@@ -1198,7 +1211,41 @@ int BSSNCtx::restore_checkpt() {
 
     unsigned int restoreFileIndex = 0;
 
-    for (unsigned int cpIndex = 0; cpIndex < 2; cpIndex++) {
+    // An explicit slot skips the scan below. The auto-detect only ever looks at
+    // slots 0/1, so slot 3 (the post-merger snapshot) is otherwise unreachable
+    // without renaming files. A missing slot falls back to auto-detect rather
+    // than aborting.
+    bool useSlotOverride = false;
+    if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
+        const unsigned int slot =
+            (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
+        unsigned int slotExists = 0;
+
+        if (!rank) {
+            sprintf(fName, "%s_%d_step.cp",
+                    bssn::BSSN_CHKPT_FILE_PREFIX.c_str(), slot);
+            slotExists = std::filesystem::exists(fName) ? 1 : 0;
+            if (!slotExists) {
+                std::cout << YLW << "WARNING: " << NRM
+                          << "BSSN_RESTORE_CHECKPT_SLOT=" << slot
+                          << " requested but " << fName
+                          << " does not exist; falling back to auto-detect."
+                          << std::endl;
+            }
+        }
+        par::Mpi_Bcast(&slotExists, 1, 0, comm);
+
+        if (slotExists) {
+            useSlotOverride  = true;
+            restoreFileIndex = slot;
+            if (!rank)
+                std::cout << GRN << "[BSSNCtx] : " << NRM
+                          << "BSSN_RESTORE_CHECKPT_SLOT=" << slot
+                          << ", skipping checkpoint auto-detect." << std::endl;
+        }
+    }
+
+    for (unsigned int cpIndex = 0; !useSlotOverride && cpIndex < 2; cpIndex++) {
         restoreStatus = 0;
 
         if (!rank) {
@@ -1266,17 +1313,22 @@ int BSSNCtx::restore_checkpt() {
         }
     }
 
-    if (!rank) {
-        if (restoreStep[0] < restoreStep[1])
-            restoreFileIndex = 1;
-        else
-            restoreFileIndex = 0;
+    // NOTE: must stay guarded -- unguarded this resets an overridden slot back
+    // to 0 (both restoreStep entries are still 0 when the scan is skipped) and
+    // then broadcasts it, silently restoring the wrong checkpoint.
+    if (!useSlotOverride) {
+        if (!rank) {
+            if (restoreStep[0] < restoreStep[1])
+                restoreFileIndex = 1;
+            else
+                restoreFileIndex = 0;
+        }
+
+        dendro::logger::debug("Restore file index determined to be: {}",
+                              restoreFileIndex);
+
+        par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
     }
-
-    dendro::logger::debug("Restore file index determined to be: {}",
-                          restoreFileIndex);
-
-    par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
 
     restoreStatus = 0;
     octree.clear();
@@ -1359,7 +1411,8 @@ int BSSNCtx::restore_checkpt() {
             // restore BH location/QoI history (new blob or legacy formats)
             restore_bh_history_(m_bhHistory.get(), checkPoint);
 
-            restoreStep[restoreFileIndex] = m_uiTinfo._m_uiStep;
+            // NOTE: no restoreStep[restoreFileIndex] write here -- it was dead
+            // (never read again) and overflowed the 2-element array for slot 3.
         }
     }
 
