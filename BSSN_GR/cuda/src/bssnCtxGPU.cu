@@ -718,28 +718,9 @@ int BSSNCtxGPU::restore_checkpt() {
 
             if (restoreStatus == 0) {
                 infile >> checkPoint;
-                m_uiTinfo._m_uiTb   = checkPoint["DENDRO_TS_TIME_BEGIN"];
-                m_uiTinfo._m_uiTe   = checkPoint["DENDRO_TS_TIME_END"];
-                m_uiTinfo._m_uiT    = checkPoint["DENDRO_TS_TIME_CURRENT"];
-                m_uiTinfo._m_uiStep = checkPoint["DENDRO_TS_STEP_CURRENT"];
-                m_uiTinfo._m_uiTh   = checkPoint["DENDRO_TS_TIME_STEP_SIZE"];
-                m_uiElementOrder    = checkPoint["DENDRO_TS_ELEMENT_ORDER"];
-
-                bssn::BSSN_WAVELET_TOL =
-                    checkPoint["DENDRO_TS_WAVELET_TOLERANCE"];
-                bssn::BSSN_LOAD_IMB_TOL =
-                    checkPoint["DENDRO_TS_LOAD_IMB_TOLERANCE"];
-
-                numVars              = checkPoint["DENDRO_TS_NUM_VARS"];
-                activeCommSz         = checkPoint["DENDRO_TS_ACTIVE_COMM_SZ"];
-
-                m_uiBHLoc[0]         = Point((double)checkPoint["DENDRO_BH1_X"],
-                                             (double)checkPoint["DENDRO_BH1_Y"],
-                                             (double)checkPoint["DENDRO_BH1_Z"]);
-                m_uiBHLoc[1]         = Point((double)checkPoint["DENDRO_BH2_X"],
-                                             (double)checkPoint["DENDRO_BH2_Y"],
-                                             (double)checkPoint["DENDRO_BH2_Z"]);
-                restoreStep[cpIndex] = m_uiTinfo._m_uiStep;
+                // only the step is needed to pick a slot; the true restore
+                // below reads everything for the winning slot
+                restoreStep[cpIndex] = checkPoint["DENDRO_TS_STEP_CURRENT"];
             }
         }
     }

@@ -1011,10 +1011,8 @@ int BSSNCtx::write_checkpt() {
     const bool is_merged =
         ((bssn::BSSN_BH_LOC[0] - bssn::BSSN_BH_LOC[1]).abs() < 0.1);
 
-    // Slot 3 is a permanent post-merger snapshot, written ALONGSIDE the normal
-    // alternating slot -- it used to replace it, which left exactly one usable
-    // checkpoint right when a crash would hurt most. Set the latch first so
-    // both files record it.
+    // Slot 3 is the permanent post-merger snapshot, written ALONGSIDE the
+    // normal slot (it used to replace it). Latch first so both files record it.
     if (is_merged && !bssn::BSSN_MERGED_CHKPT_WRITTEN) {
         bssn::BSSN_MERGED_CHKPT_WRITTEN = true;
         dendro::logger::info(
@@ -1211,10 +1209,8 @@ int BSSNCtx::restore_checkpt() {
 
     unsigned int restoreFileIndex = 0;
 
-    // An explicit slot skips the scan below. The auto-detect only ever looks at
-    // slots 0/1, so slot 3 (the post-merger snapshot) is otherwise unreachable
-    // without renaming files. A missing slot falls back to auto-detect rather
-    // than aborting.
+    // Explicit slot skips the scan below, which only ever looks at 0/1 -- slot
+    // 3 is otherwise unreachable. Missing slot falls back, never aborts.
     bool useSlotOverride = false;
     if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
         const unsigned int slot =
@@ -1270,52 +1266,15 @@ int BSSNCtx::restore_checkpt() {
 
             if (restoreStatus == 0) {
                 infile >> checkPoint;
-                m_uiTinfo._m_uiTb   = checkPoint["DENDRO_TS_TIME_BEGIN"];
-                m_uiTinfo._m_uiTe   = checkPoint["DENDRO_TS_TIME_END"];
-                m_uiTinfo._m_uiT    = checkPoint["DENDRO_TS_TIME_CURRENT"];
-                m_uiTinfo._m_uiStep = checkPoint["DENDRO_TS_STEP_CURRENT"];
-                m_uiTinfo._m_uiTh   = checkPoint["DENDRO_TS_TIME_STEP_SIZE"];
-                m_uiElementOrder    = checkPoint["DENDRO_TS_ELEMENT_ORDER"];
-
-                bssn::BSSN_WAVELET_TOL =
-                    checkPoint["DENDRO_TS_WAVELET_TOLERANCE"];
-                bssn::BSSN_LOAD_IMB_TOL =
-                    checkPoint["DENDRO_TS_LOAD_IMB_TOLERANCE"];
-
-                numVars      = checkPoint["DENDRO_TS_NUM_VARS"];
-                activeCommSz = checkPoint["DENDRO_TS_ACTIVE_COMM_SZ"];
-
-                m_uiBHLoc[0] = Point((double)checkPoint["DENDRO_BH1_X"],
-                                     (double)checkPoint["DENDRO_BH1_Y"],
-                                     (double)checkPoint["DENDRO_BH1_Z"]);
-                m_uiBHLoc[1] = Point((double)checkPoint["DENDRO_BH2_X"],
-                                     (double)checkPoint["DENDRO_BH2_Y"],
-                                     (double)checkPoint["DENDRO_BH2_Z"]);
-
-                // if this key is in, then all three keys should be
-                if (checkPoint.find("DENDRO_BSSN_BH_MERGE") !=
-                    checkPoint.end()) {
-                    // restore bh merge and merge time information
-                    m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                    double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                    unsigned int mergeStep =
-                        checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
-
-                    // make sure they're set internally and externally
-                    set_bh_merge_time(mergeTime, mergeStep);
-                }
-
-                // restore BH location/QoI history (new blob or legacy formats)
-                restore_bh_history_(m_bhHistory.get(), checkPoint);
-
-                restoreStep[cpIndex] = m_uiTinfo._m_uiStep;
+                // Only the step is needed to pick a slot. Applying every field
+                // here replayed legacy BH history through append() once per
+                // slot, duplicating the track.
+                restoreStep[cpIndex] = checkPoint["DENDRO_TS_STEP_CURRENT"];
             }
         }
     }
 
-    // NOTE: must stay guarded -- unguarded this resets an overridden slot back
-    // to 0 (both restoreStep entries are still 0 when the scan is skipped) and
-    // then broadcasts it, silently restoring the wrong checkpoint.
+    // must stay guarded, or an overridden slot is reset to 0 and broadcast
     if (!useSlotOverride) {
         if (!rank) {
             if (restoreStep[0] < restoreStep[1])
@@ -1411,8 +1370,8 @@ int BSSNCtx::restore_checkpt() {
             // restore BH location/QoI history (new blob or legacy formats)
             restore_bh_history_(m_bhHistory.get(), checkPoint);
 
-            // NOTE: no restoreStep[restoreFileIndex] write here -- it was dead
-            // (never read again) and overflowed the 2-element array for slot 3.
+            // no restoreStep[restoreFileIndex] write here -- dead, and it
+            // overflowed the 2-element array for slot 3
         }
     }
 
