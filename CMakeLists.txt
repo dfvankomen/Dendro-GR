@@ -43,8 +43,14 @@ if(MPI_LINK_FLAGS)
   set(LINK_FLAGS "${LINK_FLAGS} ${MPI_LINK_FLAGS}")
 endif()
 
-# settable option for the user on where dendrolib is available
-set(DENDRO_dendrolib_DIR "dendrolib" CACHE PATH "Where the dendrolib library is on the system, (default is submodule), requires absolute path")
+# Allow developers to use an existing DendroLib checkout. When left empty, the
+# matching Sobolev branch is fetched automatically below.
+set(DENDRO_dendrolib_DIR
+    ""
+    CACHE PATH "Path to a local DendroLib source directory (optional)")
+set(DENDRO_dendrolib_GIT_TAG
+    "Sobolev"
+    CACHE STRING "The Git tag, branch, or commit hash for DendroLib")
 
 # options for dendro -- not sure if these need to be declared here, but they
 # might be due to header definitions...
@@ -244,9 +250,25 @@ checkgitsetup()
 
 # === BEGIN SUBDIRECTORY INCLUSION FOR BUILDING ===
 
-# now include the dendro repository for compiling the library
-message(STATUS "Dendrolib location: ${DENDRO_dendrolib_DIR}")
-add_subdirectory(${DENDRO_dendrolib_DIR} dendrolib)
+# Use a local checkout when supplied; otherwise retrieve DendroLib in the same
+# way as the standalone EM projects.
+if(IS_DIRECTORY "${DENDRO_dendrolib_DIR}")
+  message(
+    STATUS "Using user-provided DendroLib from: ${DENDRO_dendrolib_DIR}")
+  add_subdirectory("${DENDRO_dendrolib_DIR}" dendrolib)
+else()
+  include(FetchContent)
+  message(STATUS "DendroLib not found locally, fetching from repository...")
+  FetchContent_Declare(
+    dendrolib
+    GIT_REPOSITORY "https://github.com/dfvankomen/Dendro-5.01.git"
+    GIT_TAG "${DENDRO_dendrolib_GIT_TAG}")
+  FetchContent_MakeAvailable(dendrolib)
+
+  set(DENDRO_dendrolib_DIR
+      "${dendrolib_SOURCE_DIR}"
+      CACHE INTERNAL "Path to the fetched DendroLib source")
+endif()
 
 # additional subdirectories that are their own "solvers"
 add_subdirectory(BSSN_GR)

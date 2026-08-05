@@ -28,10 +28,10 @@ double BSSN_IO_OUTPUT_GAP                              = 1.0;
 
 unsigned int BSSN_USE_WAVELET_TOL_FUNCTION             = 0;
 double BSSN_WAVELET_TOL                                = 0.0001;
-double BSSN_DERIV_FIRST_WEIGHT                         = 0.0;
-double BSSN_DERIV_SECOND_WEIGHT                        = 0.0;
-double BSSN_WEAK_DERIV_FIRST_WEIGHT                    = 0.0;
-double BSSN_WEAK_DERIV_SECOND_WEIGHT                   = 0.0;
+double BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT                = 0.0;
+double BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT               = 0.0;
+double BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT                = 0.0;
+double BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT               = 0.0;
 double BSSN_GW_REFINE_WTOL                             = 1e-4;
 double BSSN_WAVELET_TOL_MAX                            = 0.001;
 double BSSN_WAVELET_TOL_FUNCTION_R0                    = 10.0;
@@ -399,18 +399,18 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     bssn::BSSN_USE_WAVELET_TOL_FUNCTION =
         parFile["BSSN_USE_WAVELET_TOL_FUNCTION"].as_integer();
     bssn::BSSN_WAVELET_TOL     = parFile["BSSN_WAVELET_TOL"].as_floating();
-    if (parFile.contains("BSSN_DERIV_FIRST_WEIGHT"))
-        bssn::BSSN_DERIV_FIRST_WEIGHT =
-            parFile["BSSN_DERIV_FIRST_WEIGHT"].as_floating();
-    if (parFile.contains("BSSN_DERIV_SECOND_WEIGHT"))
-        bssn::BSSN_DERIV_SECOND_WEIGHT =
-            parFile["BSSN_DERIV_SECOND_WEIGHT"].as_floating();
-    if (parFile.contains("BSSN_WEAK_DERIV_FIRST_WEIGHT"))
-        bssn::BSSN_WEAK_DERIV_FIRST_WEIGHT =
-            parFile["BSSN_WEAK_DERIV_FIRST_WEIGHT"].as_floating();
-    if (parFile.contains("BSSN_WEAK_DERIV_SECOND_WEIGHT"))
-        bssn::BSSN_WEAK_DERIV_SECOND_WEIGHT =
-            parFile["BSSN_WEAK_DERIV_SECOND_WEIGHT"].as_floating();
+    if (parFile.contains("BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT"))
+        bssn::BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT =
+            parFile["BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT"].as_floating();
+    if (parFile.contains("BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT"))
+        bssn::BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT =
+            parFile["BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT"].as_floating();
+    if (parFile.contains("BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT"))
+        bssn::BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT =
+            parFile["BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT"].as_floating();
+    if (parFile.contains("BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT"))
+        bssn::BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT =
+            parFile["BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT"].as_floating();
     bssn::BSSN_WAVELET_TOL_MAX = parFile["BSSN_WAVELET_TOL_MAX"].as_floating();
     bssn::BSSN_WAVELET_TOL_FUNCTION_R0 =
         parFile["BSSN_WAVELET_TOL_FUNCTION_R0"].as_floating();

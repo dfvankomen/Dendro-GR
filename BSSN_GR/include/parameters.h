@@ -213,17 +213,17 @@ extern unsigned int BSSN_INIT_GRID_ITER;
 /**@brief wavelet tolerance value. */
 extern double BSSN_WAVELET_TOL;
 
-/**@brief first-derivative weight for Sobolev WAMR indicator. */
-extern double BSSN_DERIV_FIRST_WEIGHT;
+/**@brief first-derivative coefficient for Sobolev weight set 1. */
+extern double BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT;
 
-/**@brief second-derivative weight for Sobolev WAMR indicator. */
-extern double BSSN_DERIV_SECOND_WEIGHT;
+/**@brief second-derivative coefficient for Sobolev weight set 1. */
+extern double BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT;
 
-/**@brief first-derivative weight for weak Sobolev WAMR indicator. */
-extern double BSSN_WEAK_DERIV_FIRST_WEIGHT;
+/**@brief first-derivative coefficient for Sobolev weight set 2. */
+extern double BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT;
 
-/**@brief second-derivative weight for weak Sobolev WAMR indicator. */
-extern double BSSN_WEAK_DERIV_SECOND_WEIGHT;
+/**@brief second-derivative coefficient for Sobolev weight set 2. */
+extern double BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT;
 
 /**@brief: wabelet tolernace for GW extration(refinement after the merger)*/
 extern double BSSN_GW_REFINE_WTOL;

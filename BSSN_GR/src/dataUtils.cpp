@@ -126,11 +126,11 @@ double computeWeightedWaveletIndicator(const double raw_l_max,
     double second_weight = 0.0;
 
     if (useSobolevRefineIndicator(var_id)) {
-        first_weight  = bssn::BSSN_DERIV_FIRST_WEIGHT;
-        second_weight = bssn::BSSN_DERIV_SECOND_WEIGHT;
+        first_weight  = bssn::BSSN_WEIGHT_1_DERIV_FIRST_WEIGHT;
+        second_weight = bssn::BSSN_WEIGHT_1_DERIV_SECOND_WEIGHT;
     } else if (useWeakSobolevRefineIndicator(var_id)) {
-        first_weight  = bssn::BSSN_WEAK_DERIV_FIRST_WEIGHT;
-        second_weight = bssn::BSSN_WEAK_DERIV_SECOND_WEIGHT;
+        first_weight  = bssn::BSSN_WEIGHT_2_DERIV_FIRST_WEIGHT;
+        second_weight = bssn::BSSN_WEIGHT_2_DERIV_SECOND_WEIGHT;
     } else {
         return raw_l_max;
     }
