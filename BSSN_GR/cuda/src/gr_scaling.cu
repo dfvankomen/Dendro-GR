@@ -247,7 +247,8 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
 
             }
 
-            if((step % bssn::BSSN_GW_EXTRACT_FREQ) ==
+            if(bssn::BSSN_GW_EXTRACT_FREQ > 0 &&
+               (step % bssn::BSSN_GW_EXTRACT_FREQ) ==
             (bssn::BSSN_GW_EXTRACT_FREQ-1)) cudaStreamSynchronize(s_gw);
 
             if((!is_gw_written) && (cudaStreamQuery(s_gw) == cudaSuccess))
