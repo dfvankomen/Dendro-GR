@@ -598,6 +598,18 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"DENDRO_LOG_FORCE_FILE_FLUSH", bssn::DENDRO_LOG_FORCE_FILE_FLUSH,
          UseInitialValue},
 
+        // legacy AEH solver knobs (bssnAEH.cpp), formerly readable only from
+        // the deleted JSON parameter reader. Distinct from the BHaHAHA solver's
+        // nested [AEH_PARAMS] table below.
+        {"AEH_LMAX", AEH::AEH_LMAX, UseInitialValue},
+        {"AEH_Q_THETA", AEH::AEH_Q_THETA, UseInitialValue},
+        {"AEH_Q_PHI", AEH::AEH_Q_PHI, UseInitialValue},
+        {"AEH_MAXITER", AEH::AEH_MAXITER, UseInitialValue},
+        {"AEH_ATOL", AEH::AEH_ATOL, UseInitialValue},
+        {"AEH_RTOL", AEH::AEH_RTOL, UseInitialValue},
+        {"AEH_ALPHA", AEH::AEH_ALPHA, UseInitialValue},
+        {"AEH_BETA", AEH::AEH_BETA, UseInitialValue},
+
         // calculated defaults (requires non-optional):
         {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ,
          std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >> 1u)},
@@ -1149,6 +1161,14 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_GW_NUM_RADAII", GW::BSSN_GW_NUM_RADAII},
             {"BSSN_GW_NUM_LMODES", GW::BSSN_GW_NUM_LMODES},
             {"AEH_SOLVER_FREQ", AEH::AEH_SOLVER_FREQ},
+            {"AEH_LMAX", AEH::AEH_LMAX},
+            {"AEH_Q_THETA", AEH::AEH_Q_THETA},
+            {"AEH_Q_PHI", AEH::AEH_Q_PHI},
+            {"AEH_MAXITER", AEH::AEH_MAXITER},
+            {"AEH_ATOL", AEH::AEH_ATOL},
+            {"AEH_RTOL", AEH::AEH_RTOL},
+            {"AEH_ALPHA", AEH::AEH_ALPHA},
+            {"AEH_BETA", AEH::AEH_BETA},
 
             // Optionals That should be Saved for Sanity Sake
             {"BSSN_REMESH_TEST_FREQ_AFTER_MERGER",

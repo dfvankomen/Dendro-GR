@@ -44,19 +44,12 @@ void printGitInformation(int rank, std::vector<std::string> arg_s);
 
 /**
  * @brief: Read the parameter file and initialize the variables in parameters.h
- * file. Checks for JSON or TOML.
+ * file. TOML only -- JSON parameter files are deprecated and rejected with an
+ * error.
  * @param[in] fName: file name
  * @param[in] comm: MPI communicator.
  * */
 void readParamFile(const char* fName, MPI_Comm comm);
-
-/**
- * @brief: Read the parameter file and initialize the variables in parameters.h
- * file if it's a JSON file.
- * @param[in] fName: file name
- * @param[in] comm: MPI communicator.
- * */
-void readParamJSONFile(const char* fName, MPI_Comm comm);
 
 /**
  * @brief dump the read parameter files.
