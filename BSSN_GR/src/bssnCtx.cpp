@@ -18,6 +18,8 @@
 #include <array>
 #include <cstdint>
 #include <set>
+
+#include "bssnChkptSchema.h"
 #include <string>
 
 #include <iomanip>
@@ -1021,7 +1023,16 @@ int BSSNCtx::write_checkpt() {
         write_checkpt_to_slot(3);
     }
 
-    return write_checkpt_to_slot(cpIndex);
+    const int ret = write_checkpt_to_slot(cpIndex);
+
+    // Publish the sentinel LAST, and only for the normal slot: a crash partway
+    // through a write leaves .latest still naming the previous complete
+    // checkpoint. Slot 3 is deliberately never published, so auto-detect keeps
+    // landing on the newest normal slot rather than the merger snapshot.
+    chkpt_publish_latest(bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                         m_uiTinfo._m_uiStep, m_uiMesh->getMPIRank());
+
+    return ret;
 }
 
 int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
@@ -1039,8 +1050,8 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
     char fName[256];
     const ot::TreeNode* pNodes = &(*(m_uiMesh->getAllElements().begin() +
                                      m_uiMesh->getElementLocalBegin()));
-    sprintf(fName, "%s_%d_octree_%d.oct", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-            cpIndex, rank);
+    chkpt_fname_oct(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
+                    cpIndex, rank);
 
     io::checkpoint::writeOctToFile(fName, pNodes,
                                    m_uiMesh->getNumLocalMeshElements());
@@ -1048,8 +1059,8 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
     unsigned int numVars  = bssn::BSSN_NUM_VARS;
     const char** varNames = bssn::BSSN_VAR_NAMES;
 
-    sprintf(fName, "%s_%d_%d.var", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-            cpIndex, rank);
+    chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
+                    cpIndex, rank);
     io::checkpoint::writeVecToFile(fName, m_uiMesh, (const double**)eVar,
                                    bssn::BSSN_NUM_VARS);
 
@@ -1060,8 +1071,8 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
     dendro::logger::debug(
         "Now writing json checkpoint file with current status");
     if (!rank) {
-        sprintf(fName, "%s_%d_step.cp", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-                cpIndex);
+        chkpt_fname_step(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
+                         cpIndex);
         std::cout << "[BSSNCtx] \t writing checkpoint file : " << fName
                   << std::endl;
         std::ofstream outfile(fName);
@@ -1070,41 +1081,34 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
             return 0;
         }
 
+        // field list lives in bssnChkptSchema.h -- add new fields there
+        ChkptMeta meta;
+        meta.tb                 = m_uiTinfo._m_uiTb;
+        meta.te                 = m_uiTinfo._m_uiTe;
+        meta.t                  = m_uiTinfo._m_uiT;
+        meta.th                 = m_uiTinfo._m_uiTh;
+        meta.step               = m_uiTinfo._m_uiStep;
+        meta.elementOrder       = m_uiElementOrder;
+        meta.waveletTol         = bssn::BSSN_WAVELET_TOL;
+        meta.loadImbTol         = bssn::BSSN_LOAD_IMB_TOL;
+        meta.numVars            = numVars;
+        meta.activeCommSz       = m_uiMesh->getMPICommSize();
+        meta.bh1[0]             = m_uiBHLoc[0].x();
+        meta.bh1[1]             = m_uiBHLoc[0].y();
+        meta.bh1[2]             = m_uiBHLoc[0].z();
+        meta.bh2[0]             = m_uiBHLoc[1].x();
+        meta.bh2[1]             = m_uiBHLoc[1].y();
+        meta.bh2[2]             = m_uiBHLoc[1].z();
+        meta.bhMerged           = m_bIsBHMerged;
+        meta.mergeTime          = m_dMergeTime;
+        meta.mergeStep          = m_uiMergeStep;
+        // must round-trip, or a post-merger restart re-writes slot 3
+        meta.mergedChkptWritten = bssn::BSSN_MERGED_CHKPT_WRITTEN;
+
         json checkPoint;
-        checkPoint["DENDRO_TS_TIME_BEGIN"]         = m_uiTinfo._m_uiTb;
-        checkPoint["DENDRO_TS_TIME_END"]           = m_uiTinfo._m_uiTe;
-        checkPoint["DENDRO_TS_ELEMENT_ORDER"]      = m_uiElementOrder;
+        chkpt_write_meta(checkPoint, meta);
 
-        checkPoint["DENDRO_TS_TIME_CURRENT"]       = m_uiTinfo._m_uiT;
-        checkPoint["DENDRO_TS_STEP_CURRENT"]       = m_uiTinfo._m_uiStep;
-        checkPoint["DENDRO_TS_TIME_STEP_SIZE"]     = m_uiTinfo._m_uiTh;
-        checkPoint["DENDRO_TS_LAST_IO_TIME"]       = m_uiTinfo._m_uiT;
-
-        checkPoint["DENDRO_TS_WAVELET_TOLERANCE"]  = bssn::BSSN_WAVELET_TOL;
-        checkPoint["DENDRO_TS_LOAD_IMB_TOLERANCE"] = bssn::BSSN_LOAD_IMB_TOL;
-        checkPoint["DENDRO_TS_NUM_VARS"] =
-            numVars;  // number of variables to restore.
-        checkPoint["DENDRO_TS_ACTIVE_COMM_SZ"] =
-            m_uiMesh->getMPICommSize();  // (note that rank 0 is always active).
-
-        checkPoint["DENDRO_BH1_X"]              = m_uiBHLoc[0].x();
-        checkPoint["DENDRO_BH1_Y"]              = m_uiBHLoc[0].y();
-        checkPoint["DENDRO_BH1_Z"]              = m_uiBHLoc[0].z();
-
-        checkPoint["DENDRO_BH2_X"]              = m_uiBHLoc[1].x();
-        checkPoint["DENDRO_BH2_Y"]              = m_uiBHLoc[1].y();
-        checkPoint["DENDRO_BH2_Z"]              = m_uiBHLoc[1].z();
-
-        checkPoint["DENDRO_BSSN_BH_MERGE"]      = m_bIsBHMerged;
-        checkPoint["DENDRO_BSSN_BH_MERGE_TIME"] = m_dMergeTime;
-        checkPoint["DENDRO_BSSN_BH_MERGE_STEP"] = m_uiMergeStep;
-
-        // Must round-trip: it reset to false on restart, which re-wrote the
-        // permanent slot-3 snapshot and dropped AMR_FAC_POST_MERGER.
-        checkPoint["DENDRO_BSSN_MERGED_CHKPT_WRITTEN"] =
-            bssn::BSSN_MERGED_CHKPT_WRITTEN;
-
-        // BH history + QoIs (base91); replaces the old encode_bh_locs path
+        // BH history + QoIs (base91); own encode/restore pair, three formats
         checkPoint["DENDRO_BSSN_BH_HISTORY"] = m_bhHistory->encode();
 
         outfile << std::setw(4) << checkPoint << std::endl;
@@ -1211,16 +1215,17 @@ int BSSNCtx::restore_checkpt() {
 
     // Explicit slot skips the scan below, which only ever looks at 0/1 -- slot
     // 3 is otherwise unreachable. Missing slot falls back, never aborts.
-    bool useSlotOverride = false;
+    bool slotDecided = false;
     if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
         const unsigned int slot =
             (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
         unsigned int slotExists = 0;
 
         if (!rank) {
-            sprintf(fName, "%s_%d_step.cp",
-                    bssn::BSSN_CHKPT_FILE_PREFIX.c_str(), slot);
-            slotExists = std::filesystem::exists(fName) ? 1 : 0;
+            slotExists = chkpt_resolve_step(fName, sizeof(fName),
+                                            bssn::BSSN_CHKPT_FILE_PREFIX, slot)
+                             ? 1
+                             : 0;
             if (!slotExists) {
                 std::cout << YLW << "WARNING: " << NRM
                           << "BSSN_RESTORE_CHECKPT_SLOT=" << slot
@@ -1232,7 +1237,7 @@ int BSSNCtx::restore_checkpt() {
         par::Mpi_Bcast(&slotExists, 1, 0, comm);
 
         if (slotExists) {
-            useSlotOverride  = true;
+            slotDecided  = true;
             restoreFileIndex = slot;
             if (!rank)
                 std::cout << GRN << "[BSSNCtx] : " << NRM
@@ -1241,17 +1246,46 @@ int BSSNCtx::restore_checkpt() {
         }
     }
 
-    for (unsigned int cpIndex = 0; !useSlotOverride && cpIndex < 2; cpIndex++) {
+    // The sentinel names the last checkpoint that finished writing, so it beats
+    // comparing step numbers (a torn write can leave a newer-looking but
+    // incomplete slot). Checkpoint sets written before the sentinel existed
+    // simply don't have one, and fall through to the step-comparison scan.
+    if (!slotDecided) {
+        unsigned int latestSlot  = 0;
+        unsigned int latestValid = 0;
+
+        if (!rank) {
+            latestValid =
+                (chkpt_read_latest(bssn::BSSN_CHKPT_FILE_PREFIX, latestSlot) &&
+                 chkpt_resolve_step(fName, sizeof(fName),
+                                    bssn::BSSN_CHKPT_FILE_PREFIX, latestSlot))
+                    ? 1
+                    : 0;
+        }
+        par::Mpi_Bcast(&latestValid, 1, 0, comm);
+        par::Mpi_Bcast(&latestSlot, 1, 0, comm);
+
+        if (latestValid) {
+            slotDecided  = true;
+            restoreFileIndex = latestSlot;
+            if (!rank)
+                std::cout << "[BSSNCtx] : sentinel names slot " << latestSlot
+                          << std::endl;
+        }
+    }
+
+    for (unsigned int cpIndex = 0; !slotDecided && cpIndex < 2; cpIndex++) {
         restoreStatus = 0;
 
         if (!rank) {
-            sprintf(fName, "%s_%d_step.cp",
-                    bssn::BSSN_CHKPT_FILE_PREFIX.c_str(), cpIndex);
+            const bool cpFound =
+                chkpt_resolve_step(fName, sizeof(fName),
+                                   bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex);
 
             std::cout << "    Checking to see if " << fName
                       << " is a valid checkpoint file..." << std::endl;
 
-            if (!std::filesystem::exists(fName)) {
+            if (!cpFound) {
                 // std::cout << YLW << "WARNING: " << NRM << "Checkpoint
                 // filename " << fName << " does not exist!" << std::endl;
                 restoreStatus = 2;
@@ -1275,7 +1309,7 @@ int BSSNCtx::restore_checkpt() {
     }
 
     // must stay guarded, or an overridden slot is reset to 0 and broadcast
-    if (!useSlotOverride) {
+    if (!slotDecided) {
         if (!rank) {
             if (restoreStep[0] < restoreStep[1])
                 restoreFileIndex = 1;
@@ -1297,13 +1331,13 @@ int BSSNCtx::restore_checkpt() {
 
     // now we do the "true" restore, where every process knows which one is the
     // right one
-    sprintf(fName, "%s_%d_step.cp", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-            restoreFileIndex);
+    const bool cpFound = chkpt_resolve_step(
+        fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX, restoreFileIndex);
 
     dendro::logger::debug("Attempting to restore from file: ", fName);
 
     // first check to see if the file even exists
-    if (!std::filesystem::exists(fName)) {
+    if (!cpFound) {
         if (!rank) {
             std::cout << YLW << "WARNING: " << NRM << "Checkpoint filename "
                       << fName << " does not exist!" << std::endl;
@@ -1324,48 +1358,41 @@ int BSSNCtx::restore_checkpt() {
             "Now loading in the data from the checkpoint JSON file");
         if (restoreStatus == 0) {
             infile >> checkPoint;
-            m_uiTinfo._m_uiTb      = checkPoint["DENDRO_TS_TIME_BEGIN"];
-            m_uiTinfo._m_uiTe      = checkPoint["DENDRO_TS_TIME_END"];
-            m_uiTinfo._m_uiT       = checkPoint["DENDRO_TS_TIME_CURRENT"];
-            m_uiTinfo._m_uiStep    = checkPoint["DENDRO_TS_STEP_CURRENT"];
-            m_uiTinfo._m_uiTh      = checkPoint["DENDRO_TS_TIME_STEP_SIZE"];
-            m_uiElementOrder       = checkPoint["DENDRO_TS_ELEMENT_ORDER"];
 
-            bssn::BSSN_WAVELET_TOL = checkPoint["DENDRO_TS_WAVELET_TOLERANCE"];
-            bssn::BSSN_LOAD_IMB_TOL =
-                checkPoint["DENDRO_TS_LOAD_IMB_TOLERANCE"];
+            // seed with current state so absent optional keys are no-ops
+            ChkptMeta meta;
+            meta.bhMerged           = m_bIsBHMerged;
+            meta.mergeTime          = m_dMergeTime;
+            meta.mergeStep          = m_uiMergeStep;
+            meta.mergedChkptWritten = bssn::BSSN_MERGED_CHKPT_WRITTEN;
+            chkpt_read_meta(checkPoint, meta);
 
-            numVars      = checkPoint["DENDRO_TS_NUM_VARS"];
-            activeCommSz = checkPoint["DENDRO_TS_ACTIVE_COMM_SZ"];
+            m_uiTinfo._m_uiTb       = meta.tb;
+            m_uiTinfo._m_uiTe       = meta.te;
+            m_uiTinfo._m_uiT        = meta.t;
+            m_uiTinfo._m_uiStep     = meta.step;
+            m_uiTinfo._m_uiTh       = meta.th;
+            m_uiElementOrder        = meta.elementOrder;
 
-            m_uiBHLoc[0] = Point((double)checkPoint["DENDRO_BH1_X"],
-                                 (double)checkPoint["DENDRO_BH1_Y"],
-                                 (double)checkPoint["DENDRO_BH1_Z"]);
-            m_uiBHLoc[1] = Point((double)checkPoint["DENDRO_BH2_X"],
-                                 (double)checkPoint["DENDRO_BH2_Y"],
-                                 (double)checkPoint["DENDRO_BH2_Z"]);
+            bssn::BSSN_WAVELET_TOL  = meta.waveletTol;
+            bssn::BSSN_LOAD_IMB_TOL = meta.loadImbTol;
 
-            // if this key is in, then all three keys should be
-            if (checkPoint.find("DENDRO_BSSN_BH_MERGE") != checkPoint.end()) {
-                // restore bh merge and merge time information
-                m_bIsBHMerged    = checkPoint["DENDRO_BSSN_BH_MERGE"];
-                double mergeTime = checkPoint["DENDRO_BSSN_BH_MERGE_TIME"];
-                unsigned int mergeStep =
-                    checkPoint["DENDRO_BSSN_BH_MERGE_STEP"];
+            numVars                 = meta.numVars;
+            activeCommSz            = meta.activeCommSz;
 
-                // make sure they're set internally and externally
-                set_bh_merge_time(mergeTime, mergeStep);
+            m_uiBHLoc[0] = Point(meta.bh1[0], meta.bh1[1], meta.bh1[2]);
+            m_uiBHLoc[1] = Point(meta.bh2[0], meta.bh2[1], meta.bh2[2]);
+
+            if (meta.hasBhMerge) {
+                m_bIsBHMerged = meta.bhMerged;
+                // set internally and externally
+                set_bh_merge_time(meta.mergeTime, meta.mergeStep);
             }
 
             // Older checkpoints predate this key; BH_MERGE latches on the same
             // 0.1 separation test, so it is an exact stand-in.
-            if (checkPoint.find("DENDRO_BSSN_MERGED_CHKPT_WRITTEN") !=
-                checkPoint.end()) {
-                bssn::BSSN_MERGED_CHKPT_WRITTEN =
-                    checkPoint["DENDRO_BSSN_MERGED_CHKPT_WRITTEN"];
-            } else {
-                bssn::BSSN_MERGED_CHKPT_WRITTEN = m_bIsBHMerged;
-            }
+            bssn::BSSN_MERGED_CHKPT_WRITTEN =
+                meta.hasMergedLatch ? meta.mergedChkptWritten : m_bIsBHMerged;
 
             // restore BH location/QoI history (new blob or legacy formats)
             restore_bh_history_(m_bhHistory.get(), checkPoint);
@@ -1419,9 +1446,8 @@ int BSSNCtx::restore_checkpt() {
         MPI_Comm_size(newComm, &activeNpes);
         assert(activeNpes == activeCommSz);
 
-        sprintf(fName, "%s_%d_octree_%d.oct",
-                bssn::BSSN_CHKPT_FILE_PREFIX.c_str(), restoreFileIndex,
-                activeRank);
+        chkpt_resolve_oct(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
+                          restoreFileIndex, activeRank);
         restoreStatus = io::checkpoint::readOctFromFile(fName, octree);
         assert(par::test::isUniqueAndSorted(octree, newComm));
     }
@@ -1478,8 +1504,8 @@ int BSSNCtx::restore_checkpt() {
         MPI_Comm_size(newComm, &activeNpes);
         assert(activeNpes == activeCommSz);
 
-        sprintf(fName, "%s_%d_%d.var", bssn::BSSN_CHKPT_FILE_PREFIX.c_str(),
-                restoreFileIndex, activeRank);
+        chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
+                        restoreFileIndex, activeRank);
         restoreStatus = io::checkpoint::readVecFromFile(fName, newMesh, inVec,
                                                         bssn::BSSN_NUM_VARS);
     }
