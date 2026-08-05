@@ -531,6 +531,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
         // ONE required AH parameter:
         {"AEH_SOLVER_FREQ", AEH::AEH_SOLVER_FREQ},
+
+        // formerly derived from other parameters -- see the note below
+        {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ},
+        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ},
+        {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV},
+        {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV},
     };
 
     // then load the REQUIRED parameters
@@ -614,13 +620,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"AEH_ALPHA", AEH::AEH_ALPHA, UseInitialValue},
         {"AEH_BETA", AEH::AEH_BETA, UseInitialValue},
 
-        // calculated defaults (requires non-optional):
-        {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ,
-         std::max(1u, bssn::BSSN_IO_OUTPUT_FREQ >> 1u)},
-        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ,
-         bssn::BSSN_GW_EXTRACT_FREQ},
-        {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV, bssn::BSSN_MAXDEPTH},
-        {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV, bssn::BSSN_MAXDEPTH},
+        // NOTE: BSSN_GW_EXTRACT_FREQ, BSSN_TIME_STEP_OUTPUT_FREQ and
+        // BSSN_BH{1,2}_MAX_LEV used to be derived here -- from IO_OUTPUT_FREQ,
+        // from each other, and from MAXDEPTH. Setting one knob silently moved
+        // three others, and their compiled fallbacks are UINT_MAX sentinels
+        // that only ever worked because the derivation overwrote them. They are
+        // required parameters now: they live in the par file, visibly.
     };
 
     // then load the OPTIONAL parameters

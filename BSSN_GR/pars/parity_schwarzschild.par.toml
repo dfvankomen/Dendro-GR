@@ -19,6 +19,8 @@ BSSN_IO_OUTPUT_FREQ = 5
 BSSN_SCALE_VTU_AND_GW_EXTRACTION = false
 BSSN_REMESH_TEST_FREQ = 50
 BSSN_GW_EXTRACT_FREQ = 0
+# Frequency for the per-step terminal output
+BSSN_TIME_STEP_OUTPUT_FREQ = 0
 BSSN_CHECKPT_FREQ = 100000
 BSSN_VTU_FILE_PREFIX = "vtu/bssn_parity_schw"
 BSSN_CHKPT_FILE_PREFIX = "cp/bssn_parity_schw"

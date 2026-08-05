@@ -28,6 +28,8 @@ BSSN_REMESH_TEST_FREQ = 50
 
 # Extraction frequency for gravitational waves (scales with q)
 BSSN_GW_EXTRACT_FREQ = 50
+# Frequency for the per-step terminal output
+BSSN_TIME_STEP_OUTPUT_FREQ = 50
 
 # Frequency for outputting a full checkpoint
 BSSN_CHECKPT_FREQ = 100

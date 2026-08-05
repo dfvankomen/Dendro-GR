@@ -26,6 +26,8 @@ BSSN_REMESH_TEST_FREQ = 10
 
 # Extraction frequency for gravitational waves
 BSSN_GW_EXTRACT_FREQ = 5
+# Frequency for the per-step terminal output
+BSSN_TIME_STEP_OUTPUT_FREQ = 5
 
 # Event horizon refinement value
 BSSN_EH_REFINE_VAL = 0.4
