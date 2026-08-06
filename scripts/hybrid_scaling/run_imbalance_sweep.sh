@@ -113,9 +113,11 @@ for D in $DEPTHS; do
   done
 done
 
-python3 - "$OUTDIR" <<'PY'
+python3 - "$OUTDIR" "$STEPS" "$CORES" <<'PY'
 import glob, json, os, re, sys
 outdir = sys.argv[1]
+expect_steps = int(sys.argv[2])
+cores = int(sys.argv[3])
 mean = lambda xs: sum(xs)/len(xs) if xs else float("nan")
 rows = []
 for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
@@ -123,11 +125,13 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
     if not m: continue
     depth, threads = int(m.group(1)), int(m.group(2))
     rk, rhs, imb, nb, ranks, omp = [], [], [], None, None, None
+    nrec = 0
     for line in open(path):
         line = line.strip()
         if not line: continue
         try: rec = json.loads(line)
         except json.JSONDecodeError: continue
+        nrec += 1
         ph = rec.get("phase", {})
         if "rk_step" in ph: rk.append(float(ph["rk_step"]["max"]))
         r = ph.get("rhs_wall")
@@ -141,6 +145,16 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
     if not rk:
         print(f"  !! no usable records in {os.path.basename(path)} -- skipped")
         continue
+    # PARTIAL-RUN GUARD. The loop above `continue`s past an mpirun that exits
+    # nonzero, but this parser globs the jsonl INDEPENDENTLY -- and a run that
+    # calls MPI_Abort partway still leaves the steps it managed to write. Averaging
+    # those yields a row that is indistinguishable from a healthy one. Measured
+    # 2026-07-16: BSSN_MAXDEPTH<=6 on q1 bbh aborts and leaves 3 of 6 records.
+    # Only a ZERO-record file was rejected before; short files sailed through.
+    if nrec != expect_steps:
+        print(f"  !! PARTIAL: {os.path.basename(path)} has {nrec} records, expected "
+              f"{expect_steps} -- run ABORTED or was cut short, row discarded.")
+        continue
     # CANARY: omp_threads IS BSSN_HYBRID_NTHREADS. If it doesn't track
     # OMP_NUM_THREADS the BSSN omp regions ran num_threads(1) and this row is
     # meaningless -- it measures "more blocks per rank, same one thread". That
@@ -152,6 +166,27 @@ for path in sorted(glob.glob(os.path.join(outdir, "d*_t*_steps.jsonl"))):
     rows.append(dict(depth=depth, threads=threads, ranks=ranks, blocks=nb,
                      bpr=(nb/ranks if (nb and ranks) else float("nan")),
                      rk=mean(rk), rhs=mean(rhs), imb=mean(imb)))
+
+# ISO-CORE GUARD. speedup_vs_T1 only means anything if T=1 and T>1 occupy the SAME
+# number of cores. We launch R=CORES/T ranks, but THE MESH NEED NOT SPAN THEM ALL:
+# at low depth the partition leaves ranks with zero blocks and active_npes < R. Then
+# the T=1 baseline runs on active_npes cores while T=2 (fewer ranks, all populated,
+# T threads each) runs on the full CORES -- so "speedup" is partly just more machine.
+# Measured 2026-07-16 on q1 bbh at CORES=8: depths 7 and 8 launch R=8 but report
+# active_npes=4, so the baseline idled half the box. They read 1.70x and 1.87x against
+# ~1.1x for every honest depth -- a ~15x artifact pointing the SAME WAY as the window
+# theory, i.e. maximally deceptive. Drop such depths; do not silently keep them.
+bad_depths = set()
+for r in rows:
+    if r["threads"] == 1 and r["ranks"] is not None and int(r["ranks"]) != cores:
+        bad_depths.add(r["depth"])
+        print(f"  !! NOT ISO-CORE: depth={r['depth']} T=1 spans active_npes="
+              f"{r['ranks']} of {cores} launched -- baseline idles "
+              f"{cores - int(r['ranks'])}/{cores} cores, so speedup_vs_T1 is INFLATED. "
+              f"Depth discarded.")
+rows = [r for r in rows if r["depth"] not in bad_depths]
+if not rows:
+    sys.exit("  !! every depth failed a guard -- nothing to report")
 
 # baseline per depth = T=1; bpr quoted at T=1 (the partition being fixed)
 base   = {r["depth"]: r["rk"]  for r in rows if r["threads"] == 1}
