@@ -2538,8 +2538,14 @@ namespace {
 
 // FNV-1a 64. Chosen for being order-sensitive and trivially reproducible across
 // builds/compilers -- a reordered E2N map must produce a different digest.
-constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;
-constexpr uint64_t FNV_PRIME  = 1099511628211ULL;
+// The offset basis was previously 1469598103934665603 -- 19 digits, one short of
+// the real basis (a dropped trailing 7). It still hashed fine, but it meant the
+// gate's "did we hash nothing?" guard, which greps for the standard basis
+// 0xcbf29ce484222325, could never match. Digest VALUES change with this fix; that
+// is harmless (they are only ever compared within one run set) but it voids any
+// stored baseline. See the counts emitted by report() for the real non-vacuity check.
+constexpr uint64_t FNV_OFFSET = 14695981039346656037ULL;  // 0xcbf29ce484222325
+constexpr uint64_t FNV_PRIME  = 1099511628211ULL;         // 0x100000001b3
 
 inline void hash_bytes(uint64_t& h, const void* p, size_t n) {
     const unsigned char* b = static_cast<const unsigned char*>(p);
@@ -2564,12 +2570,26 @@ inline uint64_t combine_ranks(uint64_t local, MPI_Comm comm) {
     return h;
 }
 
+// NON-VACUITY, the honest way: report how many items were actually hashed,
+// summed over ranks, alongside the digest.
+//
+// Why not sniff the un-hashed offset out of the printed value (what
+// verify_bitexact.sh used to try)? Two reasons, both fatal: (1) the constant it
+// grepped for never matched the one this file used (see FNV_OFFSET above), and
+// (2) even with that fixed it could not work, because the printed value comes out
+// of combine_ranks(), which re-hashes the gathered per-rank digests into a FRESH
+// offset -- so the bare basis never appears in the output even when every rank
+// hashed nothing. A digest of an empty vector is a perfectly ordinary-looking
+// hash; the digest alone can never distinguish "identical" from "both empty".
+// Counting the inputs can, so count them.
 inline void report(const char* tag, const char* field, uint64_t local,
-                   MPI_Comm comm, int rank) {
+                   size_t local_n, MPI_Comm comm, int rank) {
     const uint64_t g = combine_ranks(local, comm);
+    unsigned long long n_loc = (unsigned long long)local_n, n_glb = 0;
+    MPI_Reduce(&n_loc, &n_glb, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, comm);
     if (!rank)
-        printf("[fingerprint] %-10s %-8s %016lx\n", tag, field,
-               (unsigned long)g);
+        printf("[fingerprint] %-10s %-8s %016lx %llu\n", tag, field,
+               (unsigned long)g, n_glb);
 }
 
 }  // namespace
@@ -2583,9 +2603,11 @@ void meshFingerprint(const ot::Mesh* pMesh, const char* tag) {
 
     uint64_t h_ele = FNV_OFFSET, h_e2e = FNV_OFFSET, h_e2n = FNV_OFFSET,
              h_dg = FNV_OFFSET, h_blk = FNV_OFFSET, h_sm = FNV_OFFSET;
+    size_t n_ele = 0, n_e2e = 0, n_e2n = 0, n_dg = 0, n_blk = 0, n_sm = 0;
 
     if (act) {
         const std::vector<ot::TreeNode>& ele = pMesh->getAllElements();
+        n_ele = ele.size();
         for (size_t i = 0; i < ele.size(); i++) {
             const unsigned int c[4] = {ele[i].getX(), ele[i].getY(),
                                        ele[i].getZ(), ele[i].getLevel()};
@@ -2593,18 +2615,22 @@ void meshFingerprint(const ot::Mesh* pMesh, const char* tag) {
         }
 
         const std::vector<unsigned int>& e2e = pMesh->getE2EMapping();
+        n_e2e = e2e.size();
         if (!e2e.empty())
             hash_bytes(h_e2e, e2e.data(), e2e.size() * sizeof(unsigned int));
 
         const std::vector<unsigned int>& e2n = pMesh->getE2NMapping();
+        n_e2n = e2n.size();
         if (!e2n.empty())
             hash_bytes(h_e2n, e2n.data(), e2n.size() * sizeof(unsigned int));
 
         const std::vector<unsigned int>& dg = pMesh->getE2NMapping_DG();
+        n_dg = dg.size();
         if (!dg.empty())
             hash_bytes(h_dg, dg.data(), dg.size() * sizeof(unsigned int));
 
         const std::vector<ot::Block>& blk = pMesh->getLocalBlockList();
+        n_blk = blk.size();
         for (size_t i = 0; i < blk.size(); i++) {
             const ot::TreeNode bn = blk[i].getBlockNode();
             const unsigned int f[8] = {
@@ -2621,18 +2647,36 @@ void meshFingerprint(const ot::Mesh* pMesh, const char* tag) {
         // silently permutes ghost data.
         const std::vector<unsigned int>& sSM = pMesh->getSendNodeSM();
         const std::vector<unsigned int>& rSM = pMesh->getRecvNodeSM();
+        n_sm = sSM.size() + rSM.size();
         if (!sSM.empty())
             hash_bytes(h_sm, sSM.data(), sSM.size() * sizeof(unsigned int));
         if (!rSM.empty())
             hash_bytes(h_sm, rSM.data(), rSM.size() * sizeof(unsigned int));
     }
 
-    report(tag, "elements", h_ele, comm, rank);
-    report(tag, "e2e", h_e2e, comm, rank);
-    report(tag, "e2n", h_e2n, comm, rank);
-    report(tag, "e2n_dg", h_dg, comm, rank);
-    report(tag, "blocks", h_blk, comm, rank);
-    report(tag, "scattermap", h_sm, comm, rank);
+    report(tag, "elements", h_ele, n_ele, comm, rank);
+    report(tag, "e2e", h_e2e, n_e2e, comm, rank);
+    report(tag, "e2n", h_e2n, n_e2n, comm, rank);
+    report(tag, "e2n_dg", h_dg, n_dg, comm, rank);
+    report(tag, "blocks", h_blk, n_blk, comm, rank);
+    report(tag, "scattermap", h_sm, n_sm, comm, rank);
+
+    // MESH THREADING CANARY -- deliberately NOT a [fingerprint] line.
+    //
+    // It must not join the compared digests: it is EXPECTED to vary with T (that
+    // is the whole point), so folding it in would make the gate fail always.
+    // It answers the question the digests structurally cannot: "did the Mesh ctor
+    // actually thread?" Without it, a build with mesh threading disabled runs
+    // identically single-threaded at every T, every digest matches trivially, and
+    // the gate reports PASS -- the 9bb8f45 vacuous-pass mode, which was bit-exact
+    // and silent for two days.
+    //
+    // bssn::BSSN_HYBRID_NTHREADS cannot serve here: it is BSSN's RHS/constraints
+    // thread count, it is set AFTER a Mesh exists (it sizes off getLocalBlockList),
+    // and it says nothing about dendrolib's ctor.
+    if (!rank)
+        printf("[meshcanary] %-10s omp_ctor_threads=%u\n", tag,
+               ot::mesh_ctor_omp_threads);
 }
 
 void stateFingerprint(const ot::Mesh* pMesh, const DendroScalar* const* vars,
@@ -2641,7 +2685,8 @@ void stateFingerprint(const ot::Mesh* pMesh, const DendroScalar* const* vars,
     int rank;
     MPI_Comm_rank(comm, &rank);
 
-    uint64_t h = FNV_OFFSET;
+    uint64_t h  = FNV_OFFSET;
+    size_t n_st = 0;
     if (pMesh->isActive() && vars) {
         // Local nodes only: ghost values are copies of some other rank's
         // local nodes, so hashing them would double-count and make the digest
@@ -2649,11 +2694,13 @@ void stateFingerprint(const ot::Mesh* pMesh, const DendroScalar* const* vars,
         const unsigned int nb = pMesh->getNodeLocalBegin();
         const unsigned int ne = pMesh->getNodeLocalEnd();
         for (unsigned int v = 0; v < nVars; v++)
-            if (vars[v])
+            if (vars[v]) {
                 hash_bytes(h, vars[v] + nb,
                            (size_t)(ne - nb) * sizeof(DendroScalar));
+                n_st += (size_t)(ne - nb);
+            }
     }
-    report(tag, "state", h, comm, rank);
+    report(tag, "state", h, n_st, comm, rank);
 }
 
 }  // end of namespace bssn
