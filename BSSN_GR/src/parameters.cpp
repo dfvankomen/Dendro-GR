@@ -25,7 +25,7 @@ unsigned int BSSN_ELE_ORDER            = 6;
 unsigned int BSSN_PADDING_WIDTH        = BSSN_ELE_ORDER >> 1u;
 
 unsigned int BSSN_IO_OUTPUT_FREQ       = 10;
-unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 10;
+unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 25;
 
 double BSSN_BH_MERGE_TIME          = std::numeric_limits<double>::max();
 unsigned int BSSN_BH_MERGE_STEP    = std::numeric_limits<unsigned int>::max();
@@ -534,7 +534,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 
         // formerly derived from other parameters -- see the note below
         {"BSSN_GW_EXTRACT_FREQ", bssn::BSSN_GW_EXTRACT_FREQ},
-        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ},
         {"BSSN_BH1_MAX_LEV", bssn::BSSN_BH1_MAX_LEV},
         {"BSSN_BH2_MAX_LEV", bssn::BSSN_BH2_MAX_LEV},
     };
@@ -624,8 +623,14 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         // BSSN_BH{1,2}_MAX_LEV used to be derived here -- from IO_OUTPUT_FREQ,
         // from each other, and from MAXDEPTH. Setting one knob silently moved
         // three others, and their compiled fallbacks are UINT_MAX sentinels
-        // that only ever worked because the derivation overwrote them. They are
-        // required parameters now: they live in the par file, visibly.
+        // that only ever worked because the derivation overwrote them.
+        // GW_EXTRACT_FREQ and BH{1,2}_MAX_LEV are required now: they change
+        // what the run produces, so they live in the par file, visibly.
+        // TIME_STEP_OUTPUT_FREQ is console-only, so it gets a plain literal
+        // default (25) instead -- never a derived one. Keep it nonzero: the
+        // checkpoint-chain scripts parse the terminal output for progress.
+        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ,
+         UseInitialValue},
     };
 
     // then load the OPTIONAL parameters
