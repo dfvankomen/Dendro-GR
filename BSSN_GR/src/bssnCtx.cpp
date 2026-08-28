@@ -66,7 +66,8 @@ void bssn_setup_new_derivs(
             bssn::BSSN_DERIV_SECOND_MATID, bssn::BSSN_DERIV_INMATFILT_FIRST,
             bssn::BSSN_DERIV_INMATFILT_SECOND,
             bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
-            bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS, "default",
+            bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS,
+            bssn::BSSN_DERIV_POSTRHS_FILTER,
             bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST,
             bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND));
         for (unsigned int t = 1; t < n_threads; t++)

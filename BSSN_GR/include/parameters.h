@@ -35,6 +35,10 @@ namespace bssn {
  */
 extern std::string BSSN_DERIVTYPE_FIRST;          // 1st-derivative scheme
 extern std::string BSSN_DERIVTYPE_SECOND;         // 2nd-derivative scheme
+// post-RHS dissipation filter passed to DendroDerivatives ("default" = the
+// stencil KO matched to the element order; "KO4Matrix" etc. select the
+// matrix-form KO, which agrees with the stencil to roundoff, not bit-for-bit)
+extern std::string BSSN_DERIV_POSTRHS_FILTER;
 extern std::vector<double> BSSN_DERIV_FIRST_COEFFS;
 extern std::vector<double> BSSN_DERIV_SECOND_COEFFS;
 extern unsigned int BSSN_DERIV_FIRST_MATID;

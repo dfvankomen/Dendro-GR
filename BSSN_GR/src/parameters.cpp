@@ -149,6 +149,7 @@ double KO_DISS_SIGMA                                     = 0.01;
 // Defaults reproduce the legacy central-difference behavior at eO=6.
 std::string BSSN_DERIVTYPE_FIRST                         = "E6";
 std::string BSSN_DERIVTYPE_SECOND                        = "E6";
+std::string BSSN_DERIV_POSTRHS_FILTER                    = "default";
 std::vector<double> BSSN_DERIV_FIRST_COEFFS              = {};
 std::vector<double> BSSN_DERIV_SECOND_COEFFS             = {};
 unsigned int BSSN_DERIV_FIRST_MATID                      = 0;
@@ -468,6 +469,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
 #ifdef DENDRO_USE_NEW_DERIVS
         {"BSSN_DERIVTYPE_FIRST", bssn::BSSN_DERIVTYPE_FIRST, UseInitialValue},
         {"BSSN_DERIVTYPE_SECOND", bssn::BSSN_DERIVTYPE_SECOND, UseInitialValue},
+        {"BSSN_DERIV_POSTRHS_FILTER", bssn::BSSN_DERIV_POSTRHS_FILTER,
+         UseInitialValue},
         {"BSSN_DERIV_FIRST_COEFFS", bssn::BSSN_DERIV_FIRST_COEFFS,
          UseInitialValue},
         {"BSSN_DERIV_SECOND_COEFFS", bssn::BSSN_DERIV_SECOND_COEFFS,
