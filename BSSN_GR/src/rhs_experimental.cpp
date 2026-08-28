@@ -282,7 +282,15 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         #include "bssnrhs_derivs_adv.h"
     }
 #else
+#ifdef BSSN_USE_GRAD_SET
+    if (puncture_block) {
+        #include "bssnrhs_derivs.h"
+    } else {
+        #include "bssnrhs_derivs_gradset.h"
+    }
+#else
     #include "bssnrhs_derivs.h"
+#endif
     #include "bssnrhs_derivs_adv.h"
 #endif
 #ifdef DENDRO_USE_NEW_DERIVS
