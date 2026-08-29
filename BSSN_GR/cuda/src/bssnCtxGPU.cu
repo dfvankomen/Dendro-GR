@@ -259,18 +259,11 @@ int BSSNCtxGPU::initialize() {
                           << std::endl;
             }
 
+            // grid_transfer now rebuilds the device mesh itself
             this->grid_transfer(newMesh);
 
             std::swap(m_uiMesh, newMesh);
             delete newMesh;
-
-#ifdef __CUDACC__
-            device::MeshGPU*& dptr_mesh = this->get_meshgpu_device_ptr();
-            device::MeshGPU* mesh_gpu   = this->get_meshgpu_host_handle();
-
-            mesh_gpu->dealloc_mesh_on_device(dptr_mesh);
-            dptr_mesh = mesh_gpu->alloc_mesh_on_device(m_uiMesh);
-#endif
         }
 
         iterCount += 1;
@@ -1270,6 +1263,22 @@ int BSSNCtxGPU::grid_transfer(const ot::Mesh* m_new) {
     m_var[VL::GPU_EV_UZ_OUT].create_vector(
         m_new, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::DEVICE,
         BSSN_NUM_VARS, true);
+
+#ifdef __CUDACC__
+    // the device holds its own copy of the mesh; rebuild it for m_new before
+    // pushing data up. previously this only happened at construction, in the
+    // init-grid loop and on checkpoint restore -- an *evolution* remesh left
+    // m_dptr_mesh pointing at the old mesh. that never bit because the remesh
+    // path was unreachable during evolution (see gr_cuda.cu), but it would the
+    // moment it fired.
+    {
+        device::MeshGPU*& dptr_mesh = this->get_meshgpu_device_ptr();
+        device::MeshGPU* mesh_gpu   = this->get_meshgpu_host_handle();
+
+        mesh_gpu->dealloc_mesh_on_device(dptr_mesh);
+        dptr_mesh = mesh_gpu->alloc_mesh_on_device(m_new);
+    }
+#endif
 
     this->host_to_device_sync();
     m_uiIsETSSynced = false;
