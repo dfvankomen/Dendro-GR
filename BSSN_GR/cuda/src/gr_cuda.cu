@@ -340,6 +340,78 @@ int main(int argc, char** argv) {
             // the host this step? the AH solve reuses it if so
             bool did_d2h_sync = false;
 
+            // Remesh test. Matches the CPU driver (bssngr_main.cpp): its own
+            // frequency, guarded on freq>0 and step!=0. This used to be nested
+            // inside the GW-extraction block, so it only fired on steps that
+            // were a multiple of BOTH frequencies -- and not at all when
+            // BSSN_GW_EXTRACT_FREQ was 0 (q16 remeshed every 200 steps instead
+            // of 50; parity_* never remeshed).
+            if (bssn::BSSN_REMESH_TEST_FREQ > 0 &&
+                (step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
+                // is_remesh() reads the host evolution vars, so pull them back
+                // first unless something already did this step.
+                if (!did_d2h_sync) {
+                    bssnCtx->device_to_host_sync();
+                    did_d2h_sync = true;
+                }
+                bool isRemesh = bssnCtx->is_remesh();
+                if (isRemesh) {
+                    if (!rank_global)
+                        std::cout << "[ETS] : Remesh is triggered.  \n";
+
+                    bssnCtx->remesh_and_gridtransfer(
+                        bssn::BSSN_DENDRO_GRAIN_SZ, bssn::BSSN_LOAD_IMB_TOL,
+                        bssn::BSSN_SPLIT_FIX);
+                    bssn::deallocate_bssn_deriv_workspace();
+                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(),
+                                                        1);
+                    ets->sync_with_mesh();
+                    // correct timestep size
+                    ot::Mesh* pmesh = bssnCtx->get_mesh();
+                    unsigned int lmin, lmax;
+                    pmesh->computeMinMaxLevel(lmin, lmax);
+                    if (!pmesh->getMPIRank())
+                        printf("post merger grid level = (%d, %d)\n", lmin,
+                               lmax);
+                    // per-remesh element count in the NLSM-CUDA format so
+                    // the amr-sync bench parser gets a mesh_evolution
+                    // trajectory for BSSN too (mirrors nlsm_cuda.cu:427).
+                    {
+                        DendroIntL localElems =
+                            pmesh->getNumLocalMeshElements();
+                        DendroIntL globalElems = 0;
+                        par::Mpi_Reduce(&localElems, &globalElems, 1,
+                                        MPI_SUM, 0,
+                                        pmesh->getMPIGlobalCommunicator());
+                        if (!pmesh->getMPIRank())
+                            printf(
+                                "[ETS] Remesh step %lld: elements=%lld "
+                                "lmin=%d lmax=%d\n",
+                                (long long)step, (long long)globalElems,
+                                lmin, lmax);
+                    }
+
+                    // calculate the minimum dx
+                    bssn::BSSN_CURRENT_MIN_DX =
+                        ((bssn::BSSN_COMPD_MAX[0] -
+                          bssn::BSSN_COMPD_MIN[0]) *
+                         ((1u << (m_uiMaxDepth - lmax)) /
+                          ((double)bssn::BSSN_ELE_ORDER)) /
+                         ((double)(1u << (m_uiMaxDepth))));
+
+                    bssn::BSSN_RK45_TIME_STEP_SIZE =
+                        bssn::BSSN_CFL_FACTOR *
+                        ((bssn::BSSN_COMPD_MAX[0] -
+                          bssn::BSSN_COMPD_MIN[0]) *
+                         ((1u << (m_uiMaxDepth - lmax)) /
+                          ((double)bssn::BSSN_ELE_ORDER)) /
+                         ((double)(1u << (m_uiMaxDepth))));
+                    ts::TSInfo ts_in = bssnCtx->get_ts_info();
+                    ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
+                    bssnCtx->set_ts_info(ts_in);
+                }
+            }
+
             if (bssn::BSSN_GW_EXTRACT_FREQ > 0 &&
                 (step % bssn::BSSN_GW_EXTRACT_FREQ) == 0) {
                 if (!rank_global)
@@ -353,66 +425,6 @@ int main(int argc, char** argv) {
                 bssnCtx->device_to_host_async(s_gw);
                 ts_gw_output  = bssnCtx->get_ts_info();
                 is_gw_written = false;
-
-                if ((step % bssn::BSSN_REMESH_TEST_FREQ) == 0) {
-                    cudaStreamSynchronize(s_gw);
-                    bool isRemesh = bssnCtx->is_remesh();
-                    if (isRemesh) {
-                        if (!rank_global)
-                            std::cout << "[ETS] : Remesh is triggered.  \n";
-
-                        bssnCtx->remesh_and_gridtransfer(
-                            bssn::BSSN_DENDRO_GRAIN_SZ, bssn::BSSN_LOAD_IMB_TOL,
-                            bssn::BSSN_SPLIT_FIX);
-                        bssn::deallocate_bssn_deriv_workspace();
-                        bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(),
-                                                            1);
-                        ets->sync_with_mesh();
-                        // correct timestep size
-                        ot::Mesh* pmesh = bssnCtx->get_mesh();
-                        unsigned int lmin, lmax;
-                        pmesh->computeMinMaxLevel(lmin, lmax);
-                        if (!pmesh->getMPIRank())
-                            printf("post merger grid level = (%d, %d)\n", lmin,
-                                   lmax);
-                        // per-remesh element count in the NLSM-CUDA format so
-                        // the amr-sync bench parser gets a mesh_evolution
-                        // trajectory for BSSN too (mirrors nlsm_cuda.cu:427).
-                        {
-                            DendroIntL localElems =
-                                pmesh->getNumLocalMeshElements();
-                            DendroIntL globalElems = 0;
-                            par::Mpi_Reduce(&localElems, &globalElems, 1,
-                                            MPI_SUM, 0,
-                                            pmesh->getMPIGlobalCommunicator());
-                            if (!pmesh->getMPIRank())
-                                printf(
-                                    "[ETS] Remesh step %lld: elements=%lld "
-                                    "lmin=%d lmax=%d\n",
-                                    (long long)step, (long long)globalElems,
-                                    lmin, lmax);
-                        }
-
-                        // calculate the minimum dx
-                        bssn::BSSN_CURRENT_MIN_DX =
-                            ((bssn::BSSN_COMPD_MAX[0] -
-                              bssn::BSSN_COMPD_MIN[0]) *
-                             ((1u << (m_uiMaxDepth - lmax)) /
-                              ((double)bssn::BSSN_ELE_ORDER)) /
-                             ((double)(1u << (m_uiMaxDepth))));
-
-                        bssn::BSSN_RK45_TIME_STEP_SIZE =
-                            bssn::BSSN_CFL_FACTOR *
-                            ((bssn::BSSN_COMPD_MAX[0] -
-                              bssn::BSSN_COMPD_MIN[0]) *
-                             ((1u << (m_uiMaxDepth - lmax)) /
-                              ((double)bssn::BSSN_ELE_ORDER)) /
-                             ((double)(1u << (m_uiMaxDepth))));
-                        ts::TSInfo ts_in = bssnCtx->get_ts_info();
-                        ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
-                        bssnCtx->set_ts_info(ts_in);
-                    }
-                }
             }
 
             if (bssn::BSSN_GW_EXTRACT_FREQ > 0 &&
