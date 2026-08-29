@@ -324,16 +324,25 @@ int main(int argc, char** argv) {
 
             const bool is_merged             = bssnCtx->is_bh_merged(0.1);
             if (is_merged && !is_merge_executed) {
+                // kept in step with the CPU driver (bssngr_main.cpp). two
+                // things this block used to do were dropped to match it:
+                //   - BSSN_MINDEPTH = 5, commented out CPU-side
+                //   - forcing BSSN_REFINEMENT_MODE = WAMR, which wkb disabled
+                //     on 5 Sept 2024 to allow other refinement modes past the
+                //     merger. leaving it here made BH_WAMR silently become
+                //     WAMR at merger on the GPU only.
+                // the remesh frequency also matched 3x the after-merger value
+                // rather than the after-merger value itself.
                 bssn::BSSN_REMESH_TEST_FREQ =
-                    3 * bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
-                bssn::BSSN_MINDEPTH = 5;
+                    bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
                 bssn::BSSN_GW_EXTRACT_FREQ =
                     bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER;
-                bssn::BSSN_REFINEMENT_MODE = RefinementMode::WAMR;
-            } /*else
-             {
-               //bssn::BSSN_REFINEMENT_MODE = RefinementMode::BH_LOC;
-             }*/
+
+                // only enable CAKO during merger
+                if (bssn::BSSN_KO_SIGMA_SCALE_BY_CONFORMAL_POST_MERGER_ONLY) {
+                    bssn::BSSN_CAKO_ENABLED = true;
+                }
+            }
 
 #ifndef BSSN_PROFILE_SCALING_RUN
             // did the IO block below already pull the evolution vars back to
