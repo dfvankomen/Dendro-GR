@@ -1132,7 +1132,17 @@ int BSSNCtxGPU::post_timestep(DVec& sIn) {
 }
 
 bool BSSNCtxGPU::is_remesh() {
-    bool isRefine = false;
+    bool isRefine         = false;
+    // mirrors BSSNCtx::is_remesh -- pre-merger use AMR_FAC, after the merger
+    // checkpoint is written switch to the post-merger value if one is set.
+    // without this the GPU path silently keeps the pre-merger coarsening
+    // factor for the whole post-merger evolution.
+    double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC;
+    if (bssn::BSSN_MERGED_CHKPT_WRITTEN &&
+        (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+        amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
+    }
+
     if (bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY) return false;
 
     MPI_Comm comm    = m_uiMesh->getMPIGlobalCommunicator();
@@ -1159,7 +1169,7 @@ bool BSSNCtxGPU::is_remesh() {
         isRefine =
             bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
                                bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+                               amr_coarse_fac);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(
@@ -1170,7 +1180,7 @@ bool BSSNCtxGPU::is_remesh() {
         const bool isR1 =
             bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
                                bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+                               amr_coarse_fac);
         const bool isR2 = bssn::isRemeshEH(
             m_uiMesh, (const double**)unzipVar, bssn::VAR::U_ALPHA,
             bssn::BSSN_EH_REFINE_VAL, bssn::BSSN_EH_COARSEN_VAL, false);
@@ -1179,6 +1189,16 @@ bool BSSNCtxGPU::is_remesh() {
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_LOC) {
         isRefine = bssn::isRemeshBH(m_uiMesh, m_uiBHLoc, this->get_bh_history(),
                                     AEH::ah_bah.get());
+    } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::BH_WAMR) {
+        // BHLB refinement for baseline
+        const bool isR1 = bssn::isRemeshBH(
+            m_uiMesh, m_uiBHLoc, this->get_bh_history(), AEH::ah_bah.get());
+        // WAMR for additional refinement
+        const bool isR2 = bssn::addRemeshWAMR(
+            m_uiMesh, (const double**)unzipVar, refineVarIds,
+            bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc, amr_coarse_fac);
+
+        isRefine = (isR1 || isR2);
     }
 
     return isRefine;
