@@ -892,8 +892,14 @@ int BSSNCtx::extract_gravitational_waves() {
     DendroScalar* consVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
     m_cvar.to_2d(consVar);
 
+#ifdef BSSN_GW_USE_DENDROLIB
+    dendro_gr::extractFarFieldPsi4(m_uiMesh, (const DendroScalar**)consVar,
+                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
+                                   bssn::makeGWExtractionConfig());
+#else
     GW::extractFarFieldPsi4(m_uiMesh, (const DendroScalar**)consVar,
                             m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+#endif
 
     dendro::logger::info("Finished extracting gravitational waves");
 #endif

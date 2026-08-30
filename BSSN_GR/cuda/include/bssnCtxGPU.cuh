@@ -25,7 +25,11 @@
 #include "dvec.h"
 #include "grDef.h"
 #include "grUtils.h"
-#include "gwExtract.h"
+#ifdef BSSN_GW_USE_DENDROLIB
+#include "bssn_gw_adapter.h"  // dendrolib's shared GW extractor
+#else
+#include "gwExtract.h"  // BSSN-local reference implementation
+#endif
 #include "mathMeshUtils.h"
 #include "meshUtils.h"
 #include "mesh_gpu.cuh"

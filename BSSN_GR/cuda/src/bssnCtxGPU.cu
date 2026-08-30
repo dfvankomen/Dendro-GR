@@ -518,8 +518,14 @@ int BSSNCtxGPU::write_vtu() {
                              m_uiTinfo._m_uiT);
 #ifndef BSSN_KERR_SCHILD_TEST
 #ifdef BSSN_EXTRACT_GRAVITATIONAL_WAVES
+#ifdef BSSN_GW_USE_DENDROLIB
+    dendro_gr::extractFarFieldPsi4(m_uiMesh, (const DendroScalar**)consVar,
+                                   m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
+                                   bssn::makeGWExtractionConfig());
+#else
     GW::extractFarFieldPsi4(m_uiMesh, (const DendroScalar**)consVar,
                             m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+#endif
 #endif
 #endif
 

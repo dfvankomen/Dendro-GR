@@ -36,6 +36,11 @@ option(BSSN_GAUGE_ROCHESTER "enable rochester gauge for bssn equations" OFF)
 option(BSSN_EXTRACT_BH_LOCATIONS "compute the BH locations as time evolves" ON)
 option(BSSN_REFINE_BASE_EH "enable refine based on BH event horizons" OFF)
 option(BSSN_EXTRACT_GRAVITATIONAL_WAVES "extract GW waves" ON)
+# GW extraction now comes from dendrolib's shared GR module
+# (dendro_gr::extractFarFieldPsi4, GR/include/gw_extract.h). Turn this OFF to
+# fall back to the BSSN-local copy in BSSN_GR/include/gwExtract.h, which is
+# kept verbatim as a reference implementation.
+option(BSSN_GW_USE_DENDROLIB "Use dendrolib's shared GW extraction instead of the BSSN-local copy" ON)
 option(BSSN_VERBOSE_LOGGING "Enable more verbose logging (only useful during debug)" OFF)
 option(BSSN_ENABLE_SSL_HD "Enable SSL and HD formalism modifications" ON)
 option(BSSN_USE_CASCADE "Use cascade RHS (experimental, replaces CSE)" OFF)
@@ -171,7 +176,7 @@ if(WITH_CUDA)
   target_include_directories(bssn_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cuda_gr/include)
 endif()
 
-target_link_libraries(bssn_common PUBLIC dendro5 MPI::MPI_CXX GSL::gsl toml11::toml11 dendro_git_version_and_date)
+target_link_libraries(bssn_common PUBLIC dendro5 dendro_gr MPI::MPI_CXX GSL::gsl toml11::toml11 dendro_git_version_and_date)
 
 macro(bssn_add_def OPTION_NAME DEF_NAME)
   if(${OPTION_NAME})
@@ -182,6 +187,7 @@ endmacro()
 bssn_add_def(BSSN_USE_4TH_ORDER_DERIVS BSSN_USE_4TH_ORDER_DERIVS)
 bssn_add_def(BSSN_USE_6TH_ORDER_DERIVS BSSN_USE_6TH_ORDER_DERIVS)
 bssn_add_def(BSSN_USE_8TH_ORDER_DERIVS BSSN_USE_8TH_ORDER_DERIVS)
+bssn_add_def(BSSN_GW_USE_DENDROLIB BSSN_GW_USE_DENDROLIB)
 bssn_add_def(BSSN_PROFILE_HUMAN_READABLE BSSN_PROFILE_HUMAN_READABLE)
 bssn_add_def(BSSN_CONSEC_COMM_SELECT BSSN_CONSEC_COMM_SELECT)
 bssn_add_def(BSSN_ENABLE_VTU_OUTPUT BSSN_ENABLE_VTU_OUTPUT)
