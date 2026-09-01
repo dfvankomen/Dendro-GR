@@ -1217,7 +1217,7 @@ void noiseData(const double xx1, const double yy1, const double zz1,
     }
 
     // set a (uniform) amplitude for the noise
-    double noise_amp   = 1.0e-8;
+    double noise_amp   = bssn::BSSN_NOISE_AMP;
 
     var[VAR::U_ALPHA]  = 1.0 + noise_amp * random_variable[0];
 
