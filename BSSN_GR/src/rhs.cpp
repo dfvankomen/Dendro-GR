@@ -423,11 +423,15 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         bssn::timer::t_bdyc.stop();
     }
 
-    bssn::timer::t_deriv.start();
-#include "bssnrhs_ko_derivs.h"
-    bssn::timer::t_deriv.stop();
-
+    // KO dissipation. The derivative precompute below belongs to the KO stage,
+    // not to the scheme's derivative stage, and is timed accordingly: t_deriv
+    // covers scheme derivatives only and t_rhs_ko covers all KO work, matching
+    // rhs_experimental.cpp so that deriv_t0 means the same thing in both. This
+    // file previously had no KO timer at all, which is why the explicit arm
+    // reported rhs_ko_t0 = 0 while plainly doing the work.
     bssn::timer::t_rhs.start();
+    bssn::timer::t_rhs_ko.start();
+#include "bssnrhs_ko_derivs.h"
 
     double sigma = KO_DISS_SIGMA;
 
@@ -585,10 +589,8 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         }
     }
 
+    bssn::timer::t_rhs_ko.stop();
     bssn::timer::t_rhs.stop();
-
-    bssn::timer::t_deriv.start();
-    bssn::timer::t_deriv.stop();
 
 #if 0
         for (unsigned int m = 0; m < 24; m++) {

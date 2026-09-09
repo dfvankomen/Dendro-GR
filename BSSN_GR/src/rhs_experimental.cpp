@@ -572,18 +572,27 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         bssn::timer::t_bdyc.stop();
     }
 
-    bssn::timer::t_deriv.start();
+    // KO dissipation, timed as one region in BOTH paths.
+    //
+    // This used to charge the two paths differently. The old path precomputes
+    // per-direction KO derivatives via bssnrhs_ko_derivs.h and that include sat
+    // inside t_deriv, while under DENDRO_USE_NEW_DERIVS filter_cako computes the
+    // same derivatives internally, inside t_rhs_ko. t_deriv therefore carried KO
+    // derivative cost on the old path and none on the new one, so deriv_t0 was
+    // not comparable between the two -- and neither was deriv_t0 + rhs_ko_t0,
+    // which gave the old path no KO term at all while charging the new path for
+    // both the KO derivatives and their application.
+    //
+    // Now t_deriv covers scheme derivatives only, and t_rhs_ko covers all KO
+    // work (derivatives and application) on both paths. t_rhs still lumps
+    // interior + KO, so interior-only is (t_rhs - t_rhs_ko) as before.
+    bssn::timer::t_rhs.start();
+    bssn::timer::t_rhs_ko.start();
 #ifndef DENDRO_USE_NEW_DERIVS
     // Old path: precompute per-direction KO derivatives into the grad_* slots.
     // With DENDRO_USE_NEW_DERIVS, filter_cako computes them internally instead.
 #include "bssnrhs_ko_derivs.h"
 #endif
-    bssn::timer::t_deriv.stop();
-
-    // t_rhs lumps interior + KO; t_rhs_ko isolates KO so plotter can derive
-    // interior-only as (t_rhs - t_rhs_ko).
-    bssn::timer::t_rhs.start();
-    bssn::timer::t_rhs_ko.start();
 
     double sigma = KO_DISS_SIGMA;
 
