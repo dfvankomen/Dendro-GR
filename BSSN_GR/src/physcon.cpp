@@ -86,12 +86,15 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
 
     bssn::timer::t_cons_pts.start();
 
-    // Whole i-batches only; a narrower block falls through to the scalar loop.
+    // A wrapper claims the block only if its interior spans one whole vector, so
+    // AVX-512 hands its narrow blocks down to the 4-wide path before scalar.
 #if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX) || \
     defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
     bool cascade_done = false;
 #if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
 #include "physcon_cascade_ir_avx512_interior.inc.cpp"
+    if (!cascade_done)
+#include "physcon_cascade_ir_avx2_interior.inc.cpp"
 #else
 #include "physcon_cascade_ir_avx2_interior.inc.cpp"
 #endif
