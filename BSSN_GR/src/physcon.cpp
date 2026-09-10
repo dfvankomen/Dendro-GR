@@ -4,6 +4,17 @@
 #ifdef DENDRO_HYBRID_OMP
 #include <omp.h>
 #endif
+#if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX) || \
+    defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+#include <immintrin.h>
+#endif
+#if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+#pragma message("[bssn] constraint kernel : IR cascade AVX-512 (8-wide)")
+#elif defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX)
+#pragma message("[bssn] constraint kernel : IR cascade AVX2 (4-wide)")
+#else
+#pragma message("[bssn] constraint kernel : scalar physconeqs.cpp")
+#endif
 
 using namespace bssn;
 
@@ -67,10 +78,26 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
 #endif
         ;
     // clang-format off
+    bssn::timer::t_cons_deriv.start();
 #include "bssnrhs_evar_derivs.h"
 #include "constraint_derivs.h"
+    bssn::timer::t_cons_deriv.stop();
     // clang-format on
 
+    bssn::timer::t_cons_pts.start();
+
+    // Whole i-batches only; a narrower block falls through to the scalar loop.
+#if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX) || \
+    defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+    bool cascade_done = false;
+#if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+#include "physcon_cascade_ir_avx512_interior.inc.cpp"
+#else
+#include "physcon_cascade_ir_avx2_interior.inc.cpp"
+#endif
+    if (!cascade_done)
+#endif
+    {
     // enforce hamiltonian and momentum constraints
     for (unsigned int k = PW; k < nz - PW; k++) {
         for (unsigned int j = PW; j < ny - PW; j++) {
@@ -95,4 +122,6 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
             }
         }
     }
+    }
+    bssn::timer::t_cons_pts.stop();
 }

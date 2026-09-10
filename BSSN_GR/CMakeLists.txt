@@ -53,6 +53,10 @@ option(BSSN_USE_CASCADE_IR_AVX512 "Use IR-generated polynomial-cascade RHS (AVX-
 option(BSSN_USE_CASCADE_IR_AVX "Use IR-generated polynomial-cascade RHS (AVX2, 4-wide; SSL/CAHD via runtime coefficients)" OFF)
 option(BSSN_USE_CASCADE_IR_AVX512_FUSED "IR polynomial-cascade RHS with inline deriv stencils (AVX-512, 8-wide; mixed-only deriv pre-pass on interior blocks)" OFF)
 option(BSSN_USE_CASCADE_IR_AVX_FUSED "IR polynomial-cascade RHS with inline deriv stencils (AVX2, 4-wide; mixed-only deriv pre-pass on interior blocks)" OFF)
+# physcon.cpp is a separate TU from the RHS: these flags do not swap the RHS,
+# and the RHS cascade flags do not touch the constraints.
+option(BSSN_USE_CASCADE_CONSTRAINTS_AVX "IR polynomial-cascade constraint+psi4 kernel (AVX2, 4-wide)" OFF)
+option(BSSN_USE_CASCADE_CONSTRAINTS_AVX512 "IR polynomial-cascade constraint+psi4 kernel (AVX-512, 8-wide). Requires CPU_ARCH with AVX-512 support." OFF)
 
 # Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
 # provide the ISA, compile will fail on the intrinsics (clear error). The
@@ -218,6 +222,16 @@ bssn_add_def(BSSN_USE_CASCADE_IR_AVX512 BSSN_USE_CASCADE_IR_AVX512)
 bssn_add_def(BSSN_USE_CASCADE_IR_AVX BSSN_USE_CASCADE_IR_AVX)
 bssn_add_def(BSSN_USE_CASCADE_IR_AVX512_FUSED BSSN_USE_CASCADE_IR_AVX512_FUSED)
 bssn_add_def(BSSN_USE_CASCADE_IR_AVX_FUSED BSSN_USE_CASCADE_IR_AVX_FUSED)
+bssn_add_def(BSSN_USE_CASCADE_CONSTRAINTS_AVX BSSN_USE_CASCADE_CONSTRAINTS_AVX)
+bssn_add_def(BSSN_USE_CASCADE_CONSTRAINTS_AVX512 BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+# Otherwise CMakeCache is the only record of which kernel compiled.
+if(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+  message(STATUS "BSSN constraint kernel: IR cascade, AVX-512 8-wide (physconeqs_cascade_ir_avx.cpp)")
+elseif(BSSN_USE_CASCADE_CONSTRAINTS_AVX)
+  message(STATUS "BSSN constraint kernel: IR cascade, AVX2 4-wide (physconeqs_cascade_ir_avx.cpp)")
+else()
+  message(STATUS "BSSN constraint kernel: scalar (physconeqs.cpp)")
+endif()
 bssn_add_def(BSSN_EXTRACT_GRAVITATIONAL_WAVES BSSN_EXTRACT_GRAVITATIONAL_WAVES)
 
 if(BSSN_ENABLE_AVX AND CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
