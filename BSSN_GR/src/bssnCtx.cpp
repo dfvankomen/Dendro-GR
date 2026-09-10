@@ -1795,12 +1795,21 @@ int BSSNCtx::terminal_output() {
                     double rms_vol = std::sqrt(
                         calculateL2FullMeshIntegration(m_uiMesh, zippedCons[v]) *
                         invMeshVolume);
+                    // Puncture-excised RMS (ball of BSSN_BH{1,2}_CONSTRAINT_R
+                    // around each BH), the same value extractConstraints
+                    // writes to _Constraints.dat. Surfaced here because that
+                    // path only runs when BSSN_GW_EXTRACT_FREQ > 0. Matches
+                    // CCZ4's rms_msk column. The mask args are unused.
+                    double rms_msk = bssn::computeConstraintL2Norm(
+                        m_uiMesh, zippedCons[v], (const DendroScalar*)nullptr,
+                        (DendroScalar)0.0);
                     if (rank == 0)
                         std::cout << "\t[con]:  " << std::setw(12)
                                   << bssn::BSSN_CONSTRAINT_VAR_NAMES[v]
-                                  << " (min, max, rms, rms_vol) : \t ( "
+                                  << " (min, max, rms, rms_vol, rms_msk) : \t ( "
                                   << l_min << ", " << l_max << ", " << rms << ", "
-                                  << rms_vol << ") " << std::endl;
+                                  << rms_vol << ", " << rms_msk << ") "
+                                  << std::endl;
                 }
             }
         }
