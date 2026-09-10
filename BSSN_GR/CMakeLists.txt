@@ -57,6 +57,7 @@ option(BSSN_USE_CASCADE_IR_AVX_FUSED "IR polynomial-cascade RHS with inline deri
 # and the RHS cascade flags do not touch the constraints.
 option(BSSN_USE_CASCADE_CONSTRAINTS_AVX "IR polynomial-cascade constraint+psi4 kernel (AVX2, 4-wide)" OFF)
 option(BSSN_USE_CASCADE_CONSTRAINTS_AVX512 "IR polynomial-cascade constraint+psi4 kernel (AVX-512, 8-wide). Requires CPU_ARCH with AVX-512 support." OFF)
+option(BSSN_PHYSCON_BLOCK_HISTO "Dump a per-block-size tally of vector vs scalar constraint kernel dispatch to stderr" OFF)
 
 # Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
 # provide the ISA, compile will fail on the intrinsics (clear error). The
@@ -224,6 +225,7 @@ bssn_add_def(BSSN_USE_CASCADE_IR_AVX512_FUSED BSSN_USE_CASCADE_IR_AVX512_FUSED)
 bssn_add_def(BSSN_USE_CASCADE_IR_AVX_FUSED BSSN_USE_CASCADE_IR_AVX_FUSED)
 bssn_add_def(BSSN_USE_CASCADE_CONSTRAINTS_AVX BSSN_USE_CASCADE_CONSTRAINTS_AVX)
 bssn_add_def(BSSN_USE_CASCADE_CONSTRAINTS_AVX512 BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+bssn_add_def(BSSN_PHYSCON_BLOCK_HISTO BSSN_PHYSCON_BLOCK_HISTO)
 # Otherwise CMakeCache is the only record of which kernel compiled.
 if(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
   message(STATUS "BSSN constraint kernel: IR cascade, AVX-512 8-wide (physconeqs_cascade_ir_avx.cpp)")

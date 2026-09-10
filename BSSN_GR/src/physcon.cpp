@@ -7,6 +7,10 @@
 #if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX) || \
     defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
 #include <immintrin.h>
+#ifdef BSSN_PHYSCON_BLOCK_HISTO
+#include <atomic>
+#include <cstdio>
+#endif
 #endif
 #if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
 #pragma message("[bssn] constraint kernel : IR cascade AVX-512 (8-wide)")
@@ -14,6 +18,38 @@
 #pragma message("[bssn] constraint kernel : IR cascade AVX2 (4-wide)")
 #else
 #pragma message("[bssn] constraint kernel : scalar physconeqs.cpp")
+#endif
+
+#if defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX) || \
+    defined(BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
+#ifdef BSSN_PHYSCON_BLOCK_HISTO
+// Whether a vector wrapper actually claimed a block has no other observable:
+// the two builds agree on every output. Ranks are summed, since MPI is already
+// finalized when this dumps.
+namespace {
+constexpr unsigned int PBH_MAX = 512;
+std::atomic<long> pbh_blocks[PBH_MAX];
+std::atomic<long> pbh_scalar[PBH_MAX];
+struct PbhDump {
+    ~PbhDump() {
+        for (unsigned int i = 0; i < PBH_MAX; i++)
+            if (long b = pbh_blocks[i].load())
+                fprintf(stderr, "[PBH] nx=%u blocks=%ld scalar=%ld\n", i, b,
+                        pbh_scalar[i].load());
+    }
+} pbh_dump;
+}
+#define PBH_RECORD(nx_, vec_)                                       \
+    do {                                                            \
+        if ((nx_) < PBH_MAX) {                                      \
+            pbh_blocks[nx_].fetch_add(1, std::memory_order_relaxed);\
+            if (!(vec_))                                            \
+                pbh_scalar[nx_].fetch_add(1, std::memory_order_relaxed); \
+        }                                                           \
+    } while (0)
+#else
+#define PBH_RECORD(nx_, vec_) ((void)0)
+#endif
 #endif
 
 using namespace bssn;
@@ -98,6 +134,7 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
 #else
 #include "physcon_cascade_ir_avx2_interior.inc.cpp"
 #endif
+    PBH_RECORD(nx, cascade_done);
     if (!cascade_done)
 #endif
     {
