@@ -763,7 +763,9 @@ void BSSNCtx::compute_constraint_variables() {
     // Timed as the "constraints" phase in the profile JSONL (feeds GW extract).
     bssn::timer::t_cons.start();
 
+    bssn::timer::t_cons_unzip.start();
     this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
+    bssn::timer::t_cons_unzip.stop();
 
     DendroScalar* consUnzipVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
     DendroScalar* consVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
@@ -801,6 +803,8 @@ void BSSNCtx::compute_constraint_variables() {
     // uses its own deriv workspace slab + DendroDerivatives clone, so this
     // mirrors the threaded RHS block loop. num_threads pins to the allocated
     // slab/pool count (see BSSN_HYBRID_NTHREADS).
+    // Before the pragma: `parallel for` requires the loop nest next.
+    bssn::timer::t_cons_kernel.start();
 #ifdef DENDRO_HYBRID_OMP
 #pragma omp parallel for schedule(dynamic, 1) \
     num_threads(bssn::BSSN_HYBRID_NTHREADS)   \
@@ -829,13 +833,16 @@ void BSSNCtx::compute_constraint_variables() {
         physical_constraints(consUnzipVar, (const DendroScalar**)evolUnzipVar,
                              offset, ptmin, ptmax, sz, bflag);
     }
+    bssn::timer::t_cons_kernel.stop();
 
     /*double consVecMin[bssn::BSSN_CONSTRAINT_NUM_VARS];
     double consVecMax[bssn::BSSN_CONSTRAINT_NUM_VARS];*/
     double constraintMaskedL2[bssn::BSSN_CONSTRAINT_NUM_VARS];
+    bssn::timer::t_cons_zipex.start();
     this->zip(m_cvar_unz, m_cvar);
     m_uiMesh->readFromGhostBegin(m_cvar.get_vec_ptr(), m_cvar.get_dof());
     m_uiMesh->readFromGhostEnd(m_cvar.get_vec_ptr(), m_cvar.get_dof());
+    bssn::timer::t_cons_zipex.stop();
 
     if (!(m_uiMesh->getMPIRankGlobal())) {
         std::cout << BLU << "[BSSN] - Finished computing constraints!" << NRM

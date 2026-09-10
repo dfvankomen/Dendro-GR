@@ -2712,6 +2712,11 @@ void initFlops() {
     total_runtime.start();
     t_f2o.start();
     t_cons.start();
+    t_cons_unzip.start();
+    t_cons_kernel.start();
+    t_cons_zipex.start();
+    t_cons_deriv.start();
+    t_cons_pts.start();
     t_bal.start();
     t_mesh.start();
     t_rkSolve.start();
@@ -2763,6 +2768,11 @@ void resetSnapshot() {
     total_runtime.snapreset();
     t_f2o.snapreset();
     t_cons.snapreset();
+    t_cons_unzip.snapreset();
+    t_cons_kernel.snapreset();
+    t_cons_zipex.snapreset();
+    t_cons_deriv.snapreset();
+    t_cons_pts.snapreset();
     t_bal.snapreset();
     t_mesh.snapreset();
     t_rkSolve.snapreset();
@@ -4391,6 +4401,12 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
     BSSN_JSONL_PHASE_RAW("bdyc_t0",       t_bdyc.snap);
     // Constraint computation (unzip + block loop + zip); feeds GW extraction.
     BSSN_JSONL_PHASE_RAW("constraints",   t_cons.snap);
+    BSSN_JSONL_PHASE_RAW("cons_unzip",    t_cons_unzip.snap);
+    BSSN_JSONL_PHASE_RAW("cons_kernel",   t_cons_kernel.snap);
+    BSSN_JSONL_PHASE_RAW("cons_zipex",    t_cons_zipex.snap);
+    // Thread-0 samples; see profile_params.h.
+    BSSN_JSONL_PHASE_RAW("cons_deriv_t0",  t_cons_deriv.snap);
+    BSSN_JSONL_PHASE_RAW("cons_pts_t0",    t_cons_pts.snap);
     BSSN_JSONL_PHASE_RAW("zip",
                          pick_app(CTX_ZIP, t_zip.snap));
     BSSN_JSONL_PHASE_RAW("is_remesh",

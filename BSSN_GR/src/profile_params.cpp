@@ -16,6 +16,11 @@ profiler_t total_runtime;
 
 profiler_t t_f2o;
 profiler_t t_cons;
+profiler_t t_cons_unzip;
+profiler_t t_cons_kernel;
+profiler_t t_cons_zipex;
+profiler_t t_cons_deriv;
+profiler_t t_cons_pts;
 profiler_t t_bal;
 profiler_t t_mesh;
 

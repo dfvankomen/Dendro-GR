@@ -18,6 +18,14 @@ extern profiler_t total_runtime;
 
 extern profiler_t t_f2o;
 extern profiler_t t_cons;
+// t_cons split: the call is a grid round-trip, not just a kernel.
+extern profiler_t t_cons_unzip;
+extern profiler_t t_cons_kernel;
+extern profiler_t t_cons_zipex;
+// Thread-0 samples (cf. deriv_t0), not rank wall times: compare to each other,
+// never to t_cons_kernel.
+extern profiler_t t_cons_deriv;
+extern profiler_t t_cons_pts;
 extern profiler_t t_bal;
 extern profiler_t t_mesh;
 
