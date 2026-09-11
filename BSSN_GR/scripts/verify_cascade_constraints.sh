@@ -33,7 +33,12 @@ CMAKE_COMMON=(
 
 variants=(scalar avx2)
 # The intrinsics do not compile without the ISA, so ask the compiler, not the host.
-if echo | ${CXX:-g++} -march="$ARCH" -dM -E - 2>/dev/null | grep -q __AVX512F__; then
+# Capture first, match second: `| grep -q` lets grep close the pipe on its first
+# hit, the compiler takes SIGPIPE, and under `pipefail` that reads as "no
+# AVX-512" perhaps one run in eight -- a PASS over one fewer variant.
+arch_macros=$(echo | ${CXX:-g++} -march="$ARCH" -dM -E - 2>/dev/null)
+[ -n "$arch_macros" ] || { echo "  FAIL could not probe $ARCH for its ISA"; exit 1; }
+if printf '%s' "$arch_macros" | grep -q __AVX512F__; then
     variants+=(avx512)
 else
     echo "  note: $ARCH has no AVX-512; skipping the 8-wide variant"
@@ -108,8 +113,8 @@ for v in "${variants[@]}"; do
 done
 
 if [ "$fail" -eq 0 ]; then
-    echo "PASS  ($WORK)"
+    echo "PASS  variants: ${variants[*]}  ($WORK)"
 else
-    echo "FAIL  ($WORK)"
+    echo "FAIL  variants: ${variants[*]}  ($WORK)"
 fi
 exit "$fail"
