@@ -116,7 +116,18 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     // clang-format off
     bssn::timer::t_cons_deriv.start();
 #include "bssnrhs_evar_derivs.h"
+#ifdef DENDRO_USE_NEW_DERIVS
+    // Evaluate the constraints with the same operator the RHS used to produce
+    // the data. Identical while the configured type is explicit (E6 and E6Simd
+    // are bit-identical); it is compact types that make the fallback real.
+    // The toggle is thread-local, so this is safe inside the threaded loop.
+    const bool puncture_block = is_puncture_block(pmin, pmax, sz, PW);
+    if (puncture_block) set_block_explicit_derivs(true);
+#endif
 #include "constraint_derivs.h"
+#ifdef DENDRO_USE_NEW_DERIVS
+    if (puncture_block) set_block_explicit_derivs(false);
+#endif
     bssn::timer::t_cons_deriv.stop();
     // clang-format on
 
