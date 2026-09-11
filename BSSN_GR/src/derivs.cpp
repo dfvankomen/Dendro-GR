@@ -237,6 +237,26 @@ void set_appropriate_derivs(const unsigned pw) {
 }
 
 #ifdef DENDRO_USE_NEW_DERIVS
+bool is_puncture_block(const double *pmin, const double *pmax,
+                       const unsigned int *sz, unsigned int pw) {
+    if (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS == 0) return false;
+    const unsigned int Nb = bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
+    for (unsigned int b = 0; b < 2; ++b) {
+        const double bc[3] = {bssn::BSSN_BH_LOC[b].x(), bssn::BSSN_BH_LOC[b].y(),
+                              bssn::BSSN_BH_LOC[b].z()};
+        bool inside = true;
+        for (unsigned int d = 0; d < 3 && inside; ++d) {
+            const double h_d  = (pmax[d] - pmin[d]) / (sz[d] - 1);
+            const double lo_i = pmin[d] + pw * h_d;
+            const double hi_i = pmax[d] - pw * h_d;
+            const double mrg  = (Nb - 1) * (hi_i - lo_i);
+            if (bc[d] < lo_i - mrg || bc[d] > hi_i + mrg) inside = false;
+        }
+        if (inside) return true;
+    }
+    return false;
+}
+
 void set_block_explicit_derivs(bool on) {
     // Thread-local toggle (see s_block_explicit_derivs): safe to call per block
     // from inside the threaded RHS loop -- it does not touch the shared global

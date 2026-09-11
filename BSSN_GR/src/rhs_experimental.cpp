@@ -228,27 +228,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const unsigned int n                 = sz[0] * sz[1] * sz[2];
 
 #ifdef DENDRO_USE_NEW_DERIVS
-    // Decide once per block: does a puncture lie within it (interior bounds
-    // expanded by NBLOCKS-1 block-widths)? If so, route this block's derivs
-    // through the explicit fallback below. NBLOCKS==0 disables.
-    bool puncture_block = false;
-    if (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS > 0) {
-        const unsigned int Nb = bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
-        for (unsigned int b = 0; b < 2 && !puncture_block; ++b) {
-            const double bc[3] = {bssn::BSSN_BH_LOC[b].x(),
-                                  bssn::BSSN_BH_LOC[b].y(),
-                                  bssn::BSSN_BH_LOC[b].z()};
-            bool inside = true;
-            for (unsigned int d = 0; d < 3 && inside; ++d) {
-                const double h_d  = (pmax[d] - pmin[d]) / (sz[d] - 1);
-                const double lo_i = pmin[d] + PW * h_d;       // interior min
-                const double hi_i = pmax[d] - PW * h_d;       // interior max
-                const double mrg  = (Nb - 1) * (hi_i - lo_i);  // block-width margin
-                if (bc[d] < lo_i - mrg || bc[d] > hi_i + mrg) inside = false;
-            }
-            puncture_block = inside;
-        }
-    }
+    // Route this block's derivs through the explicit fallback if a puncture
+    // lies in it. Shared with physcon.cpp so the two cannot disagree.
+    const bool puncture_block = is_puncture_block(pmin, pmax, sz, PW);
 #endif
 
     bssn::timer::t_deriv.start();

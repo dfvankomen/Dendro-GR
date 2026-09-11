@@ -45,6 +45,14 @@ void set_appropriate_derivs(const unsigned pw);
  * per derivative; relies on the serial per-block RHS loop.
  */
 void set_block_explicit_derivs(bool on);
+
+/**
+ * @brief Does a puncture lie in this block (interior bounds expanded by
+ * BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS-1 block widths)? Shared by the RHS and
+ * the constraints so the two cannot disagree about which blocks are punctures.
+ */
+bool is_puncture_block(const double *pmin, const double *pmax,
+                       const unsigned int *sz, unsigned int pw);
 #endif
 
 void deriv42_x_wrapper(double *const Dxu, const double *const u,
