@@ -16,12 +16,16 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <algorithm>
+#include <iomanip>
+#include <stdexcept>
 
 #include "derivs.h"
 #include "grDef.h"
 #include "grUtils.h"
 #include "parUtils.h"
 #include "parameters.h"
+#include "OnMeshTeukolskyID.h"
 
 namespace bssn {
 BSSNCtx::BSSNCtx(ot::Mesh* pMesh) : Ctx() {
@@ -536,6 +540,126 @@ int BSSNCtx::initialize() {
     }
 
     set_appropriate_derivs(bssn::BSSN_PADDING_WIDTH);
+
+    if (bssn::BSSN_ID_TYPE == 14 && m_uiMesh->isActive()) {
+#if !BSSN_COMPUTE_CONSTRAINTS
+        throw std::runtime_error("Type 14 requires BSSN_COMPUTE_CONSTRAINTS");
+#endif
+#ifdef DENDRO_USE_NEW_DERIVS
+        if (BSSN_DERIVTYPE_FIRST != "E6" || BSSN_DERIVTYPE_SECOND != "E6")
+            throw std::runtime_error(
+                "Type 14 requires E6 first and second derivatives");
+#else
+#ifndef BSSN_USE_6TH_ORDER_DERIVS
+        throw std::runtime_error("Type 14 requires sixth-order derivatives");
+#endif
+#endif
+        if (!(TEUK_HAM_TOL > 0.0 && TEUK_HAM_TOL < 1.0) || !TEUK_HAM_MAX_ITER)
+            throw std::runtime_error(
+                "Invalid TEUK_HAM_TOL or TEUK_HAM_MAX_ITER");
+#ifdef __CUDACC__
+        throw std::runtime_error(
+            "Experimental type 14 currently requires the CPU BSSNCtx path");
+#endif
+        if (!m_uiMesh->getMPIRank())
+            std::cout << "TYPE14 active MPI ranks "
+                      << m_uiMesh->getMPICommSize() << std::endl;
+        DendroScalar* initial_evol[bssn::BSSN_NUM_VARS];
+        m_var[VL::CPU_EV].to_2d(initial_evol);
+        teukolskyConnectionOnMesh(*m_uiMesh, initial_evol, true);
+        // The mesh has finished all initial-grid convergence iterations.  Form
+        // seed R=C_HAM with chi=1, At=K=0 and metric-derived Gt using the
+        // ordinary production constraint evaluator before running the one-time
+        // distributed solve.
+        m_bConstraintsComputed = false;
+        this->compute_constraint_variables();
+        DendroScalar* seed_cons[bssn::BSSN_CONSTRAINT_NUM_VARS];
+        DendroScalar* evol[bssn::BSSN_NUM_VARS];
+        m_var[VL::CPU_CV].to_2d(seed_cons);
+        m_var[VL::CPU_EV].to_2d(evol);
+        auto distributed_norms = [&](const double* values) {
+            double sum = 0.0, maximum = 0.0;
+            unsigned long long count = 0;
+            for (unsigned int n = m_uiMesh->getNodeLocalBegin();
+                 n < m_uiMesh->getNodeLocalEnd(); ++n) {
+                sum += values[n] * values[n];
+                maximum = std::max(maximum, std::abs(values[n]));
+                ++count;
+            }
+            double global_sum = 0.0, global_max = 0.0;
+            unsigned long long global_count = 0;
+            MPI_Allreduce(&sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM,
+                          m_uiMesh->getMPICommunicator());
+            MPI_Allreduce(&maximum, &global_max, 1, MPI_DOUBLE, MPI_MAX,
+                          m_uiMesh->getMPICommunicator());
+            MPI_Allreduce(&count, &global_count, 1, MPI_UNSIGNED_LONG_LONG,
+                          MPI_SUM, m_uiMesh->getMPICommunicator());
+            return std::pair<double, double>(
+                std::sqrt(global_sum /
+                          std::max<unsigned long long>(global_count, 1)),
+                global_max);
+        };
+        const auto seed_h = distributed_norms(seed_cons[VAR_CONSTRAINT::C_HAM]);
+        const auto solve  = solveTeukolskyHamiltonianOnMesh(
+            *m_uiMesh, evol, seed_cons[VAR_CONSTRAINT::C_HAM],
+            bssn::TEUK_HAM_TOL, bssn::TEUK_HAM_MAX_ITER,
+            bssn::TEUK_HAM_VERBOSE);
+        if (!solve.converged) {
+            if (!m_uiMesh->getMPIRank())
+                std::cerr
+                    << "Type 14 failed true-residual/positivity checks after "
+                    << solve.iterations << " iterations; residual L2/max "
+                    << solve.residual_l2 << " " << solve.residual_max
+                    << std::endl;
+            MPI_Abort(m_uiMesh->getMPIGlobalCommunicator(), 1);
+        }
+
+        // Re-evaluate the unchanged production constraints on the solved data.
+        // The conformal metric is unchanged by psi. Recompute its connection
+        // once more on the final mesh and independently measure the constraint.
+        teukolskyConnectionOnMesh(*m_uiMesh, evol, true);
+        const auto gamma = teukolskyConnectionOnMesh(*m_uiMesh, evol, false);
+        m_bConstraintsComputed = false;
+        this->compute_constraint_variables();
+        DendroScalar* solved_cons[bssn::BSSN_CONSTRAINT_NUM_VARS];
+        m_var[VL::CPU_CV].to_2d(solved_cons);
+        const auto solved_h =
+            distributed_norms(solved_cons[VAR_CONSTRAINT::C_HAM]);
+        const auto mom0 =
+            distributed_norms(solved_cons[VAR_CONSTRAINT::C_MOM0]);
+        const auto mom1 =
+            distributed_norms(solved_cons[VAR_CONSTRAINT::C_MOM1]);
+        const auto mom2 =
+            distributed_norms(solved_cons[VAR_CONSTRAINT::C_MOM2]);
+        double local_chi_min = 1e300, local_chi_max = -1e300, chi_min = 0.0,
+               chi_max = 0.0;
+        for (unsigned int n = m_uiMesh->getNodeLocalBegin();
+             n < m_uiMesh->getNodeLocalEnd(); ++n) {
+            local_chi_min = std::min(local_chi_min, evol[VAR::U_CHI][n]);
+            local_chi_max = std::max(local_chi_max, evol[VAR::U_CHI][n]);
+        }
+        MPI_Allreduce(&local_chi_min, &chi_min, 1, MPI_DOUBLE, MPI_MIN,
+                      m_uiMesh->getMPICommunicator());
+        MPI_Allreduce(&local_chi_max, &chi_max, 1, MPI_DOUBLE, MPI_MAX,
+                      m_uiMesh->getMPICommunicator());
+        if (!m_uiMesh->getMPIRankGlobal()) {
+            std::cout << std::setprecision(16) << "TYPE14 seed C_HAM L2 "
+                      << seed_h.first << "\nTYPE14 seed C_HAM max "
+                      << seed_h.second << "\nTYPE14 elliptic residual L2 "
+                      << solve.residual_l2 << "\nTYPE14 elliptic residual max "
+                      << solve.residual_max << "\nTYPE14 elliptic iterations "
+                      << solve.iterations << "\nTYPE14 solved C_HAM L2 "
+                      << solved_h.first << "\nTYPE14 solved C_HAM max "
+                      << solved_h.second << "\nTYPE14 C_MOM0 L2 " << mom0.first
+                      << "\nTYPE14 C_MOM1 L2 " << mom1.first
+                      << "\nTYPE14 C_MOM2 L2 " << mom2.first
+                      << "\nTYPE14 Gamma constraint L2/max " << gamma.first
+                      << " " << gamma.second << "\nTYPE14 min/max psi "
+                      << solve.psi_min << " " << solve.psi_max
+                      << "\nTYPE14 min/max chi " << chi_min << " " << chi_max
+                      << std::endl;
+        }
+    }
 
     return 0;
 }

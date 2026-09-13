@@ -261,6 +261,15 @@ extern Point BSSN_BH_LOC[2];
 /**@brief BBH initial data type */
 extern unsigned int BSSN_ID_TYPE;
 
+/** Type-13 Hamiltonian-solved Teukolsky uniform-grid data file. */
+extern std::string TEUK_SOLVED_ID_FILE;
+/** Print exact-node interpolation verification when loading type 13. */
+extern bool TEUK_SOLVED_ID_VERIFY;
+/** Type-14 on-mesh Hamiltonian solve controls. */
+extern double TEUK_HAM_TOL;
+extern unsigned int TEUK_HAM_MAX_ITER;
+extern bool TEUK_HAM_VERBOSE;
+
 /**@brief physical coordinates for grid, x_min */
 extern double BSSN_GRID_MIN_X;
 

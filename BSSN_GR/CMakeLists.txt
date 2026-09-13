@@ -234,6 +234,8 @@ set(BSSN_INC include/parameters.h
         include/dataUtils.h
         include/aeh.h
         include/Linear_Teukolsky.h
+        include/SolvedTeukolskyID.h
+        include/OnMeshTeukolskyID.h
         )
 
 set(BSSN_SRC src/parameters.cpp
@@ -252,6 +254,9 @@ set(BSSN_SRC src/parameters.cpp
            src/TwoPunctures.cpp
            src/dataUtils.cpp
            src/Linear_Teukolsky.cpp
+           src/SolvedTeukolskyID.cpp
+           src/OnMeshTeukolskyID.cpp
+           src/TeukolskyComparison.cpp
            src/hadrhs.F90
         )
 
@@ -669,5 +674,3 @@ if(WITH_CUDA)
   target_link_libraries(tpid ${CUDA_LIBRARIES})
 endif()
 target_link_libraries(tpid dendro5 ${LAPACK_LIBRARIES} ${MPI_LIBRARIES} ${GSL_LIBRARIES} m dendro_git_version_and_date)
-
-

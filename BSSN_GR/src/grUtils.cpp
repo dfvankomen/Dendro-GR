@@ -1,3 +1,4 @@
+#include <limits>
 //
 // Created by milinda on 7/26/17.
 /**
@@ -14,6 +15,7 @@
 #include "base.h"
 #include "git_version_and_date.h"
 #include "parameters.h"
+#include "SolvedTeukolskyID.h"
 #define PRPL "\033[95m"
 
 namespace bssn {
@@ -85,6 +87,20 @@ void readParamJSONFile(const char* fName, MPI_Comm comm) {
         parFile["BSSN_PROFILE_FILE_PREFIX"].get<std::string>();
     bssn::BSSN_RESTORE_SOLVER = parFile["BSSN_RESTORE_SOLVER"];
     bssn::BSSN_ID_TYPE        = parFile["BSSN_ID_TYPE"];
+    if (parFile.find("TEUK_SOLVED_ID_FILE") != parFile.end())
+        bssn::TEUK_SOLVED_ID_FILE = parFile["TEUK_SOLVED_ID_FILE"].get<std::string>();
+    if (parFile.find("TEUK_SOLVED_ID_VERIFY") != parFile.end())
+        bssn::TEUK_SOLVED_ID_VERIFY = parFile["TEUK_SOLVED_ID_VERIFY"];
+    if (parFile.find("TEUK_HAM_TOL") != parFile.end())
+        bssn::TEUK_HAM_TOL = parFile["TEUK_HAM_TOL"];
+    if (parFile.find("TEUK_HAM_MAX_ITER") != parFile.end()) {
+        const auto iterations=parFile["TEUK_HAM_MAX_ITER"].get<long long>();
+        if(iterations<=0 || iterations>std::numeric_limits<unsigned int>::max())
+            throw std::runtime_error("TEUK_HAM_MAX_ITER must be a positive unsigned integer");
+        bssn::TEUK_HAM_MAX_ITER=static_cast<unsigned int>(iterations);
+    }
+    if (parFile.find("TEUK_HAM_VERBOSE") != parFile.end())
+        bssn::TEUK_HAM_VERBOSE = parFile["TEUK_HAM_VERBOSE"];
 
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
         parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"];
@@ -585,6 +601,12 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW
              << "\tBSSN_PROFILE_FILE_PREFIX :" << bssn::BSSN_PROFILE_FILE_PREFIX
              << NRM << std::endl;
+        if (bssn::BSSN_ID_TYPE == 13) {
+            sout << YLW << "\tTEUK_SOLVED_ID_FILE :"
+                 << bssn::TEUK_SOLVED_ID_FILE << NRM << std::endl;
+            sout << YLW << "\tTEUK_SOLVED_ID_VERIFY :"
+                 << bssn::TEUK_SOLVED_ID_VERIFY << NRM << std::endl;
+        }
         sout << YLW << "\tBSSN_VTU_X_SLICE :" << bssn::BSSN_VTU_X_SLICE << NRM
              << std::endl;
         sout << YLW << "\tBSSN_VTU_Y_SLICE :" << bssn::BSSN_VTU_Y_SLICE << NRM
@@ -1099,6 +1121,21 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
             break;
         case 12:
             bssn::Baumgarte(xx_grid, yy_grid, zz_grid, var);
+            break;
+        case 13:
+            // File-backed Hamiltonian-solved Teukolsky data.  The loader is
+            // lazy and cached, so this same path is safe for initial octree
+            // construction, refinement queries, convergence, and population.
+            bssn::solvedTeukolskyData(xx_grid, yy_grid, zz_grid, var);
+            break;
+        case 14:
+            // Experimental on-mesh solve: use the unmodified type-9 formulas
+            // to construct gt_ij and its time-symmetric zero fields.  The
+            // determinant-one gt_ij is the conformal seed, hence seed chi=1.
+            bssn::NLTeukData(xx_grid, yy_grid, zz_grid, var);
+            var[VAR::U_CHI] = 1.0;
+            // NLTeukData sets Gt=At=K=beta=B=0 and alpha=1.  Preserve those
+            // lapse and time symmetry; Gt is computed after mesh construction.
             break;
         default:
             int rank;

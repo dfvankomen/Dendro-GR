@@ -78,7 +78,7 @@ BSSN_LOAD_IMB_TOL = 0.1
 BSSN_DIM = 3
 
 # Maximum Depth of the Mesh/Octree
-BSSN_MAXDEPTH = 14
+BSSN_MAXDEPTH = 5
 # Maximum Depth of the Mesh/Octree
 BSSN_MINDEPTH = 3
 # Element Order, each block gets ELE_ORDER + 1 points it is in charge of, and padding width is ELE_ORDER / 2, should always be **even**
@@ -128,10 +128,10 @@ BSSN_USE_FD_GRID_TRANSFER = false
 # 1 - EH
 # 2 - EH_WAMR
 # 3 - BH_LOC
-BSSN_REFINEMENT_MODE = 4
+BSSN_REFINEMENT_MODE = 0
 
 # The number of iterations that should be done for grid initialization
-BSSN_INIT_GRID_ITER = 10
+BSSN_INIT_GRID_ITER = 1
 
 # If we want to use the set reference mode for initial convergence
 BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE = true
@@ -142,7 +142,7 @@ BSSN_CFL_FACTOR = 0.25
 # The starting time of the simulation
 BSSN_RK_TIME_BEGIN = 0.0
 # The ending time of the simulation
-BSSN_RK_TIME_END = 500.0
+BSSN_RK_TIME_END = 0.0
 
 # RK Method to use (0 -> RK3, 1 -> RK4, 2 -> RK45)
 BSSN_RK_TYPE = 1
@@ -155,13 +155,13 @@ BSSN_RK45_DESIRED_TOL = 0.001
 
 ## BLOCK ADAPTIVITY (can create a "uniform" grid within specified domain)
 # NOT RECOMMENDED - But set this to 1 to disable AMR and use Block Adaptivity
-BSSN_ENABLE_BLOCK_ADAPTIVITY = 0
-BSSN_BLK_MIN_X = -3.9
-BSSN_BLK_MIN_Y = -3.9
-BSSN_BLK_MIN_Z = -3.9
-BSSN_BLK_MAX_X = 3.9
-BSSN_BLK_MAX_Y = 3.9
-BSSN_BLK_MAX_Z = 3.9
+BSSN_ENABLE_BLOCK_ADAPTIVITY = 1
+BSSN_BLK_MIN_X = -10.0
+BSSN_BLK_MIN_Y = -10.0
+BSSN_BLK_MIN_Z = -10.0
+BSSN_BLK_MAX_X = 10.0
+BSSN_BLK_MAX_Y = 10.0
+BSSN_BLK_MAX_Z = 10.0
 
 ## =======================
 ## BSSN PHYSICS PARAMETERS
@@ -179,7 +179,7 @@ CHI_FLOOR = 0.0001
 BSSN_TRK0 = 0.0
 KO_DISS_SIGMA = 0.40
 BSSN_ETA_R0 = 1.31
-BSSN_ID_TYPE = 0
+BSSN_ID_TYPE = 14
 # Used only when BSSN_ID_TYPE = 13.  The path is resolved from the solver's
 # working directory; generate it with solve_hamiltonian.py --binary-output.
 TEUK_SOLVED_ID_FILE = "../teukolsky_solved_id.bin"
@@ -190,18 +190,18 @@ TEUK_HAM_MAX_ITER = 3000
 TEUK_HAM_VERBOSE = true
 
 # BSSN Grid Points
-BSSN_GRID_MIN_X = -400.0
-BSSN_GRID_MAX_X = 400.0
-BSSN_GRID_MIN_Y = -400.0
-BSSN_GRID_MAX_Y = 400.0
-BSSN_GRID_MIN_Z = -400.0
-BSSN_GRID_MAX_Z = 400.0
+BSSN_GRID_MIN_X = -10.0
+BSSN_GRID_MAX_X = 10.0
+BSSN_GRID_MIN_Y = -10.0
+BSSN_GRID_MAX_Y = 10.0
+BSSN_GRID_MIN_Z = -10.0
+BSSN_GRID_MAX_Z = 10.0
 
 # BLACK HOLE Parameters
 BSSN_BH1_AMR_R = 0.0
 BSSN_BH1_CONSTRAINT_R = 2.0
 BSSN_BH1_MAX_LEV = 15
-BSSN_BH1 = { MASS = 0.5, X = 4.0, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
+BSSN_BH1 = { MASS = 0.5, X = 0.0, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
 BSSN_BH2_AMR_R = 0.0
 BSSN_BH2_CONSTRAINT_R = 2.0
@@ -259,7 +259,7 @@ MULTIPOLE_PARITY = 0
 ID_DYNAMICS_TYPE = 2
 KK = 6
 AMP = 1e-2
-R_0 = 10.0
+R_0 = 5.0
 WIDTH = 2.0
 L_MODE = 2
 M_MODE = 0

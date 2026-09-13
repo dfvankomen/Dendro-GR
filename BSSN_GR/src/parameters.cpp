@@ -1,3 +1,4 @@
+#include <limits>
 //
 // Created by milinda on 8/23/17.
 /**
@@ -91,6 +92,11 @@ unsigned int BSSN_MAXDEPTH = 8;
 unsigned int BSSN_MINDEPTH = 3;
 
 unsigned int BSSN_ID_TYPE  = 0;
+std::string TEUK_SOLVED_ID_FILE = "teukolsky_solved_id.bin";
+bool TEUK_SOLVED_ID_VERIFY = false;
+double TEUK_HAM_TOL = 1.0e-10;
+unsigned int TEUK_HAM_MAX_ITER = 3000;
+bool TEUK_HAM_VERBOSE = true;
 
 double BSSN_GRID_MIN_X     = -50.0;
 double BSSN_GRID_MAX_X     = 50.0;
@@ -252,6 +258,20 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         parFile["BSSN_PROFILE_FILE_PREFIX"].as_string();
     bssn::BSSN_RESTORE_SOLVER = parFile["BSSN_RESTORE_SOLVER"].as_integer();
     bssn::BSSN_ID_TYPE        = parFile["BSSN_ID_TYPE"].as_integer();
+    if (parFile.contains("TEUK_SOLVED_ID_FILE"))
+        bssn::TEUK_SOLVED_ID_FILE = parFile["TEUK_SOLVED_ID_FILE"].as_string();
+    if (parFile.contains("TEUK_SOLVED_ID_VERIFY"))
+        bssn::TEUK_SOLVED_ID_VERIFY = parFile["TEUK_SOLVED_ID_VERIFY"].as_boolean();
+    if (parFile.contains("TEUK_HAM_TOL"))
+        bssn::TEUK_HAM_TOL = parFile["TEUK_HAM_TOL"].as_floating();
+    if (parFile.contains("TEUK_HAM_MAX_ITER")) {
+        const auto iterations=parFile["TEUK_HAM_MAX_ITER"].as_integer();
+        if(iterations<=0 || iterations>std::numeric_limits<unsigned int>::max())
+            throw std::runtime_error("TEUK_HAM_MAX_ITER must be a positive unsigned integer");
+        bssn::TEUK_HAM_MAX_ITER=static_cast<unsigned int>(iterations);
+    }
+    if (parFile.contains("TEUK_HAM_VERBOSE"))
+        bssn::TEUK_HAM_VERBOSE = parFile["TEUK_HAM_VERBOSE"].as_boolean();
 
     bssn::BSSN_ENABLE_BLOCK_ADAPTIVITY =
         parFile["BSSN_ENABLE_BLOCK_ADAPTIVITY"].as_integer();

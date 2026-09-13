@@ -9,6 +9,10 @@
 #include <vector>
 
 #include "TreeNode.h"
+#include "OnMeshTeukolskyID.h"
+#ifdef BUILD_WITH_PETSC
+#include <petscsys.h>
+#endif
 #include "aeh.h"
 #include "bssnAEH.h"
 #include "bssnCtx.h"
@@ -169,6 +173,11 @@ bssn:
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
+#ifdef BUILD_WITH_PETSC
+    if(bssn::BSSN_ID_TYPE==14) {
+        if(PetscInitializeNoArguments()) MPI_Abort(comm,1);
+    }
+#endif
 
     int root = std::min(1, npes - 1);
     bssn::dumpParamFile(std::cout, root, comm);
@@ -347,6 +356,13 @@ bssn:
             ets->set_ets_coefficients(ts::ETSType::RK5);
 
         ets->init();
+        if (argc>3 && std::string(argv[3])=="--teuk-compare") {
+            if(bssn::BSSN_ID_TYPE!=14 || bssn::BSSN_RESTORE_SOLVER)
+                throw std::runtime_error("--teuk-compare requires fresh type-14 data");
+            double* fields[bssn::BSSN_NUM_VARS];
+            bssnCtx->get_evolution_vars().to_2d(fields);
+            bssn::compareTeukolskyOnMesh(*bssnCtx->get_mesh(),fields);
+        }
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -593,6 +609,9 @@ bssn:
                   << NRM << std::endl;
     }
 
+#ifdef BUILD_WITH_PETSC
+    if(bssn::BSSN_ID_TYPE==14) PetscFinalize();
+#endif
     MPI_Finalize();
 
 #ifdef DENDRO_USE_NEW_DERIVS

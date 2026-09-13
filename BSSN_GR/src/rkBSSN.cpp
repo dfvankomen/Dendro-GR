@@ -10,6 +10,7 @@
  * */
 
 #include "rkBSSN.h"
+#include "SolvedTeukolskyID.h"
 
 namespace ode {
 namespace solver {
@@ -250,6 +251,9 @@ void RK_BSSN::applyInitialConditions(DendroScalar **zipIn) {
                         } else if (bssn::BSSN_ID_TYPE == 4) {
                             bssn::fake_initial_data((double)x, (double)y,
                                                     (double)z, var);
+                        } else if (bssn::BSSN_ID_TYPE == 13) {
+                            bssn::solvedTeukolskyData((double)x, (double)y,
+                                                      (double)z, var);
                         } else {
                             std::cout << "Unknown ID type" << std::endl;
                         }
