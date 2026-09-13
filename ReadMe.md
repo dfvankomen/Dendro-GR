@@ -23,6 +23,7 @@ To build Dendro-5.0, you need following externeral packages,
 * MPI implementation (tested with mvapich2, openmpi and intel compilers)
 * BLAS/LAPACK (tested with openBLAS and Intel MKL)
 * GSL, need to set `GSL_ROOT_DIR` to cmake to auto detect GSL library.
+* CMake 3.14 or newer and Git (for fetching DendroLib).
 * Pyhton packages for code generation, `pip3 install --user sympy numpy numba git+https://github.com/moble/quaternion git+https://github.com/moble/spherical_functions cogapp quadpy`
 * PETSc if building with FEM (CG/DG) support. 
 
@@ -35,6 +36,13 @@ $ cd build
 $ cmake ../
 $ make bssnSolverCtx bssnSolverCUDA tpid -j4
 ```
+
+You can use `ccmake ../` instead of `cmake ../`. Leave
+`DENDRO_dendrolib_DIR` empty and keep `DENDRO_dendrolib_GIT_TAG` set to
+`Sobolev` to automatically fetch that DendroLib branch during configuration.
+Subsequent configurations check for branch updates, so network access is needed.
+To use an existing checkout instead, set `DENDRO_dendrolib_DIR` to its source
+directory; CMake will leave that checkout under your control.
 
 * Note that that, `-DWITH CUDA=ON` build code for both CPU and GPU, while `-DWITH CUDA=OFF` compilation only happens for the CPU code.
 * The above will build three targets in <build dir>/BSSN GR/ folder these corresponds to CPU BSSN Solver, GPU BSSN Solver and two punctures initial condition solver for the binary black hole problem.
@@ -207,7 +215,6 @@ Simple Laplace equation using FEM can be found in `FEM/examples/src/heatEq.cpp` 
 * Fernando, M. and Sundar, H., 2022. Scalable Local Timestepping on Octree Grids. SIAM Journal on Scientific Computing, 44(2), pp.C156-C183.
 * Milinda Fernando, Dmitry Duplyakin, and Hari Sundar. 2017. ”Machine and Application Aware Partitioning for Adaptive Mesh Refinement Applications”. In Proceedings of the 26th International Symposium on High-Performance Parallel and Distributed Computing (HPDC ’17). ACM, New York, NY, USA, 231-242. DOI: 'https://doi.org/10.1145/3078597.3078610'
 * Masado Ishii, Milinda Fernando, Kumar Saurabh, Biswajit Khara, Baskar Ganapathysubramanian, and Hari Sundar. 2019. Solving PDEs in space-time: 4D tree-based adaptivity, mesh-free and matrix-free approaches. In Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis (SC ’19). Association for Computing Machinery, New York, NY, USA, Article 61, 1–61. DOI:https://doi.org/10.1145/3295500.3356198 
-
 
 
 

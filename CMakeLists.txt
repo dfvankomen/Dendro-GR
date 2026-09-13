@@ -8,7 +8,7 @@
 # Note that all options and compiler flags set here will propagate to other
 # directories such as src/ and dendro/
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.14)
 project(Dendro-5.0 C CXX Fortran)
 
 # the standard we're using is c++11 -- NOTE: this might change to C++17 or newer
@@ -45,6 +45,12 @@ endif()
 
 # Allow developers to use an existing DendroLib checkout. When left empty, the
 # matching Sobolev branch is fetched automatically below.
+# Older configurations saved the fetched directory as an INTERNAL override,
+# preventing FetchContent from updating the selected branch on reconfigure.
+get_property(_dendrolib_dir_type CACHE DENDRO_dendrolib_DIR PROPERTY TYPE)
+if(_dendrolib_dir_type STREQUAL "INTERNAL")
+  unset(DENDRO_dendrolib_DIR CACHE)
+endif()
 set(DENDRO_dendrolib_DIR
     ""
     CACHE PATH "Path to a local DendroLib source directory (optional)")
@@ -265,9 +271,9 @@ else()
     GIT_TAG "${DENDRO_dendrolib_GIT_TAG}")
   FetchContent_MakeAvailable(dendrolib)
 
-  set(DENDRO_dendrolib_DIR
-      "${dendrolib_SOURCE_DIR}"
-      CACHE INTERNAL "Path to the fetched DendroLib source")
+  # Expose the source path to solver subdirectories without turning the fetched
+  # checkout into a persistent local override in ccmake.
+  set(DENDRO_dendrolib_DIR "${dendrolib_SOURCE_DIR}")
 endif()
 
 # additional subdirectories that are their own "solvers"
