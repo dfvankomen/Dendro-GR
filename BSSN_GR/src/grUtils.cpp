@@ -2827,6 +2827,8 @@ void resetSnapshot() {
 }
 
 void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
+    // commActive is only set on active ranks; the reductions below use it.
+    if (!pMesh->isActive()) return;
     int activeRank, activeNpes, globalRank, globalNpes;
 
     MPI_Comm commActive;
@@ -3189,6 +3191,8 @@ void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
 
 void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
                              const unsigned int currentStep) {
+    // commActive is only set on active ranks; the reductions below use it.
+    if (!pMesh->isActive()) return;
     int activeRank, activeNpes, globalRank, globalNpes;
 
     MPI_Comm commActive;
