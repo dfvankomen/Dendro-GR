@@ -18,6 +18,37 @@
 ### at t=0 is therefore O(1) off in A_yy / A_yz; constraint damping
 ### projects this out on a light-crossing time. See
 ### /home/denv/research/ccz4-gr/findings/ccz4_bssn_ic_parity_questions.md.
+###
+### WQM(9/3/2026): brought up to the conventions in the recent CCZ4
+### kappa1/s/xi work, and reconciled against a real mismatch found doing
+### so:
+###  - BSSN_MAXDEPTH 11->13, matching the CCZ4 side.
+###  - BSSN_REFINEMENT_MODE 4(BH_WAMR)->0(WAMR). CCZ4's par uses mode=0;
+###    CCZ4's own BH_WAMR has a documented runaway-mesh bug elsewhere in
+###    this project, never confirmed safe, so WAMR is the reconciled
+###    choice on both sides rather than pushing CCZ4 up to BH_WAMR.
+###  - BSSN_USE_WAVELET_TOL_FUNCTION 6->3. CCZ4's computeWTolDCoords only
+###    implements functions 0/1/3 -- function 6 silently falls back to a
+###    flat tolerance there (a real bug in the old CCZ4 file, now fixed).
+###    3 is the closest match BSSN has to CCZ4's function 3 (both are a
+###    decade-exponential radial ramp from R0 to R1), though NOT a bit-
+###    for-bit match: BSSN's function 3 has an extra branch that switches
+###    to a GW-radius-anchored ramp once BSSN_CURRENT_RK_COORD_TIME
+###    exceeds R1+5 (~t=17M here, well inside this 50M run), which CCZ4's
+###    simpler function 3 doesn't have. No clean way to disable that
+###    branch from the par file without changing R0/R1 (which are
+###    intentionally matched to CCZ4's); flagging as a residual, expected
+###    asymmetry rather than something fixed here.
+###  - BSSN_GW_REFINE_WTOL 0.0001->0.001 (= BSSN_WAVELET_TOL_MAX) so
+###    function 3's ramp ceiling matches CCZ4's single wavelet_tol_max
+###    concept exactly, regardless of which of the two branches above is
+###    active.
+###  - BSSN_BH1_MAX_LEV / BSSN_BH2_MAX_LEV 11->13 for consistency with
+###    BSSN_MAXDEPTH, though unused now that the mode is WAMR (only
+###    BH_LOC/BH_WAMR read these).
+### CCZ4 has no equivalent to BSSN_XI below -- that's a pre-existing,
+### unrelated BSSN gauge parameter, not the new CCZ4 xi_param/kappa1_alpha
+### feature from this session; left untouched.
 
 ########################################################################
 # IO
@@ -28,6 +59,9 @@ BSSN_REMESH_TEST_FREQ = 50
 BSSN_GW_EXTRACT_FREQ = 0
 # Frequency for the per-step terminal output
 BSSN_TIME_STEP_OUTPUT_FREQ = 0
+# Also print constraint norms (C_HAM, C_MOM0-2) at each terminal output --
+# in-memory compute_constraint_variables() + print, no VTU/file writes.
+BSSN_TERMINAL_OUTPUT_CONST_INDICES = [0, 1, 2, 3]
 BSSN_CHECKPT_FREQ = 100000
 BSSN_VTU_FILE_PREFIX = "vtu/bssn_parity_kerr"
 BSSN_CHKPT_FILE_PREFIX = "cp/bssn_parity_kerr"
@@ -50,15 +84,15 @@ BSSN_LOAD_IMB_TOL = 0.1
 BSSN_DIM = 3
 BSSN_ELE_ORDER = 6
 BSSN_MINDEPTH = 4
-BSSN_MAXDEPTH = 11
+BSSN_MAXDEPTH = 13
 
 ########################################################################
-# REFINEMENT (BH_WAMR)
-BSSN_REFINEMENT_MODE = 4
+# REFINEMENT (WAMR)
+BSSN_REFINEMENT_MODE = 0
 BSSN_AMR_R_RATIO = 1.618033988749895
-BSSN_USE_WAVELET_TOL_FUNCTION = 6
+BSSN_USE_WAVELET_TOL_FUNCTION = 3
 BSSN_WAVELET_TOL = 0.00001
-BSSN_GW_REFINE_WTOL = 0.0001
+BSSN_GW_REFINE_WTOL = 0.001
 BSSN_WAVELET_TOL_MAX = 0.001
 BSSN_NYQUIST_M = 0
 BSSN_WAVELET_TOL_FUNCTION_R0 = 3.0
@@ -123,14 +157,20 @@ BSSN_GRID_MAX_Z = 100.0
 # BH1: the actual Kerr BH. SPIN = a/M = 0.4 along z (SPIN_THETA = 0).
 BSSN_BH1_AMR_R = 1.0
 BSSN_BH1_CONSTRAINT_R = 1.0
-BSSN_BH1_MAX_LEV = 11
+BSSN_BH1_MAX_LEV = 13
 BSSN_BH1 = { MASS = 1.0, X = 0.0, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.4, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
-# BH2: parked far away for safety (kerrData ignores BH2).
+# BH2: inert (mass=0, kerrData ignores BH2's metric contribution) but kept
+# inside the grid at X=10.0 rather than 1.0e6 -- the puncture-tracking
+# shift-vector interpolation (grUtils.cpp) always queries both tracked BH
+# points regardless of run type, and a far-outside-domain BH2 spammed
+# "skipped 1 of 2 points outside domain" warnings. Odd but harmless: the
+# tracker will walk BH2's coordinate based on local shift-vector values
+# instead of leaving it fixed, since mass=0 means no physics changes.
 BSSN_BH2_AMR_R = 1.0
 BSSN_BH2_CONSTRAINT_R = 1.0
-BSSN_BH2_MAX_LEV = 11
-BSSN_BH2 = { MASS = 0.0, X = 1.0e6, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
+BSSN_BH2_MAX_LEV = 13
+BSSN_BH2 = { MASS = 0.0, X = 10.0, Y = 0.0, Z = 0.0, V_X = 0.0, V_Y = 0.0, V_Z = 0.0, SPIN = 0.0, SPIN_THETA = 0.0, SPIN_PHI = 0.0 }
 
 ########################################################################
 # TPID (unused for ID_TYPE=6)
