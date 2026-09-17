@@ -35,6 +35,7 @@ unsigned int BSSN_GW_EXTRACT_FREQ  = std::numeric_limits<unsigned int>::max();
 unsigned int BSSN_REMESH_TEST_FREQ = 10;
 
 unsigned int BSSN_REMESH_TEST_FREQ_AFTER_MERGER        = 10;
+unsigned int BSSN_MAX_MESH_ELEMENTS                    = 0;
 unsigned int BSSN_GW_EXTRACT_FREQ_AFTER_MERGER         = 10;
 double BSSN_IO_OUTPUT_GAP                              = 1.0;
 
@@ -550,6 +551,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     std::vector<ParameterInformation> optionalParsList = {
         {"BSSN_REMESH_TEST_FREQ_AFTER_MERGER",
          bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER, UseInitialValue},
+        {"BSSN_MAX_MESH_ELEMENTS", bssn::BSSN_MAX_MESH_ELEMENTS,
+         UseInitialValue},
         {"RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION, UseInitialValue},
         {"RIT_ETA_OUTER", bssn::RIT_ETA_OUTER, UseInitialValue},
         {"RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL, UseInitialValue},
@@ -1102,6 +1105,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
         std::vector<ParameterInformation> parsList = {
             {"BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ},
             {"BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ},
+            {"BSSN_MAX_MESH_ELEMENTS", bssn::BSSN_MAX_MESH_ELEMENTS},
             {"BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ},
             {"BSSN_VTU_FILE_PREFIX", bssn::BSSN_VTU_FILE_PREFIX},
             {"BSSN_CHKPT_FILE_PREFIX", bssn::BSSN_CHKPT_FILE_PREFIX},
