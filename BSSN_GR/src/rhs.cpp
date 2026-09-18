@@ -29,7 +29,17 @@ static inline void bssnrhs_one_block(double **uzipVarsRHS,
     sz[1]                     = blkList[blk].getAllocationSzY();
     sz[2]                     = blkList[blk].getAllocationSzZ();
 
+#ifdef DENDRO_WIDE_PADDING
+    // physical faces in bits [0,6); faces that take the trimmed compact
+    // closure (finer neighbour, or coarser when SOLVER/BSSN trim is on) in
+    // bits [6,12) for the derivative dispatch. bssnrhs masks the physical
+    // bits back out for the boundary conditions and KO.
+    const unsigned int bflag =
+        blkList[blk].getBlkNodeFlag() |
+        (blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT);
+#else
     const unsigned int bflag  = blkList[blk].getBlkNodeFlag();
+#endif
 
     const double dx           = blkList[blk].computeDx(pt_min, pt_max);
     const double dy           = blkList[blk].computeDy(pt_min, pt_max);
@@ -147,6 +157,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
              const unsigned int &offset, const double *pmin, const double *pmax,
              const unsigned int *sz, const unsigned int &bflag, const double t,
              const double **uZipConstVars) {
+    // DENDRO_WIDE_PADDING: bflag may carry trimmed-closure bits above bit 6;
+    // only the derivative dispatch reads them.
+    const unsigned int bflag_phys = bflag & DENDRO_BFLAG_PHYS_MASK;
+
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];
     const double *const K     = &uZipVars[VAR::U_K][offset];
@@ -363,62 +377,62 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     }
     bssn::timer::t_rhs.stop();
 
-    if (bflag != 0) {
+    if (bflag_phys != 0) {
         bssn::timer::t_bdyc.start();
 
         bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, pmin,
-                 pmax, 1.0, 1.0, sz, bflag);
+                 pmax, 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(chi_rhs, chi, grad_0_chi, grad_1_chi, grad_2_chi, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(K_rhs, K, grad_0_K, grad_1_K, grad_2_K, pmin, pmax, 1.0, 0.0,
-                 sz, bflag);
+                 sz, bflag_phys);
 
         bssn_bcs(b_rhs0, beta0, grad_0_beta0, grad_1_beta0, grad_2_beta0, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(b_rhs1, beta1, grad_0_beta1, grad_1_beta1, grad_2_beta1, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(b_rhs2, beta2, grad_0_beta2, grad_1_beta2, grad_2_beta2, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
 
         bssn_bcs(Gt_rhs0, Gt0, grad_0_Gt0, grad_1_Gt0, grad_2_Gt0, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(Gt_rhs1, Gt1, grad_0_Gt1, grad_1_Gt1, grad_2_Gt1, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(Gt_rhs2, Gt2, grad_0_Gt2, grad_1_Gt2, grad_2_Gt2, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
 
         bssn_bcs(B_rhs0, B0, grad_0_B0, grad_1_B0, grad_2_B0, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
         bssn_bcs(B_rhs1, B1, grad_0_B1, grad_1_B1, grad_2_B1, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
         bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
 
         bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs01, At1, grad_0_At1, grad_1_At1, grad_2_At1, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs02, At2, grad_0_At2, grad_1_At2, grad_2_At2, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs11, At3, grad_0_At3, grad_1_At3, grad_2_At3, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs12, At4, grad_0_At4, grad_1_At4, grad_2_At4, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs22, At5, grad_0_At5, grad_1_At5, grad_2_At5, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
 
         bssn_bcs(gt_rhs00, gt0, grad_0_gt0, grad_1_gt0, grad_2_gt0, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(gt_rhs01, gt1, grad_0_gt1, grad_1_gt1, grad_2_gt1, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs02, gt2, grad_0_gt2, grad_1_gt2, grad_2_gt2, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs11, gt3, grad_0_gt3, grad_1_gt3, grad_2_gt3, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(gt_rhs12, gt4, grad_0_gt4, grad_1_gt4, grad_2_gt4, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
 
         bssn::timer::t_bdyc.stop();
     }
@@ -431,7 +445,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // reported rhs_ko_t0 = 0 while plainly doing the work.
     bssn::timer::t_rhs.start();
     bssn::timer::t_rhs_ko.start();
+    {
+        const unsigned int bflag = bflag_phys;  // KO never reads the ring
 #include "bssnrhs_ko_derivs.h"
+    }
 
     double sigma = KO_DISS_SIGMA;
 
