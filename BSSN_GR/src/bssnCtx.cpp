@@ -826,6 +826,10 @@ void BSSNCtx::compute_constraint_variables() {
         sz[2]    = blkList[blk].getAllocationSzZ();
 
         bflag    = blkList[blk].getBlkNodeFlag();
+#ifdef DENDRO_WIDE_PADDING
+        // constraints take compact derivatives too: same trimmed-closure bits
+        bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
+#endif
 
         dx       = blkList[blk].computeDx(pt_min, pt_max);
         dy       = blkList[blk].computeDy(pt_min, pt_max);
