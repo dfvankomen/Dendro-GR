@@ -11,6 +11,8 @@
  */
 
 #include "bssnCtx.h"
+#include <cstdlib>
+#include <cstdio>
 
 #include <mpi.h>
 #include <sys/types.h>
@@ -593,6 +595,7 @@ int BSSNCtx::initialize() {
         std::cout << "Now initializing grid..." << std::endl;
     }
     this->init_grid();
+    m_uiMesh->printBlockFaceCensus("initial grid");
     if (!rank_global) {
         std::cout << GRN << "Grid initialized!" << NRM << std::endl;
     }
@@ -1702,6 +1705,19 @@ DVec& BSSNCtx::get_evolution_vars() { return m_var[CPU_EV]; }
 DVec& BSSNCtx::get_constraint_vars() { return m_var[CPU_CV]; }
 
 int BSSNCtx::terminal_output() {
+    // BSSN_BLOCK_CENSUS=1: block faces by neighbour type at every terminal
+    // output (measures how much of the mesh a wide-padding ring can serve)
+    static const bool census = [] {
+        const char *e = std::getenv("BSSN_BLOCK_CENSUS");
+        return e && e[0] == '1';
+    }();
+    if (census) {
+        char tag[64];
+        std::snprintf(tag, sizeof tag, "step %u t %.4f",
+                      (unsigned)m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+        m_uiMesh->printBlockFaceCensus(tag);
+    }
+
     if (m_uiMesh->isActive()) {
         DendroScalar min = 0, max = 0;
         DVec& m_evar = m_var[VL::CPU_EV];
