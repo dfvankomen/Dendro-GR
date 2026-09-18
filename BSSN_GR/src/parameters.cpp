@@ -8,6 +8,7 @@
 //
 
 #include "parameters.h"
+#include "dendro_padding.h"
 
 #include <cstdlib>
 #include <limits>
@@ -22,7 +23,11 @@ namespace bssn {
 
 mem::memory_pool<double> BSSN_MEM_POOL = mem::memory_pool<double>(0, 16);
 unsigned int BSSN_ELE_ORDER            = 6;
+#ifdef DENDRO_WIDE_PADDING
+unsigned int BSSN_PADDING_WIDTH        = DENDRO_PAD_WIDTH_FOR_ORDER(BSSN_ELE_ORDER);
+#else
 unsigned int BSSN_PADDING_WIDTH        = BSSN_ELE_ORDER >> 1u;
+#endif
 
 unsigned int BSSN_IO_OUTPUT_FREQ       = 10;
 unsigned int BSSN_TIME_STEP_OUTPUT_FREQ = 25;
@@ -840,7 +845,11 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         exit(0);
     }
 
+#ifdef DENDRO_WIDE_PADDING
+    BSSN_PADDING_WIDTH = DENDRO_PAD_WIDTH_FOR_ORDER(BSSN_ELE_ORDER);
+#else
     BSSN_PADDING_WIDTH = BSSN_ELE_ORDER >> 1u;
+#endif
     bssn::BSSN_BH_LOC[0] =
         Point(BH1.getBHCoordX(), BH1.getBHCoordY(), BH1.getBHCoordZ());
     bssn::BSSN_BH_LOC[1] =
