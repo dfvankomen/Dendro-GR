@@ -283,6 +283,9 @@ int BSSNCtx::rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
         sz[2] = blkList[blk].getAllocationSzZ();
 
         bflag = blkList[blk].getBlkNodeFlag();
+#ifdef DENDRO_WIDE_PADDING
+        bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
+#endif
 
         dx = blkList[blk].computeDx(pt_min, pt_max);
         dy = blkList[blk].computeDy(pt_min, pt_max);
@@ -344,6 +347,9 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     }
 
     bflag = blkList[blk].getBlkNodeFlag();
+#ifdef DENDRO_WIDE_PADDING
+        bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
+#endif
     const unsigned int pw = blkList[blk].get1DPadWidth();
 
     dx = blkList[blk].computeDx(pt_min, pt_max);
