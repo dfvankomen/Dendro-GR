@@ -1,4 +1,5 @@
 #include "rhs.h"
+thread_local int g_dbg_blk = -1;  // wide-padding diagnostic
 
 #include <cstdio>
 #include <cstdlib>
@@ -29,6 +30,7 @@ static inline void bssnrhs_one_block(double **uzipVarsRHS,
     sz[1]                     = blkList[blk].getAllocationSzY();
     sz[2]                     = blkList[blk].getAllocationSzZ();
 
+    g_dbg_blk = (int)blk;
 #ifdef DENDRO_WIDE_PADDING
     // physical faces in bits [0,6); faces that take the trimmed compact
     // closure (finer neighbour, or coarser when SOLVER/BSSN trim is on) in
@@ -274,6 +276,20 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // clang-format on
 
     bssn::timer::t_deriv.stop();
+    {   // BSSN_DERIV_DUMP=<prefix> + BSSN_DERIV_DUMP_BLK=<idx>: dump derivative arrays of that block (first call, rank 0)
+        static const char* dd = std::getenv("BSSN_DERIV_DUMP"); static const char* db = std::getenv("BSSN_DERIV_DUMP_BLK");
+        static bool done = false;
+        if (dd && db && !done && g_dbg_blk == std::atoi(db)) {
+            int rank = 0; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            { done = true; std::string fn = std::string(dd) + "_derivs_r" + std::to_string(rank) + ".txt"; FILE* fo = std::fopen(fn.c_str(), "w");
+                std::fprintf(fo, "# blk %d sz %u %u %u PW %u\n", g_dbg_blk, nx, ny, nz, PW);
+                for (unsigned int k = 0; k < nz; k++) for (unsigned int j = 0; j < ny; j++) for (unsigned int i = 0; i < nx; i++) {
+                    const unsigned int pp = i + nx * (j + ny * k);
+                    std::fprintf(fo, "%d %d %d %.17g %.17g %.17g %.17g %.17g %.17g\n", (int)i - (int)PW, (int)j - (int)PW, (int)k - (int)PW,
+                        alpha[pp], grad_0_alpha[pp], grad2_0_0_alpha[pp], grad2_0_1_alpha[pp], grad2_1_1_alpha[pp], grad_0_chi[pp]); }
+                std::fclose(fo); }
+        }
+    }
 
     // loop dep. removed allowing compiler to optmize for vectorization.
     // if (bssn::RIT_ETA_FUNCTION == 0) {

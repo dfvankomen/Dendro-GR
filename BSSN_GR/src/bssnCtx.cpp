@@ -222,6 +222,49 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
 #endif
 
     bssn::timer::t_zip.start();
+    // BSSN_RHS_BINS=1: rms of the unzipped RHS by block face type at the first
+    // few calls (wide-padding equivalence diagnostic; pairs with BSSN_CONS_BINS)
+    {
+        static int calls = 0; static const bool on = [] { const char* e = std::getenv("BSSN_RHS_BINS"); return e && e[0]=='1'; }();
+        if (on && calls < 2 && m_uiMesh->isActive()) {
+            calls++;
+            const std::vector<ot::Block>& blks = m_uiMesh->getLocalBlockList();
+            const std::vector<ot::TreeNode>& AE = m_uiMesh->getAllElements();
+            const std::vector<unsigned int>& e2e = m_uiMesh->getE2EMapping();
+            const unsigned int nd = m_uiMesh->getNumDirections();
+            const unsigned int FAC[6] = {OCT_DIR_LEFT, OCT_DIR_RIGHT, OCT_DIR_DOWN, OCT_DIR_UP, OCT_DIR_BACK, OCT_DIR_FRONT};
+            const unsigned int vids[5] = {VAR::U_ALPHA, VAR::U_CHI, VAR::U_SYMGT0, VAR::U_SYMAT0, VAR::U_K};
+            constexpr int NT = 4, NV = 5; std::vector<double> s2(NT * NV, 0.0); std::vector<long> cn(NT, 0);
+            for (size_t b = 0; b < blks.size(); b++) {
+                bool coarser = false, finer = false;
+                for (DendroIntL e = blks[b].getLocalElementBegin(); e < blks[b].getLocalElementEnd(); e++)
+                    for (int d = 0; d < 6; d++) { const unsigned int nb = e2e[(size_t)e * nd + FAC[d]]; if (nb == LOOK_UP_TABLE_DEFAULT || nb >= AE.size()) continue;
+                        if (AE[nb].getLevel() < AE[e].getLevel()) coarser = true; else if (AE[nb].getLevel() > AE[e].getLevel()) finer = true; }
+                const int ty = blks[b].getBlkNodeFlag() ? 3 : coarser ? 1 : finer ? 2 : 0;
+                const unsigned int pW = blks[b].get1DPadWidth(), lx = blks[b].getAllocationSzX(), ly = blks[b].getAllocationSzY(), lz = blks[b].getAllocationSzZ(), of = blks[b].getOffset();
+                // BSSN_RHS_DUMP=<prefix>: per-point dump of At0/K/alpha rhs and alpha in, first S block, rank 0, first call
+                static bool dumped = false; static const char* dump = std::getenv("BSSN_RHS_DUMP");
+                if (dump && !dumped && ty == 0 && calls == 1 && !m_uiMesh->getMPIRank()) {
+                    dumped = true; std::string fn = std::string(dump) + "_At0_rhs.txt"; FILE* fo = std::fopen(fn.c_str(), "w");
+                    std::fprintf(fo, "# block %zu lev %u sz %u %u %u pw %u\n", b, blks[b].getRegularGridLev(), lx, ly, lz, pW);
+                    for (unsigned int k = 0; k < lz; k++) for (unsigned int j = 0; j < ly; j++) for (unsigned int i = 0; i < lx; i++) {
+                        const size_t pp = of + (size_t)(k * ly + j) * lx + i;
+                        std::fprintf(fo, "%d %d %d %.17g %.17g %.17g %.17g\n", (int)i - (int)pW, (int)j - (int)pW, (int)k - (int)pW,
+                                     unzipOut[VAR::U_SYMAT0][pp], unzipOut[VAR::U_K][pp], unzipOut[VAR::U_ALPHA][pp], unzipIn[VAR::U_ALPHA][pp]); }
+                    std::fclose(fo);
+                }
+                for (unsigned int k = pW; k < lz - pW; k++) for (unsigned int j = pW; j < ly - pW; j++) for (unsigned int i = pW; i < lx - pW; i++) {
+                    const size_t pp = of + (size_t)(k * ly + j) * lx + i; cn[ty]++;
+                    for (int v = 0; v < NV; v++) { const double x = unzipOut[vids[v]][pp]; s2[ty * NV + v] += x * x; } }
+            }
+            std::vector<double> g(s2.size()); std::vector<long> gc(cn.size()); MPI_Comm comm = m_uiMesh->getMPICommunicator();
+            MPI_Allreduce(s2.data(), g.data(), (int)s2.size(), MPI_DOUBLE, MPI_SUM, comm); MPI_Allreduce(cn.data(), gc.data(), NT, MPI_LONG, MPI_SUM, comm);
+            if (!m_uiMesh->getMPIRank()) { const char* tn[NT] = {"S", "C", "F", "B"};
+                std::printf("[rbin] call %d t %.4f | rms rhs of alpha chi gt0 At0 K per face type\n", calls, time);
+                for (int t = 0; t < NT; t++) { if (!gc[t]) continue; std::printf("[rbin] %s (%ld):", tn[t], gc[t]); for (int v = 0; v < NV; v++) std::printf(" %.6e", std::sqrt(g[t * NV + v] / gc[t])); std::printf("\n"); }
+                std::fflush(stdout); }
+        }
+    }
     this->zip(m_var[CPU_EV_UZ_OUT], *out);
     bssn::timer::t_zip.stop();
     bssn::timer::t_rkStep.stop();
@@ -895,6 +938,75 @@ int BSSNCtx::extract_constraints() {
                              evolVar[BHLOC::EXTRACTION_VAR_ID],
                              BHLOC::EXTRACTION_TOL, m_uiTinfo._m_uiStep,
                              m_uiTinfo._m_uiT);
+    // BSSN_CONS_BINS=1: per-block rms of |C_MOM| and |C_HAM| on the unzipped
+    // constraint vector, binned by block level x face type (S same-level only,
+    // C has a coarser nbr, F has a finer nbr (no coarser), B touches the domain
+    // boundary). Diagnostic for the wide-padding equivalence gate.
+    static const bool cons_bins = [] {
+        const char* e = std::getenv("BSSN_CONS_BINS");
+        return e && e[0] == '1';
+    }();
+    if (cons_bins && m_uiMesh->isActive()) {
+        DendroScalar* cvu[bssn::BSSN_CONSTRAINT_NUM_VARS];
+        m_cvar_unz.to_2d(cvu);
+        const std::vector<ot::Block>& blks   = m_uiMesh->getLocalBlockList();
+        const std::vector<ot::TreeNode>& AE  = m_uiMesh->getAllElements();
+        const std::vector<unsigned int>& e2e = m_uiMesh->getE2EMapping();
+        const unsigned int nd = m_uiMesh->getNumDirections();
+        const unsigned int FAC[6] = {OCT_DIR_LEFT, OCT_DIR_RIGHT, OCT_DIR_DOWN,
+                                     OCT_DIR_UP, OCT_DIR_BACK, OCT_DIR_FRONT};
+        constexpr int NL = 24, NT = 4, NQ = 2;
+        std::vector<double> s2(NL * NT * NQ, 0.0), mx(NL * NT * NQ, 0.0);
+        std::vector<long> cn(NL * NT, 0);
+        for (size_t b = 0; b < blks.size(); b++) {
+            const unsigned int lev = blks[b].getRegularGridLev();
+            if (lev >= (unsigned)NL) continue;
+            bool coarser = false, finer = false;
+            for (DendroIntL e = blks[b].getLocalElementBegin(); e < blks[b].getLocalElementEnd(); e++)
+                for (int d = 0; d < 6; d++) {
+                    const unsigned int nb = e2e[(size_t)e * nd + FAC[d]];
+                    if (nb == LOOK_UP_TABLE_DEFAULT || nb >= AE.size()) continue;
+                    if (AE[nb].getLevel() < AE[e].getLevel()) coarser = true;
+                    else if (AE[nb].getLevel() > AE[e].getLevel()) finer = true;
+                }
+            const int ty = blks[b].getBlkNodeFlag() ? 3 : coarser ? 1 : finer ? 2 : 0;
+            const unsigned int pW = blks[b].get1DPadWidth(), lx = blks[b].getAllocationSzX(),
+                               ly = blks[b].getAllocationSzY(), lz = blks[b].getAllocationSzZ(), of = blks[b].getOffset();
+            for (unsigned int k = pW; k < lz - pW; k++)
+                for (unsigned int j = pW; j < ly - pW; j++)
+                    for (unsigned int i = pW; i < lx - pW; i++) {
+                        const size_t pp = of + (size_t)(k * ly + j) * lx + i;
+                        const double h = std::fabs(cvu[0][pp]);
+                        const double m = std::sqrt(cvu[1][pp] * cvu[1][pp] + cvu[2][pp] * cvu[2][pp] + cvu[3][pp] * cvu[3][pp]);
+                        const int c = lev * NT + ty;
+                        cn[c]++; s2[c * NQ] += h * h; s2[c * NQ + 1] += m * m;
+                        if (h > mx[c * NQ]) mx[c * NQ] = h;
+                        if (m > mx[c * NQ + 1]) mx[c * NQ + 1] = m;
+                    }
+        }
+        std::vector<double> gs2(s2.size()), gmx(mx.size()); std::vector<long> gcn(cn.size());
+        MPI_Comm comm = m_uiMesh->getMPICommunicator();
+        MPI_Allreduce(s2.data(), gs2.data(), (int)s2.size(), MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(mx.data(), gmx.data(), (int)mx.size(), MPI_DOUBLE, MPI_MAX, comm);
+        MPI_Allreduce(cn.data(), gcn.data(), (int)cn.size(), MPI_LONG, MPI_SUM, comm);
+        if (!m_uiMesh->getMPIRank()) {
+            const char* tn[NT] = {"S", "C", "F", "B"};
+            std::printf("[cbin] step %u t %.4f | rms |HAM| , rms |MOM| , max |MOM| (npts) per level x face type\n",
+                        (unsigned)m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT);
+            for (int l = 0; l < NL; l++) {
+                bool any = false; for (int t = 0; t < NT; t++) any |= gcn[l * NT + t] > 0;
+                if (!any) continue;
+                std::printf("[cbin] lvl %2d", l);
+                for (int t = 0; t < NT; t++) {
+                    const int c = l * NT + t; const long n = gcn[c];
+                    if (n) std::printf(" | %s %.3e %.3e %.3e (%ld)", tn[t], std::sqrt(gs2[c * NQ] / n), std::sqrt(gs2[c * NQ + 1] / n), gmx[c * NQ + 1], n);
+                    else std::printf(" | %s -", tn[t]);
+                }
+                std::printf("\n");
+            }
+            std::fflush(stdout);
+        }
+    }
 
     dendro::logger::info("Finished extracting constraints!");
     return 0;
