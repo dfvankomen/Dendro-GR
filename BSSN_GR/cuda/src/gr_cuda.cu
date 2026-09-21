@@ -150,9 +150,6 @@ int main(int argc, char** argv) {
         MPI_Abort(comm, 0);
     }
 
-    // NOTE: BSSN_GW_EXTRACT_FREQ used to be required to be <= IO_OUTPUT_FREQ,
-    // because write_vtu() lived inside the GW block and so really ran on the GW
-    // frequency. VTU output has its own gate now, so the two are independent.
 
     // 2. generate the initial grid.
     std::vector<ot::TreeNode> tmpNodes;
@@ -301,8 +298,7 @@ int main(int argc, char** argv) {
 
         ts::TSInfo ts_gw_output;
         ts::TSInfo ts_curr;
-        // 0 disables GW extraction, as it does for every other *_FREQ.
-        // Start "written" in that case so the GW block below stays inert.
+        // 0 disables GW extraction; start "written" so the block stays inert
         bool is_gw_written     = (bssn::BSSN_GW_EXTRACT_FREQ == 0);
 
         bool is_merge_executed = false;
@@ -324,15 +320,7 @@ int main(int argc, char** argv) {
 
             const bool is_merged             = bssnCtx->is_bh_merged(0.1);
             if (is_merged && !is_merge_executed) {
-                // kept in step with the CPU driver (bssngr_main.cpp). two
-                // things this block used to do were dropped to match it:
-                //   - BSSN_MINDEPTH = 5, commented out CPU-side
-                //   - forcing BSSN_REFINEMENT_MODE = WAMR, which wkb disabled
-                //     on 5 Sept 2024 to allow other refinement modes past the
-                //     merger. leaving it here made BH_WAMR silently become
-                //     WAMR at merger on the GPU only.
-                // the remesh frequency also matched 3x the after-merger value
-                // rather than the after-merger value itself.
+                // mirrors the CPU driver (bssngr_main.cpp)
                 bssn::BSSN_REMESH_TEST_FREQ =
                     bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
                 bssn::BSSN_GW_EXTRACT_FREQ =
@@ -345,20 +333,12 @@ int main(int argc, char** argv) {
             }
 
 #ifndef BSSN_PROFILE_SCALING_RUN
-            // did the IO block below already pull the evolution vars back to
-            // the host this step? the AH solve reuses it if so
             bool did_d2h_sync = false;
 
-            // Remesh test. Matches the CPU driver (bssngr_main.cpp): its own
-            // frequency, guarded on freq>0 and step!=0. This used to be nested
-            // inside the GW-extraction block, so it only fired on steps that
-            // were a multiple of BOTH frequencies -- and not at all when
-            // BSSN_GW_EXTRACT_FREQ was 0 (q16 remeshed every 200 steps instead
-            // of 50; parity_* never remeshed).
+            // own cadence, like the CPU driver
             if (bssn::BSSN_REMESH_TEST_FREQ > 0 &&
                 (step % bssn::BSSN_REMESH_TEST_FREQ) == 0 && step != 0) {
-                // is_remesh() reads the host evolution vars, so pull them back
-                // first unless something already did this step.
+                // is_remesh() reads the host evolution vars
                 if (!did_d2h_sync) {
                     bssnCtx->device_to_host_sync();
                     did_d2h_sync = true;
@@ -453,11 +433,7 @@ int main(int argc, char** argv) {
                 did_d2h_sync  = true;
             }
 
-            // Everything below runs on its own frequency, like the CPU driver.
-            // These used to sit inside the GW block, so VTU output actually
-            // fired on BSSN_GW_EXTRACT_FREQ and checkpoints were SKIPPED
-            // whenever CHECKPT_FREQ didn't line up with a GW step. Each does
-            // its own D2H unless the block above already did one this step.
+            // own frequencies, like the CPU driver; D2H once per step
             if (bssn::BSSN_IO_OUTPUT_FREQ > 0 &&
                 (step % bssn::BSSN_IO_OUTPUT_FREQ) == 0) {
                 if (!did_d2h_sync) {

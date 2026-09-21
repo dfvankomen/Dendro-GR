@@ -1291,12 +1291,7 @@ int BSSNCtxGPU::grid_transfer(const ot::Mesh* m_new) {
         BSSN_NUM_VARS, true);
 
 #ifdef __CUDACC__
-    // the device holds its own copy of the mesh; rebuild it for m_new before
-    // pushing data up. previously this only happened at construction, in the
-    // init-grid loop and on checkpoint restore -- an *evolution* remesh left
-    // m_dptr_mesh pointing at the old mesh. that never bit because the remesh
-    // path was unreachable during evolution (see gr_cuda.cu), but it would the
-    // moment it fired.
+    // the device keeps its own mesh copy; rebuild it for m_new before pushing
     {
         device::MeshGPU*& dptr_mesh = this->get_meshgpu_device_ptr();
         device::MeshGPU* mesh_gpu   = this->get_meshgpu_host_handle();
