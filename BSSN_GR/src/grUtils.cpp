@@ -2512,6 +2512,11 @@ void set_rhs_omp_schedule() {
     // bench likewise) so the placement is set on the FIRST allocation. Any other
     // value clears it, keeping the default flat first-touch.
     ot::g_padded_numa_first_touch = (spec == "balanced");
+    // "lpt" reorders blocks in rhs_experimental.cpp and needs dynamic,1
+    if (spec == "lpt") {
+        omp_set_schedule(omp_sched_dynamic, 1);
+        return;
+    }
     if (spec == "balanced") {
         // consume uses the manual partition; leave the run-sched ICV at the
         // historical default so any other schedule(runtime) loops are unchanged.

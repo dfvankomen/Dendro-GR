@@ -12,6 +12,12 @@
 #include "derivatives.h"  // full DendroDerivatives type for filter_cako()
 #endif
 
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <numeric>
+#include <vector>
+
 #if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
     defined(BSSN_USE_CASCADE_AVX512) ||                                      \
     defined(BSSN_USE_CASCADE_AVX512_FUSED) ||                               \
@@ -28,6 +34,45 @@
 
 using namespace std;
 using namespace bssn;
+
+#ifdef DENDRO_HYBRID_OMP
+// Largest blocks first by padded volume; nullptr if all are the same size.
+static const unsigned int *lpt_block_order(const ot::Block *blkList,
+                                           unsigned int numBlocks) {
+    static std::vector<unsigned int> order;
+    if (bssn::BSSN_HYBRID_NTHREADS < 2 || numBlocks < 2) return nullptr;
+    const double t0 = MPI_Wtime();
+    std::vector<unsigned long long> vol(numBlocks);
+    for (unsigned int b = 0; b < numBlocks; b++)
+        vol[b] = (unsigned long long)blkList[b].getAllocationSzX() *
+                 blkList[b].getAllocationSzY() * blkList[b].getAllocationSzZ();
+    const bool uniform =
+        std::all_of(vol.begin(), vol.end(),
+                    [&](unsigned long long v) { return v == vol[0]; });
+    if (!uniform) {
+        order.resize(numBlocks);
+        std::iota(order.begin(), order.end(), 0u);
+        std::stable_sort(
+            order.begin(), order.end(),
+            [&vol](unsigned int a, unsigned int b) { return vol[a] > vol[b]; });
+    }
+    // opt-in proof for the bit-exact gate that this path ran
+    static bool announced = false;
+    if (!announced && std::getenv("BSSN_RHS_LPT_VERBOSE") != nullptr) {
+        announced = true;
+        int rank  = 0;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (!rank)
+            std::fprintf(
+                stderr,
+                "[rhs-lpt] %s: numBlocks=%u largest=%llu order+sort=%.1f us\n",
+                uniform ? "BYPASSED (uniform blocks)" : "ACTIVE", numBlocks,
+                uniform ? vol[0] : vol[order.front()],
+                1e6 * (MPI_Wtime() - t0));
+    }
+    return uniform ? nullptr : order.data();
+}
+#endif
 
 void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
              const ot::Block *blkList, unsigned int numBlocks,
@@ -92,11 +137,17 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
 // thread-owned contiguous block partition, which keeps each thread's private L2
 // warm across RK stages (MPI-subdomain-like locality) at the cost of some load
 // imbalance. A/B these to see which wins for a given mesh.
+    const unsigned int *blkOrder = (bssn::BSSN_HYBRID_RHS_SCHEDULE == "lpt")
+                                       ? lpt_block_order(blkList, numBlocks)
+                                       : nullptr;
 #pragma omp parallel for schedule(runtime)  \
     num_threads(bssn::BSSN_HYBRID_NTHREADS) \
     private(offset, sz, bflag, dx, dy, dz, ptmin, ptmax)
-#endif
+    for (unsigned int ii = 0; ii < numBlocks; ii++) {
+        const unsigned int blk = blkOrder ? blkOrder[ii] : ii;
+#else
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
+#endif
         offset   = blkList[blk].getOffset();
         sz[0]    = blkList[blk].getAllocationSzX();
         sz[1]    = blkList[blk].getAllocationSzY();
