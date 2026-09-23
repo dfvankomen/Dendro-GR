@@ -177,6 +177,12 @@ extern unsigned int BSSN_REMESH_TEST_FREQ;
 /**@brief remesh test freq. after the merger*/
 extern unsigned int BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
 
+/**@brief hard ceiling on total (global) mesh element count; once reached,
+ * every refinement path refuses further OCT_SPLIT flags (coarsening still
+ * allowed) so a runaway wavelet/onion criterion can't grow the mesh past a
+ * bounded compute budget. 0 disables the ceiling. */
+extern unsigned int BSSN_MAX_MESH_ELEMENTS;
+
 /**@brief checkpoint store frequency*/
 extern unsigned int BSSN_CHECKPT_FREQ;
 
