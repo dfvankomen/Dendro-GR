@@ -292,7 +292,12 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // mixed-only arrays. Only bflag!=0 (boundary) blocks need the full
     // 138-array workspace (their non-fused fallback reads it).
     if (bflag == 0) {
+#if defined(DENDRO_USE_NEW_DERIVS) && !defined(BSSN_USE_CASCADE_AVX512_FUSED) && \
+    !defined(BSSN_USE_CASCADE_AVX_FUSED)
+        #include "bssnrhs_derivs_mixed_trim.h"
+#else
         #include "bssnrhs_derivs_mixed_only.h"
+#endif
     } else {
         #include "bssnrhs_derivs.h"
         #include "bssnrhs_derivs_adv.h"

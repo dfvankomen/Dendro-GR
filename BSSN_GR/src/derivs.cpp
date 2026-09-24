@@ -262,6 +262,22 @@ void set_block_explicit_derivs(bool on) {
     // wrappers branch on this flag to pick grad_*_explicit vs grad_*.
     s_block_explicit_derivs = on;
 }
+
+void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,
+                     double *const ux, double *const uy, const double *const u,
+                     const double dx, const double dy, const double dz,
+                     const unsigned int *sz, unsigned bflag) {
+    if (!s_block_explicit_derivs) {
+        bssn::active_derivs()->grad_mixed_set(dxy, dxz, dyz, ux, uy, u, dx, dy,
+                                              dz, sz, bflag);
+        return;
+    }
+    new_deriv_x(ux, u, dx, sz, bflag);
+    new_deriv_y(uy, u, dy, sz, bflag);
+    new_deriv_y(dxy, ux, dy, sz, bflag);
+    new_deriv_z(dxz, ux, dz, sz, bflag);
+    new_deriv_z(dyz, uy, dz, sz, bflag);
+}
 #endif
 
 void deriv42_x_wrapper(double *const Dxu, const double *const u,
