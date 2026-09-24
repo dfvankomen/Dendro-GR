@@ -887,11 +887,31 @@ int BSSNCtxGPU::restore_checkpt() {
     unsigned int totalElems = 0;
     par::Mpi_Allreduce(&localSz, &totalElems, 1, MPI_SUM, comm);
 
+    // initialize() returns as soon as the restore succeeds, so the init-grid
+    // converge block that normally sets these never runs on this path either.
+    unsigned int lmin, lmax;
+    m_uiMesh->computeMinMaxLevel(lmin, lmax);
+    bssn::BSSN_CURRENT_MIN_DX =
+        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
+         ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
+         ((double)(1u << (m_uiMaxDepth))));
+
+    bssn::BSSN_RK45_TIME_STEP_SIZE = m_uiTinfo._m_uiTh;
+
+    if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
+        // REMEMBER: the true max depth of the array is two minus m_uiMaxDepth
+        bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
+            bssn::BSSN_IO_OUTPUT_FREQ >> (m_uiMaxDepth - 2 - lmax);
+        bssn::BSSN_GW_EXTRACT_FREQ_TRUE =
+            bssn::BSSN_GW_EXTRACT_FREQ >> (m_uiMaxDepth - 2 - lmax);
+    }
+
     if (!rank)
         std::cout << " checkpoint at step : " << m_uiTinfo._m_uiStep
                   << "active Comm. sz: " << activeCommSz
                   << " restore successful: "
-                  << " restored mesh size: " << totalElems << std::endl;
+                  << " restored mesh size: " << totalElems
+                  << " | dt: " << bssn::BSSN_RK45_TIME_STEP_SIZE << std::endl;
 
     m_uiIsETSSynced = false;
     return 0;
