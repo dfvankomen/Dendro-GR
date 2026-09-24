@@ -12,10 +12,8 @@
 #include "derivatives.h"  // full DendroDerivatives type for filter_cako()
 #endif
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <numeric>
 #include <vector>
 
 #if defined(BSSN_USE_CASCADE_AVX) || defined(BSSN_USE_CASCADE_AVX_FUSED) || \
@@ -40,22 +38,9 @@ using namespace bssn;
 static const unsigned int *lpt_block_order(const ot::Block *blkList,
                                            unsigned int numBlocks) {
     static std::vector<unsigned int> order;
-    if (bssn::BSSN_HYBRID_NTHREADS < 2 || numBlocks < 2) return nullptr;
-    const double t0 = MPI_Wtime();
-    std::vector<unsigned long long> vol(numBlocks);
-    for (unsigned int b = 0; b < numBlocks; b++)
-        vol[b] = (unsigned long long)blkList[b].getAllocationSzX() *
-                 blkList[b].getAllocationSzY() * blkList[b].getAllocationSzZ();
-    const bool uniform =
-        std::all_of(vol.begin(), vol.end(),
-                    [&](unsigned long long v) { return v == vol[0]; });
-    if (!uniform) {
-        order.resize(numBlocks);
-        std::iota(order.begin(), order.end(), 0u);
-        std::stable_sort(
-            order.begin(), order.end(),
-            [&vol](unsigned int a, unsigned int b) { return vol[a] > vol[b]; });
-    }
+    if (bssn::BSSN_HYBRID_NTHREADS < 2) return nullptr;
+    const double t0       = MPI_Wtime();
+    const bool reorder    = ot::computeLptBlockOrder(blkList, numBlocks, order);
     // opt-in proof for the bit-exact gate that this path ran
     static bool announced = false;
     if (!announced && std::getenv("BSSN_RHS_LPT_VERBOSE") != nullptr) {
@@ -63,14 +48,14 @@ static const unsigned int *lpt_block_order(const ot::Block *blkList,
         int rank  = 0;
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         if (!rank)
-            std::fprintf(
-                stderr,
-                "[rhs-lpt] %s: numBlocks=%u largest=%llu order+sort=%.1f us\n",
-                uniform ? "BYPASSED (uniform blocks)" : "ACTIVE", numBlocks,
-                uniform ? vol[0] : vol[order.front()],
-                1e6 * (MPI_Wtime() - t0));
+            std::fprintf(stderr,
+                         "[rhs-lpt] %s: numBlocks=%u order+sort=%.1f us "
+                         "unzip=%s\n",
+                         reorder ? "ACTIVE" : "BYPASSED (uniform blocks)",
+                         numBlocks, 1e6 * (MPI_Wtime() - t0),
+                         ot::g_lpt_block_order ? "on" : "off");
     }
-    return uniform ? nullptr : order.data();
+    return reorder ? order.data() : nullptr;
 }
 #endif
 
