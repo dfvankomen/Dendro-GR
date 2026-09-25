@@ -647,6 +647,15 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         set_param(parFile, param);
     }
 
+    std::vector<ParameterInformation> chainedParsList = {
+        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ,
+         bssn::BSSN_GW_EXTRACT_FREQ},
+    };
+
+    for (const auto& param : chainedParsList) {
+        set_param(parFile, param);
+    }
+
     // append .log and a time stamp to the log file
     const auto now       = std::chrono::system_clock::now();
     const auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -1001,7 +1010,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         AEH::ETA_DAMP_M, AEH::KO_STRENGTH, AEH::MAX_SEARCH_RADIUS,
         AEH::NR_INTERP_MAX, AEH::NTHETA_MAX, AEH::NPHI_MAX, AEH::AEH_SAVE_DIR,
         simpleBHData, AEH::AEH_INDICES, transform, grid_limits, domain_limits,
-        bssn::BSSN_IO_OUTPUT_FREQ, AEH::NUM_RESOLUTIONS_AFTER_FIND,
+        AEH::AEH_SOLVER_FREQ, AEH::NUM_RESOLUTIONS_AFTER_FIND,
         AEH::NTHETA_ARRAY, AEH::NPHI_ARRAY, AEH::ENABLE_ETA_VARYING_ALG,
         AEH::VERBOSITY_LEVEL);
 
