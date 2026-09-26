@@ -4563,6 +4563,73 @@ void profileInfoJSON(const char* filePrefix, const ot::Mesh* pMesh,
 #undef BSSN_JSONL_PHASE_RAW
     if (os) (*os) << "}";
 
+    // BSSN_PERRANK_CSV=1: also write every rank's own values, not just min/mean/max
+    // every call: the active set can change at remesh, so no per-process caching
+    int perrank = (!activeRank && std::getenv("BSSN_PERRANK_CSV")) ? 1 : 0;
+    MPI_Bcast(&perrank, 1, MPI_INT, 0, comm);
+    if (perrank) {
+        const std::vector<ot::Block>& blks = pMesh->getLocalBlockList();
+        double padVol = 0.0, sendN = 0.0, recvN = 0.0;
+        for (const auto& b : blks)
+            padVol += (double)b.getAllocationSzX() * b.getAllocationSzY() *
+                      b.getAllocationSzZ();
+        MPI_Comm sh;
+        MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, activeRank,
+                            MPI_INFO_NULL, &sh);
+        int leader = activeRank;
+        MPI_Bcast(&leader, 1, MPI_INT, 0, sh);
+        MPI_Comm_free(&sh);
+        std::vector<int> hostOf(activeNpes);
+        MPI_Allgather(&leader, 1, MPI_INT, hostOf.data(), 1, MPI_INT, comm);
+        const auto& sc = pMesh->getNodalSendCounts();
+        double offProcs = 0.0, offN = 0.0;
+        for (size_t p = 0; p < sc.size(); p++) {
+            sendN += sc[p];
+            if (sc[p] && hostOf[p] != hostOf[activeRank]) {
+                offProcs += 1.0;
+                offN += sc[p];
+            }
+        }
+        for (auto c : pMesh->getNodalRecvCounts()) recvN += c;
+        const double v[] = {(double)pick_ets(ETS_EVOLVE, t_rkStep.snap),
+                            (double)pick_app(CTX_RHS, t_rhs.snap),
+                            (double)dendro::timer::t_ghost_wait.snap,
+                            (double)dendro::timer::t_ghost_pack.snap,
+                            (double)dendro::timer::t_ghost_unpack.snap,
+                            (double)pick_app(CTX_UNZIP, t_unzip_sync.snap),
+                            (double)pick_app(CTX_ZIP, t_zip.snap),
+                            (double)pMesh->getNumLocalMeshElements(),
+                            (double)blks.size(),
+                            padVol,
+                            (double)pMesh->getSendProcListSize(),
+                            sendN,
+                            recvN,
+                            (double)hostOf[activeRank],
+                            offProcs,
+                            offN};
+        constexpr int NV = sizeof(v) / sizeof(v[0]);
+        std::vector<double> all(activeRank ? 0 : (size_t)NV * activeNpes);
+        MPI_Gather(v, NV, MPI_DOUBLE, all.data(), NV, MPI_DOUBLE, 0, comm);
+        if (!activeRank) {
+            static bool header_done = false;
+            char fName[256];
+            std::snprintf(fName, sizeof(fName), "%s_perrank.csv", filePrefix);
+            std::ofstream pr(fName, std::fstream::app);
+            if (!header_done)
+                pr << "step,rank,rk_step,rhs_wall,ghost_wait,ghost_pack,"
+                      "ghost_unpack,unzip,zip,elements,blocks,padded_vol,"
+                      "send_procs,send_nodes,recv_nodes,host,off_send_procs,"
+                      "off_send_nodes\n";
+            header_done = true;
+            pr << std::setprecision(9);
+            for (int r = 0; r < activeNpes; r++) {
+                pr << currentStep << ',' << r;
+                for (int k = 0; k < NV; k++) pr << ',' << all[(size_t)r * NV + k];
+                pr << '\n';
+            }
+        }
+    }
+
     // ---- unzip sub-phase breakdown --------------------------------------
     // dendrolib mesh.tcc ticks these inside Mesh::unzip(). The "sync"
     // naming is historical -- they tick under both ghost-exchange paths.
