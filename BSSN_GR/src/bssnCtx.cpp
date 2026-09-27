@@ -23,6 +23,7 @@
 #include <string>
 
 #include <iomanip>
+#include <limits>
 #include <vector>
 
 #include "grUtils.h"
@@ -688,6 +689,13 @@ int BSSNCtx::init_grid() {
                      &mm_adm, &E, &J1, &J2, &J3);
     }
 
+    // TwoPunctures costs ~ms per point: gather each local node's coordinates
+    // (last element wins, as in the serial loop), then evaluate threaded.
+    std::vector<DendroScalar> tpXYZ;
+    if (bssn::BSSN_ID_TYPE == 0)
+        tpXYZ.assign(3 * (size_t)(nodeLocalEnd - nodeLocalBegin),
+                     std::numeric_limits<DendroScalar>::quiet_NaN());
+
     for (unsigned int elem = m_uiMesh->getElementLocalBegin();
          elem < m_uiMesh->getElementLocalEnd(); elem++) {
         DendroScalar var[bssn::BSSN_NUM_VARS];
@@ -719,23 +727,39 @@ int BSSNCtx::init_grid() {
                             pNodes[ownerID].getZ() + kk_z * (len / (eleOrder));
 
                         if (bssn::BSSN_ID_TYPE == 0) {
-                            const DendroScalar xx = GRIDX_TO_X(x);
-                            const DendroScalar yy = GRIDY_TO_Y(y);
-                            const DendroScalar zz = GRIDZ_TO_Z(z);
-
-                            TwoPunctures((double)xx, (double)yy, (double)zz,
-                                         var, &mp, &mm, &mp_adm, &mm_adm, &E,
-                                         &J1, &J2, &J3);
-                        } else {
-                            // all other values are handled in the initial data
-                            // wrapper including an error message
-                            initialDataFunctionWrapper((double)x, (double)y,
-                                                       (double)z, var);
+                            DendroScalar* p =
+                                &tpXYZ[3 * (size_t)(nodeLookUp_CG -
+                                                    nodeLocalBegin)];
+                            p[0] = GRIDX_TO_X(x);
+                            p[1] = GRIDY_TO_Y(y);
+                            p[2] = GRIDZ_TO_Z(z);
+                            continue;
                         }
+                        // all other values are handled in the initial data
+                        // wrapper including an error message
+                        initialDataFunctionWrapper((double)x, (double)y,
+                                                   (double)z, var);
                         for (unsigned int v = 0; v < bssn::BSSN_NUM_VARS; v++)
                             zipIn[v][nodeLookUp_CG] = var[v];
                     }
                 }
+    }
+
+    if (bssn::BSSN_ID_TYPE == 0) {
+        const long nLocal = (long)(nodeLocalEnd - nodeLocalBegin);
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for schedule(dynamic, 64)
+#endif
+        for (long n = 0; n < nLocal; n++) {
+            const DendroScalar* p = &tpXYZ[3 * (size_t)n];
+            if (std::isnan(p[0])) continue;
+            DendroScalar var[bssn::BSSN_NUM_VARS];
+            DendroScalar tmp, tmm, tmp_adm, tmm_adm, tE, tJ1, tJ2, tJ3;
+            TwoPunctures((double)p[0], (double)p[1], (double)p[2], var, &tmp,
+                         &tmm, &tmp_adm, &tmm_adm, &tE, &tJ1, &tJ2, &tJ3);
+            for (unsigned int v = 0; v < bssn::BSSN_NUM_VARS; v++)
+                zipIn[v][nodeLocalBegin + n] = var[v];
+        }
     }
 
     for (unsigned int node = m_uiMesh->getNodeLocalBegin();

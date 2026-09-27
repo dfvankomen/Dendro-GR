@@ -21,6 +21,13 @@ inline double EXTEND(double M, double r) {
                  15. / 8 / TPID::TP_Extend_Radius));
 }
 
+// error paths only: TwoPunctures() runs per grid point, possibly on worker threads
+static int tp_rank() {
+    int r;
+    MPI_Comm_rank(TP_MPI_COMM, &r);
+    return r;
+}
+
 /* -------------------------------------------------------------------*/
 void TwoPunctures(const double xx1, const double yy1, const double zz1,
                   double *vars, double *mp, double *mm, double *mp_adm,
@@ -31,10 +38,6 @@ void TwoPunctures(const double xx1, const double yy1, const double zz1,
 
     enum GRID_SETUP_METHOD { GSM_Taylor_expansion, GSM_evaluation };
     enum GRID_SETUP_METHOD gsm;
-
-    int rank, npes;
-    MPI_Comm_size(TP_MPI_COMM, &npes);
-    MPI_Comm_rank(TP_MPI_COMM, &rank);
 
     int antisymmetric_lapse, averaged_lapse, pmn_lapse, brownsville_lapse;
 
@@ -57,7 +60,7 @@ void TwoPunctures(const double xx1, const double yy1, const double zz1,
     } else if (TPID::grid_setup_method == EVALUATION) {
         gsm = GSM_evaluation;
     } else {
-        if (!rank)
+        if (!tp_rank())
             printf("internal error. unknown grid_setup_method = %d\n",
                    TPID::grid_setup_method);
 
@@ -227,10 +230,10 @@ void TwoPunctures(const double xx1, const double yy1, const double zz1,
         if (conformal_state >= 1) {
             static_psi = p;
         }
-        if (conformal_state >= 2 && !rank) {
+        if (conformal_state >= 2 && !tp_rank()) {
             printf("Code doesn't yet work for conformal_state == 2.\n");
         }
-        if (conformal_state >= 3 && !rank) {
+        if (conformal_state >= 3 && !tp_rank()) {
             printf("Code doesn't yet work for conformal_state == 3.\n");
         }
 
