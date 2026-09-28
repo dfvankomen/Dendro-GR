@@ -57,6 +57,18 @@ option(BSSN_USE_CASCADE_IR_AVX_FUSED "IR polynomial-cascade RHS with inline deri
 # and the RHS cascade flags do not touch the constraints.
 option(BSSN_USE_CASCADE_CONSTRAINTS_AVX "IR polynomial-cascade constraint+psi4 kernel (AVX2, 4-wide)" OFF)
 option(BSSN_USE_CASCADE_CONSTRAINTS_AVX512 "IR polynomial-cascade constraint+psi4 kernel (AVX-512, 8-wide). Requires CPU_ARCH with AVX-512 support." OFF)
+
+dgr_require_at_most_one("BSSN vectorized RHS kernel"
+  BSSN_USE_CASCADE_AVX BSSN_USE_CASCADE_AVX_FUSED
+  BSSN_USE_CASCADE_AVX512 BSSN_USE_CASCADE_AVX512_FUSED
+  BSSN_USE_CASCADE_IR_AVX BSSN_USE_CASCADE_IR_AVX_FUSED
+  BSSN_USE_CASCADE_IR_AVX512 BSSN_USE_CASCADE_IR_AVX512_FUSED)
+
+dgr_require_at_most_one("BSSN scalar RHS body"
+  BSSN_USE_CASCADE BSSN_USE_NAIVE)
+
+dgr_require_at_most_one("BSSN constraint kernel"
+  BSSN_USE_CASCADE_CONSTRAINTS_AVX BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
 option(BSSN_PHYSCON_BLOCK_HISTO "Dump a per-block-size tally of vector vs scalar constraint kernel dispatch to stderr" OFF)
 
 # Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
