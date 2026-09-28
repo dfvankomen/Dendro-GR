@@ -178,5 +178,7 @@ else()
 
 endif()
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DendroGROptions.cmake)
+
 add_subdirectory(BSSN_GR)
 add_subdirectory(Fluid)
