@@ -107,6 +107,9 @@ void Newton(int nvar, int n1, int n2, int n3, derivs v, CCTK_REAL tol,
             int itmax);
 
 /**@brief write the tp solve to a file*/
+// frees the restored spectral solution (~31 x npoints^3 doubles); the next TwoPunctures() call reloads it
+void TwoPuncturesRelease();
+
 void TPStore(double *mp, double *mm, double *mp_adm, double *mm_adm, double *E,
              double *J1, double *J2, double *J3, const char *fprefix);
 /**@brief restore the tp solve from file. */

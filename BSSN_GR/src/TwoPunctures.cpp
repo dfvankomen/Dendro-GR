@@ -21,6 +21,20 @@ inline double EXTEND(double M, double r) {
                  15. / 8 / TPID::TP_Extend_Radius));
 }
 
+// spectral solution restored from file on the first TwoPunctures() call; released by TwoPuncturesRelease()
+static CCTK_REAL *tp_F = NULL;
+static derivs tp_u, tp_v, tp_cf_v;
+
+void TwoPuncturesRelease() {
+    if (!tp_F) return;
+    const int ntotal = TPID::npoints_A * TPID::npoints_B * TPID::npoints_phi;
+    free_dvector(tp_F, 0, ntotal - 1);
+    free_derivs(&tp_u, ntotal);
+    free_derivs(&tp_v, ntotal);
+    free_derivs(&tp_cf_v, ntotal);
+    tp_F = NULL;
+}
+
 // error paths only: TwoPunctures() runs per grid point, possibly on worker threads
 static int tp_rank() {
     int r;
@@ -49,8 +63,8 @@ void TwoPunctures(const double xx1, const double yy1, const double zz1,
 #if 1
     int percent10 = 0;
 #endif
-    static CCTK_REAL *F = NULL;
-    static derivs u, v, cf_v;
+    CCTK_REAL *&F = tp_F;
+    derivs &u = tp_u, &v = tp_v, &cf_v = tp_cf_v;
     CCTK_REAL admMass;
 
     if (!F) TPRestore(F, u, v, cf_v, TPID::FILE_PREFIX.c_str());

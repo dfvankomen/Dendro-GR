@@ -594,6 +594,7 @@ int BSSNCtx::initialize() {
         std::cout << "Now initializing grid..." << std::endl;
     }
     this->init_grid();
+    if (bssn::BSSN_ID_TYPE == 0) TwoPuncturesRelease();
     if (!rank_global) {
         std::cout << GRN << "Grid initialized!" << NRM << std::endl;
     }
