@@ -38,6 +38,9 @@ extern void (*ko_deriv_z)(double *const, const double *const, const double,
 
 void set_appropriate_derivs(const unsigned pw);
 
+// derivative order this binary was compiled for, 0 if none was selected
+unsigned bssn_compiled_deriv_order();
+
 #ifdef DENDRO_USE_NEW_DERIVS
 /**
  * @brief Swap the central 1st/2nd-derivative pointers to the explicit
