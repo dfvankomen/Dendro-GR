@@ -203,6 +203,12 @@ extern unsigned int BSSN_ENABLE_BLOCK_ADAPTIVITY;
 /**@brief file prefix for VTU*/
 extern std::string BSSN_VTU_FILE_PREFIX;
 
+/**@brief visualization output format: "vtu", "vtkhdf" or "both"*/
+extern std::string BSSN_VIS_FORMAT;
+
+/**@brief deflate level (0-9) for VTKHDF output, 0 disables compression*/
+extern unsigned int BSSN_VTKHDF_COMPRESSION;
+
 /**@brief file prefix for write check point*/
 extern std::string BSSN_CHKPT_FILE_PREFIX;
 

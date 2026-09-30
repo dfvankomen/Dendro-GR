@@ -74,6 +74,8 @@ double BSSN_ETA_R0                        = 1.31;
 double BSSN_ETA_POWER[]                   = {2.0, 2.0};
 
 std::string BSSN_VTU_FILE_PREFIX          = "bssn_gr";
+std::string BSSN_VIS_FORMAT               = "vtu";
+unsigned int BSSN_VTKHDF_COMPRESSION      = 0;
 std::string BSSN_CHKPT_FILE_PREFIX        = "bssn_cp";
 std::string BSSN_PROFILE_FILE_PREFIX      = "bssn_prof";
 
@@ -576,6 +578,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
         {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, UseInitialValue},
         {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY, UseInitialValue},
+        {"BSSN_VIS_FORMAT", bssn::BSSN_VIS_FORMAT, UseInitialValue},
+        {"BSSN_VTKHDF_COMPRESSION", bssn::BSSN_VTKHDF_COMPRESSION,
+         UseInitialValue},
         {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R, UseInitialValue},
         {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R, UseInitialValue},
         {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO, UseInitialValue},
@@ -1221,6 +1226,8 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
             {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY},
+            {"BSSN_VIS_FORMAT", bssn::BSSN_VIS_FORMAT},
+            {"BSSN_VTKHDF_COMPRESSION", bssn::BSSN_VTKHDF_COMPRESSION},
             {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R},
             {"BSSN_BH2_AMR_R", bssn::BSSN_BH2_AMR_R},
             {"BSSN_AMR_R_RATIO", bssn::BSSN_AMR_R_RATIO},
