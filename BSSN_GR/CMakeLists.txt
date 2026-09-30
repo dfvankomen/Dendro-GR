@@ -183,26 +183,41 @@ macro(bssn_add_executable TARGET_NAME)
   target_compile_options(${TARGET_NAME} PRIVATE -fext-numeric-literals)
 endmacro()
 
-bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp src/cceWorldtube.cpp)
+# HDF5 is only actually needed by bssnSolver, so cceH5Dat.cpp (the CCE
+# worldtube writer's HDF5 I/O, normally a dendrolib/IO/src/ file) is
+# compiled directly as one of bssnSolver's OWN sources here, rather than
+# being part of the shared dendro5 static library. This is deliberate, not
+# an oversight: dendro5 is a STATIC library, and CMake must put even
+# PRIVATE link dependencies on the link line of any DIRECT consumer (so the
+# archive's own object files can resolve their symbols if the linker pulls
+# them in) -- PRIVATE only suppresses propagation to a SECOND hop, not the
+# first. So when cceH5Dat.cpp was compiled into dendro5 (even with HDF5
+# marked PRIVATE there), every DIRECT dendro5 consumer -- including tpid,
+# bssnWAMRTest, and checkDerivs, none of which touch HDF5 at all -- still
+# ended up dynamically linking it. This caused a real SIGILL crash in tpid
+# on BYU's Marylou cluster (confirmed via `ldd ./tpid | grep hdf5` still
+# showing it linked even after the PRIVATE fix): HDF5's static initializers
+# apparently ran CPU-incompatible code at process-load time on some nodes,
+# even though tpid's own code never calls a single HDF5 function. Compiling
+# cceH5Dat.cpp directly into bssnSolver instead means dendro5 itself never
+# has any reference to HDF5 in its own build, so nothing else that links
+# dendro5 is affected -- only bssnSolver, the one target that genuinely
+# needs it, sees HDF5 at all. See dendrolib/CMakeLists.txt's matching note
+# near its HDF5-removal for the other half of this story.
+find_package(HDF5 REQUIRED COMPONENTS C)
+if(NOT HDF5_IS_PARALLEL)
+  message(FATAL_ERROR "Found HDF5 is not parallel-enabled. Set HDF5_ROOT to "
+                       "point at a parallel HDF5 install before configuring "
+                       "(e.g. on Marylou: export HDF5_ROOT=/apps/spack/root/"
+                       "opt/spack/linux-rhel9-haswell/gcc-13.2.0/hdf5-1.14.3-"
+                       "bm4v3i5etjrhiz6nkugaamp2bjytgoxt).")
+endif()
+
+bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp src/cceWorldtube.cpp ${DENDRO_dendrolib_DIR}/IO/src/cceH5Dat.cpp)
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
 
-# HDF5 is only actually needed by bssnSolver (the only target compiling
-# bssnCtx.cpp/cceWorldtube.cpp, i.e. the CCE worldtube writer). It is
-# deliberately NOT linked PUBLIC from dendro5 (see dendrolib/CMakeLists.txt)
-# specifically so tpid/bssnWAMRTest/checkDerivs do NOT dynamically load it
-# at process startup -- found via a real crash on Marylou where `tpid`
-# (which never calls a single HDF5 function) was taking a SIGILL very early
-# in process startup after HDF5 became a PUBLIC dendro5 dependency, almost
-# certainly from a static initializer in the parallel HDF5 build (or
-# something it pulls in) running CPU-specific code incompatible with the
-# allocated compute node. Re-declaring find_package here (cheap/idempotent,
-# matches the "these were already found, but it's good to repeat them"
-# convention already used for OpenMP/MPI/GSL above) guarantees
-# HDF5_C_LIBRARIES/HDF5_INCLUDE_DIRS are set in this directory's own scope
-# regardless of cross-directory CMake variable visibility.
-find_package(HDF5 REQUIRED COMPONENTS C)
 target_link_libraries(bssnSolver PRIVATE ${HDF5_C_LIBRARIES})
 target_include_directories(bssnSolver PRIVATE ${HDF5_INCLUDE_DIRS})
 
