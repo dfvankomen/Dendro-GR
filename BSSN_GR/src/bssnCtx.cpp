@@ -18,6 +18,9 @@
 #include <cstdint>
 #include <string>
 
+#include "cceH5Dat.h"
+#include "cceWorldtube.h"
+
 #include "grUtils.h"
 #include "logger.h"
 #include "parUtils.h"
@@ -2232,5 +2235,225 @@ void BSSNCtx::lts_smooth(DVec sIn, LTS_SMOOTH_MODE mode) {
 
 }
 #endif
+
+// -----------------------------------------------------------------------
+// CCE worldtube writer. Mirrors findAH()'s call-site pattern (see
+// bssnCtx.h) and compute_constraint_variables()'s block-loop pattern
+// (above in this file) for computing derived quantities into a persistent
+// unzipped DVec. See Dendro_CCE_v2.0.md for the full design and citations.
+//
+// KNOWN OPEN VERIFICATION ITEMS (flagged here and in the writeup, not yet
+// resolved against a real build/run):
+//   1. Whether ot::da::interpolateToCoords already returns a fully
+//      populated `out` buffer on every rank, or only fills locally-owned
+//      points and needs an explicit MPI_Gatherv step (as
+//      AEH_BHaHAHA::interpolate_metric_data does, aeh_bhahaha.cpp lines
+//      959-1026) before it's safe to read `out` on rank 0 only, as this
+//      function does. NOT verified here -- check daUtils.cpp's
+//      implementation before trusting this in a multi-rank run.
+//   2. [RESOLVED] The `grid_limits`/`domain_limits` Point arrays passed to
+//      interpolateToCoords now use BSSN_OCTREE_MIN/MAX and
+//      BSSN_COMPD_MIN/MAX respectively, confirmed directly against how
+//      AEH::ah_bah's own grid_limits/domain_limits are constructed in
+//      parameters.cpp immediately before the AEH_BHaHAHA constructor
+//      call.
+//   3. The phi-fastest/theta-slowest SWSH collocation ordering assumed by
+//      bssn::cce::collocation_offset() (see cceWorldtube.h) is inferred
+//      from SpECTRE source and contradicts one prose passage in
+//      SpECTRE's own tutorial doc -- verify empirically (small round-trip
+//      test through PreprocessCceWorldtube) before a production run.
+// -----------------------------------------------------------------------
+void BSSNCtx::writeCceWorldtube() {
+    if (!m_uiMesh->isActive()) return;
+
+    static cce_io::H5DatFile* cce_file = nullptr;
+    static std::vector<double> cce_theta, cce_phi, cce_domain_coords;
+    static bool cce_grid_initialized = false;
+
+    const unsigned int n_pts =
+        bssn::cce::num_collocation_points(CCE::CCE_LMAX);
+
+    if (!cce_grid_initialized) {
+        bssn::cce::generate_swsh_angles(CCE::CCE_LMAX, cce_theta, cce_phi);
+        // worldtube centered on the coordinate origin (standard BBH
+        // center-of-mass placement convention used elsewhere in this
+        // code, e.g. GW::extractFarFieldPsi4) -- NOT independently
+        // verified for the CCE case specifically.
+        const Point center(0.0, 0.0, 0.0);
+        bssn::cce::build_worldtube_domain_coords(
+            cce_theta, cce_phi, CCE::CCE_EXTRACTION_RADIUS, center,
+            cce_domain_coords);
+
+        if (!m_uiMesh->getMPIRankGlobal()) {
+            cce_file = new cce_io::H5DatFile(CCE::CCE_OUTPUT_FILE);
+            std::vector<std::string> legend(n_pts + 1);
+            legend[0] = "time";
+            for (unsigned int i = 0; i < n_pts; i++) {
+                legend[i + 1] = std::to_string(i);
+            }
+            for (const auto& name : bssn::cce::cce_dataset_names()) {
+                cce_file->create_dataset(name, legend);
+            }
+        }
+        cce_grid_initialized = true;
+    }
+
+    // 1. Evolved BSSN fields: unzip (needed for the derivative pass below;
+    //    the zipped m_evar is what's fed directly to interpolateToCoords
+    //    for the 0th-derivative "base" fields, matching findAH()'s usage).
+    DVec& m_evar     = m_var[VL::CPU_EV];
+    DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
+    m_uiMesh->readFromGhostBegin(m_evar.get_vec_ptr(), m_evar.get_dof());
+    m_uiMesh->readFromGhostEnd(m_evar.get_vec_ptr(), m_evar.get_dof());
+    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
+
+    DendroScalar* evolUnzipVar[bssn::BSSN_NUM_VARS];
+    m_evar_unz.to_2d(evolUnzipVar);
+    DendroScalar* evolVar[bssn::BSSN_NUM_VARS];
+    m_evar.to_2d(evolVar);
+
+    // 2. Cartesian-derivative volume fields (chi, gtd0-5, alpha, beta0-2 --
+    //    11 scalars x 3 directions = 33 dof), computed block-by-block
+    //    directly into a locally-owned unzipped DVec, using the same
+    //    bssn::deriv_x/y/z function pointers (already wired to whichever
+    //    order -- 4th/6th/8th -- this build was configured with, via
+    //    set_appropriate_derivs()) that the RHS itself uses. Mirrors
+    //    compute_constraint_variables()'s block loop above, but calls
+    //    deriv_x/y/z directly instead of physical_constraints().
+    DVec cceDerivUnzip;
+    cceDerivUnzip.create_vector(m_uiMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING,
+                               ot::DVEC_LOC::HOST, bssn::cce::NUM_DERIV_DOFS,
+                               true);
+    DendroScalar* derivUnzip[bssn::cce::NUM_DERIV_DOFS];
+    cceDerivUnzip.to_2d(derivUnzip);
+
+    {
+        const std::vector<ot::Block> blkList = m_uiMesh->getLocalBlockList();
+        unsigned int offset;
+        unsigned int sz[3];
+        unsigned int bflag;
+        double dx, dy, dz;
+        const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+                          bssn::BSSN_COMPD_MIN[2]);
+        const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+                          bssn::BSSN_COMPD_MAX[2]);
+
+        for (unsigned int blk = 0; blk < blkList.size(); blk++) {
+            offset = blkList[blk].getOffset();
+            sz[0]  = blkList[blk].getAllocationSzX();
+            sz[1]  = blkList[blk].getAllocationSzY();
+            sz[2]  = blkList[blk].getAllocationSzZ();
+            bflag  = blkList[blk].getBlkNodeFlag();
+            dx     = blkList[blk].computeDx(pt_min, pt_max);
+            dy     = blkList[blk].computeDy(pt_min, pt_max);
+            dz     = blkList[blk].computeDz(pt_min, pt_max);
+
+            for (unsigned int s = 0; s < bssn::cce::NUM_DERIV_SCALARS; s++) {
+                const double* src =
+                    evolUnzipVar[bssn::cce::DERIV_SCALAR_SOURCE_VAR[s]] +
+                    offset;
+                const auto scalar = static_cast<bssn::cce::DerivScalar>(s);
+                bssn::deriv_x(
+                    derivUnzip[bssn::cce::deriv_dof(scalar, 0)] + offset,
+                    src, dx, sz, bflag);
+                bssn::deriv_y(
+                    derivUnzip[bssn::cce::deriv_dof(scalar, 1)] + offset,
+                    src, dy, sz, bflag);
+                bssn::deriv_z(
+                    derivUnzip[bssn::cce::deriv_dof(scalar, 2)] + offset,
+                    src, dz, sz, bflag);
+            }
+        }
+    }
+
+    // 3. ot::da::interpolateToCoords needs a ZIPPED vector (daUtils.h doc
+    //    comment) -- zip the derivative field back down before
+    //    interpolating (mirrors `this->zip(m_cvar_unz, m_cvar)` in
+    //    compute_constraint_variables above).
+    DVec cceDerivZip;
+    cceDerivZip.create_vector(m_uiMesh, ot::DVEC_TYPE::OCT_SHARED_NODES,
+                             ot::DVEC_LOC::HOST, bssn::cce::NUM_DERIV_DOFS,
+                             true);
+    this->zip(cceDerivUnzip, cceDerivZip);
+    DendroScalar* derivZip[bssn::cce::NUM_DERIV_DOFS];
+    cceDerivZip.to_2d(derivZip);
+
+    // 4. Interpolate every base field and every derivative field onto the
+    //    worldtube sphere, one ot::da::interpolateToCoords call per field
+    //    (mirrors AEH_BHaHAHA::interpolate_metric_data's per-field loop,
+    //    aeh_bhahaha.cpp lines 899-916).
+    // Confirmed against how AEH::ah_bah's grid_limits/domain_limits are
+    // actually constructed in parameters.cpp (readParamTOMLFile, right
+    // before the AEH_BHaHAHA constructor call) -- grid_limits uses
+    // BSSN_OCTREE_MIN/MAX, domain_limits uses BSSN_COMPD_MIN/MAX. Resolves
+    // KNOWN OPEN VERIFICATION ITEM #2 above (this comment block is no
+    // longer a guess).
+    const Point grid_limits[2]   = {
+        Point(bssn::BSSN_OCTREE_MIN[0], bssn::BSSN_OCTREE_MIN[1],
+              bssn::BSSN_OCTREE_MIN[2]),
+        Point(bssn::BSSN_OCTREE_MAX[0], bssn::BSSN_OCTREE_MAX[1],
+              bssn::BSSN_OCTREE_MAX[2])};
+    const Point domain_limits[2] = {
+        Point(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+              bssn::BSSN_COMPD_MIN[2]),
+        Point(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+              bssn::BSSN_COMPD_MAX[2])};
+
+    std::vector<double> base_buffer(bssn::cce::NUM_BASE_FIELDS * n_pts);
+    std::vector<unsigned int> validIndex;
+    for (unsigned int f = 0; f < bssn::cce::NUM_BASE_FIELDS; f++) {
+        validIndex.clear();
+        ot::da::interpolateToCoords(
+            m_uiMesh, evolVar[bssn::cce::CCE_BASE_INDICES[f]],
+            cce_domain_coords.data(), cce_domain_coords.size(), grid_limits,
+            domain_limits, &base_buffer[f * n_pts], validIndex);
+    }
+
+    std::vector<double> deriv_buffer(bssn::cce::NUM_DERIV_DOFS * n_pts);
+    for (unsigned int d = 0; d < bssn::cce::NUM_DERIV_DOFS; d++) {
+        validIndex.clear();
+        ot::da::interpolateToCoords(
+            m_uiMesh, derivZip[d], cce_domain_coords.data(),
+            cce_domain_coords.size(), grid_limits, domain_limits,
+            &deriv_buffer[d * n_pts], validIndex);
+    }
+
+    // 5. BSSN -> ADM conversion + HDF5 row write, on rank 0 only (see the
+    //    KNOWN OPEN VERIFICATION ITEM #1 above -- this assumes `out` is
+    //    fully populated on every rank after interpolateToCoords, which
+    //    has not been independently confirmed).
+    if (!m_uiMesh->getMPIRankGlobal()) {
+        std::vector<std::vector<double>> row_values(
+            bssn::cce::cce_dataset_names().size(),
+            std::vector<double>(n_pts + 1));
+        for (auto& row : row_values) row[0] = m_uiTinfo._m_uiT;
+
+        for (unsigned int p = 0; p < n_pts; p++) {
+            double base_at_point[bssn::cce::NUM_BASE_FIELDS];
+            for (unsigned int f = 0; f < bssn::cce::NUM_BASE_FIELDS; f++) {
+                base_at_point[f] = base_buffer[f * n_pts + p];
+            }
+            double deriv_at_point[bssn::cce::NUM_DERIV_DOFS];
+            for (unsigned int d = 0; d < bssn::cce::NUM_DERIV_DOFS; d++) {
+                deriv_at_point[d] = deriv_buffer[d * n_pts + p];
+            }
+            bssn::cce::bssn_point_to_adm_row(base_at_point, deriv_at_point,
+                                            p + 1, row_values);
+        }
+
+        const auto& names = bssn::cce::cce_dataset_names();
+        for (size_t d = 0; d < names.size(); d++) {
+            cce_file->append_row(names[d], row_values[d]);
+        }
+
+        // cce_file is a `static` raw pointer, never explicitly `delete`d,
+        // so nothing ever calls its destructor (H5Fclose) -- flush after
+        // every write so the file stays valid and independently readable
+        // no matter how/when the run ends, rather than relying on a clean
+        // close that never actually happens. See cceH5Dat.h's flush() doc
+        // comment.
+        cce_file->flush();
+    }
+}
 
 }  // end of namespace bssn.

@@ -374,6 +374,17 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
                                    m_uiTinfo._m_uiStep, m_uiTinfo._m_uiT,
                                    bh_locations);
     }
+
+    /**
+     * @brief Interpolates the fields SpECTRE's CCE PreprocessCceWorldtube
+     * (AdmMetricNodal, first-order shift driver) needs onto a fixed-radius
+     * SWSH collocation sphere and appends one row per quantity to the
+     * worldtube HDF5 file (CCE::CCE_OUTPUT_FILE). See cceWorldtube.h/.cpp
+     * and Dendro_CCE_v2.0.md for the full design; large enough that, unlike
+     * findAH() above, it is declared here and defined out-of-line in
+     * bssnCtx.cpp.
+     */
+    void writeCceWorldtube();
 };
 
 }  // end of namespace bssn

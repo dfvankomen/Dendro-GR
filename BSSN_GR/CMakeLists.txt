@@ -92,6 +92,18 @@ set(BSSN_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/scripts
+  # Needed by cceWorldtube.cpp for bssn2adm.h / bssn2adm_derivs.h.
+  # DENDRO_dendrolib_DIR is set unconditionally in the top-level
+  # Dendro-GR/CMakeLists.txt (either to a user-provided path or the
+  # FetchContent-fetched source dir) before this file is processed, so it
+  # is safe to reference here even though every other use of this
+  # variable in this file is currently commented out (disabled test
+  # executables). This was NOT previously on BSSN_GR's include path --
+  # note that dendrolib/GR/include/adm2bssn.h is consequently unreachable
+  # from here too, which is why BSSN_GR/src/TwoPunctures.cpp uses its own
+  # separate, sympy-generated copy at BSSN_GR/include/adm2bssn.h instead
+  # (see Dendro_CCE_v2.0.md Appendix for this whole investigation).
+  ${DENDRO_dendrolib_DIR}/GR/include
 )
 
 if(DEFINED CHECK_GIT_INCLUDE_PATH)
@@ -171,7 +183,7 @@ macro(bssn_add_executable TARGET_NAME)
   target_compile_options(${TARGET_NAME} PRIVATE -fext-numeric-literals)
 endmacro()
 
-bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
+bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp src/cceWorldtube.cpp)
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)

@@ -769,6 +769,47 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         used_params.insert("AEH_PARAMS");
     }
 
+    // Derived default for CCE_EXTRACTION_RADIUS: max of GW::BSSN_GW_RADAII
+    // (assumes GW::BSSN_GW_RADAII/BSSN_GW_NUM_RADAII have already been
+    // parsed by this point in the function -- true as of this writing
+    // since the GW block is parsed earlier, but NOT re-verified after
+    // this edit; if that ordering ever changes this default silently
+    // falls back to the placeholder 100.0 set in the CCE namespace
+    // defaults above instead of erroring, which is worth double-checking
+    // at build/first-run time).
+    if (GW::BSSN_GW_NUM_RADAII > 0) {
+        CCE::CCE_EXTRACTION_RADIUS = GW::BSSN_GW_RADAII[0];
+        for (unsigned int i = 1; i < GW::BSSN_GW_NUM_RADAII; i++) {
+            if (GW::BSSN_GW_RADAII[i] > CCE::CCE_EXTRACTION_RADIUS) {
+                CCE::CCE_EXTRACTION_RADIUS = GW::BSSN_GW_RADAII[i];
+            }
+        }
+    }
+
+    // if the parFile has the CCE "dictionary" -- mirrors the AEH_PARAMS
+    // block above exactly. CCE_EXTRACTION_RADIUS is parsed here too (with
+    // UseInitialValue, i.e. it can override the max-of-GW-radii default
+    // computed just above, per the project's note that an explicit
+    // override should remain possible).
+    if (parFile.contains("CCE_PARAMS")) {
+        auto cce_pars                                 = parFile["CCE_PARAMS"];
+
+        std::vector<ParameterInformation> cceParsList = {
+            {"CCE_ENABLED", CCE::CCE_ENABLED, UseInitialValue},
+            {"CCE_OUTPUT_FREQ", CCE::CCE_OUTPUT_FREQ, UseInitialValue},
+            {"CCE_OUTPUT_FILE", CCE::CCE_OUTPUT_FILE, UseInitialValue},
+            {"CCE_LMAX", CCE::CCE_LMAX, UseInitialValue},
+            {"CCE_FILTER_LMAX", CCE::CCE_FILTER_LMAX, UseInitialValue},
+            {"CCE_EXTRACTION_RADIUS", CCE::CCE_EXTRACTION_RADIUS,
+             UseInitialValue}};
+
+        for (const auto& param : cceParsList) {
+            set_param(cce_pars, param);
+        }
+
+        used_params.insert("CCE_PARAMS");
+    }
+
     bool is_bbh_temp = false;
     std::vector<dendro_aeh::SimpleBlackHoleData> simpleBHData;
     if (BSSN_ID_TYPE == 0 || BSSN_ID_TYPE == 1) {
@@ -1208,6 +1249,21 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             root["AEH_PARAMS"] = aeh_root;
         }
 
+        if (CCE::CCE_ENABLED) {
+            toml::value cce_root;
+            std::vector<ParameterInformation> cceParsList = {
+                {"CCE_ENABLED", CCE::CCE_ENABLED},
+                {"CCE_OUTPUT_FREQ", CCE::CCE_OUTPUT_FREQ},
+                {"CCE_OUTPUT_FILE", CCE::CCE_OUTPUT_FILE},
+                {"CCE_LMAX", CCE::CCE_LMAX},
+                {"CCE_FILTER_LMAX", CCE::CCE_FILTER_LMAX},
+                {"CCE_EXTRACTION_RADIUS", CCE::CCE_EXTRACTION_RADIUS}};
+            for (const auto& param : cceParsList) {
+                add_param(cce_root, param);
+            }
+            root["CCE_PARAMS"] = cce_root;
+        }
+
         std::ofstream ofs(fName);
         if (!ofs.is_open()) {
             std::cerr << "Error: Could not open file " << fName
@@ -1308,3 +1364,17 @@ double AEH_ALPHA                                = 1.0;
 double AEH_BETA                                 = 0.1;
 
 }  // namespace AEH
+
+namespace CCE {
+
+bool CCE_ENABLED                 = false;
+unsigned int CCE_OUTPUT_FREQ     = 1;
+std::string CCE_OUTPUT_FILE      = "cce_worldtube.h5";
+unsigned int CCE_LMAX            = 20;
+unsigned int CCE_FILTER_LMAX     = 18;
+// Real default is computed from GW::BSSN_GW_RADAII once that array has
+// itself been parsed -- see the CCE_PARAMS block below. This compiled-in
+// value is only a placeholder in case that computation is somehow skipped.
+double CCE_EXTRACTION_RADIUS     = 100.0;
+
+}  // namespace CCE

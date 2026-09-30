@@ -566,3 +566,60 @@ extern double AEH_ALPHA;
 extern double AEH_BETA;
 
 }  // namespace AEH
+
+namespace CCE {
+
+/**@brief master switch: if false, writeCceWorldtube() is never called
+ * (CCE_OUTPUT_FREQ is also independently checked at the call site, but
+ * this flag exists so a worldtube-writer build can be disabled outright
+ * without needing to zero out CCE_OUTPUT_FREQ specifically). */
+extern bool CCE_ENABLED;
+
+/**@brief how many timesteps between worldtube writes -- 0 disables
+ * writing. See Dendro_CCE_v2.0.md Section 7 for the recommendation to use
+ * something like 10-100 rather than every step for production runs, once
+ * a real accuracy/cost tradeoff has been characterized; the compiled-in
+ * default of 1 is intentionally conservative (every step) for initial
+ * testing/validation against the analytic test suite (Section 8). */
+extern unsigned int CCE_OUTPUT_FREQ;
+
+/**@brief path to the output worldtube HDF5 file. */
+extern std::string CCE_OUTPUT_FILE;
+
+/**@brief SWSH angular resolution for the worldtube's own nodal grid (NOT
+ * necessarily the same as the downstream CharacteristicExtract executable's
+ * own Cce.LMax -- see Dendro_CCE_v2.0.md Section 6 for why there is no
+ * fixed relationship between the two for the AdmMetricNodal format, and
+ * why this may need to be set higher than Cce.LMax for adequate
+ * antialiasing margin. Default 20, matching the SpECTRE tutorial's
+ * documented Cce.LMax example value -- see the TODO below on making this
+ * independently configurable/higher. */
+extern unsigned int CCE_LMAX;
+
+/**@brief NOT consumed by the worldtube writer itself or by
+ * PreprocessCceWorldtube (confirmed: FilterLMax is a CharacteristicExtract-
+ * only option, see Dendro_CCE_v2.0.md Section 6, Question 2) -- stored
+ * here purely so CCE_LMAX and CCE_FILTER_LMAX live in one place in the
+ * .par file for a user to bump together (e.g. to 24/22 for a higher-
+ * resolution run) when hand-writing the downstream CharacteristicExtract
+ * input YAML, per the project's request. */
+extern unsigned int CCE_FILTER_LMAX;
+
+/**@brief worldtube extraction coordinate radius, in code units (= M for
+ * mass-normalized configs). Defaults to the max of GW::BSSN_GW_RADAII
+ * (computed once at parameter-parse time, after GW::BSSN_GW_RADAII itself
+ * has been parsed -- see parameters.cpp), matching the project's decision
+ * to use the outermost existing GW-extraction radius as the CCE worldtube
+ * radius until larger radii become available. Can be overridden
+ * explicitly via CCE_PARAMS.CCE_EXTRACTION_RADIUS in the .par file. */
+extern double CCE_EXTRACTION_RADIUS;
+
+// TODO(generalize): CCE_LMAX/CCE_FILTER_LMAX/CCE_EXTRACTION_RADIUS are
+// currently simple scalars with fixed defaults (20/18/max(GW radii)) per
+// an explicit "do it this way for now" instruction -- a natural next step
+// is to make these (and the antialiasing-margin question flagged above)
+// first-class, independently documented .par file options rather than
+// silent compiled-in defaults, so a user wanting a higher-resolution run
+// doesn't need to edit source.
+
+}  // namespace CCE

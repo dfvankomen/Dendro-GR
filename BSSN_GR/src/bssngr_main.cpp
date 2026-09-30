@@ -601,6 +601,15 @@ int main(int argc, char** argv) {
                 bssnCtx->findAH();
             }
 
+            // Write CCE worldtube data (mirrors the AH-solver gate above;
+            // runs before ets->evolve() so the worldtube row corresponds
+            // to the state at the start of this step, same timing
+            // convention as findAH()).
+            if (CCE::CCE_ENABLED && CCE::CCE_OUTPUT_FREQ > 0 &&
+                (step % CCE::CCE_OUTPUT_FREQ) == 0) {
+                bssnCtx->writeCceWorldtube();
+            }
+
             ets->evolve();
 
             // Write checkpoint  data
