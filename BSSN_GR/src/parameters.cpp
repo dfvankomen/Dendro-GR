@@ -209,6 +209,8 @@ RefinementMode BSSN_REFINEMENT_MODE             = RefinementMode::WAMR;
 bool BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE = false;
 
 bool BSSN_VTU_Z_SLICE_ONLY                      = true;
+bool BSSN_VTU_X_SLICE                           = false;
+bool BSSN_VTU_Y_SLICE                           = false;
 
 unsigned int BSSN_LTS_TS_OFFSET                 = 4;
 
@@ -578,6 +580,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
         {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, UseInitialValue},
         {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY, UseInitialValue},
+        {"BSSN_VTU_X_SLICE", bssn::BSSN_VTU_X_SLICE, UseInitialValue},
+        {"BSSN_VTU_Y_SLICE", bssn::BSSN_VTU_Y_SLICE, UseInitialValue},
         {"BSSN_VIS_FORMAT", bssn::BSSN_VIS_FORMAT, UseInitialValue},
         {"BSSN_VTKHDF_COMPRESSION", bssn::BSSN_VTKHDF_COMPRESSION,
          UseInitialValue},
@@ -1226,6 +1230,8 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
             {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY},
+            {"BSSN_VTU_X_SLICE", bssn::BSSN_VTU_X_SLICE},
+            {"BSSN_VTU_Y_SLICE", bssn::BSSN_VTU_Y_SLICE},
             {"BSSN_VIS_FORMAT", bssn::BSSN_VIS_FORMAT},
             {"BSSN_VTKHDF_COMPRESSION", bssn::BSSN_VTKHDF_COMPRESSION},
             {"BSSN_BH1_AMR_R", bssn::BSSN_BH1_AMR_R},

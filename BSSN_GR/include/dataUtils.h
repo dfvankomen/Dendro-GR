@@ -49,8 +49,11 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
 
 /**
  * @brief writes the visualization output in the format(s) BSSN_VIS_FORMAT
- * selects. Writes VTU instead, with a warning, when the format is unknown,
- * the build lacks DENDRO_ENABLE_HDF5, or BSSN_VTU_Z_SLICE_ONLY is set.
+ * selects, as the full volume or as the slices BSSN_VTU_{X,Y}_SLICE and
+ * BSSN_VTU_Z_SLICE_ONLY select. VTU writes one file set per slice (x and y
+ * suffixed _x, _y); VTKHDF writes all selected slices into one file. Writes VTU
+ * instead, with a warning, when the format is unknown or the build lacks
+ * DENDRO_ENABLE_HDF5.
  * @param[in] pMesh: current mesh
  * @param[in] fPrefix: output file prefix, without extension
  * @param[in] numFieldData: number of field data entries

@@ -175,8 +175,6 @@ void writeVisOutput(const ot::Mesh* pMesh, const char* fPrefix,
         fallback = "is not one of vtu, vtkhdf, both";
     else if (vtkhdf && !hdf5Built)
         fallback = "needs a build with DENDRO_ENABLE_HDF5";
-    else if (vtkhdf && bssn::BSSN_VTU_Z_SLICE_ONLY)
-        fallback = "does not support BSSN_VTU_Z_SLICE_ONLY";
 
     if (fallback) {
         static bool warned = false;
@@ -189,27 +187,41 @@ void writeVisOutput(const ot::Mesh* pMesh, const char* fPrefix,
         vtkhdf = false;
     }
 
-    if (vtu) {
-        if (bssn::BSSN_VTU_Z_SLICE_ONLY) {
-            unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
-                                      1u << (m_uiMaxDepth - 1),
-                                      1u << (m_uiMaxDepth - 1)};
-            unsigned int s_norm[3] = {0, 0, 1};
-            io::vtk::mesh2vtu_slice(pMesh, s_val, s_norm, fPrefix, numFieldData,
-                                    fieldDataNames, fieldData, numPointData,
-                                    pointDataNames, pointData);
-        } else
-            io::vtk::mesh2vtuFine(pMesh, fPrefix, numFieldData, fieldDataNames,
-                                  fieldData, numPointData, pointDataNames,
-                                  pointData);
-    }
+    const bool s_axes[3]  = {bssn::BSSN_VTU_X_SLICE, bssn::BSSN_VTU_Y_SLICE,
+                             bssn::BSSN_VTU_Z_SLICE_ONLY};
+    const bool slice      = s_axes[0] || s_axes[1] || s_axes[2];
+    unsigned int s_val[3] = {1u << (m_uiMaxDepth - 1), 1u << (m_uiMaxDepth - 1),
+                             1u << (m_uiMaxDepth - 1)};
+
+    if (vtu && slice) {
+        // one file set per plane; z keeps the bare prefix it always had
+        const char* suffix[3] = {"_x", "_y", ""};
+        for (unsigned int d = 0; d < 3; d++) {
+            if (!s_axes[d]) continue;
+            unsigned int s_norm[3]   = {0, 0, 0};
+            s_norm[d]                = 1;
+            const std::string prefix = std::string(fPrefix) + suffix[d];
+            io::vtk::mesh2vtu_slice(pMesh, s_val, s_norm, prefix.c_str(),
+                                    numFieldData, fieldDataNames, fieldData,
+                                    numPointData, pointDataNames, pointData);
+        }
+    } else if (vtu)
+        io::vtk::mesh2vtuFine(pMesh, fPrefix, numFieldData, fieldDataNames,
+                              fieldData, numPointData, pointDataNames,
+                              pointData);
 
 #ifdef DENDRO_ENABLE_HDF5
-    if (vtkhdf)
-        io::vtkhdf::mesh2vtkhdfFine(
-            pMesh, fPrefix, numFieldData, fieldDataNames, fieldData,
-            numPointData, pointDataNames, pointData, 0, NULL, NULL, false,
-            std::min(bssn::BSSN_VTKHDF_COMPRESSION, 9u));
+    const unsigned int level = std::min(bssn::BSSN_VTKHDF_COMPRESSION, 9u);
+    if (vtkhdf && slice)
+        io::vtkhdf::mesh2vtkhdf_slice(pMesh, s_val, s_axes, fPrefix,
+                                      numFieldData, fieldDataNames, fieldData,
+                                      numPointData, pointDataNames, pointData,
+                                      0, NULL, NULL, false, level);
+    else if (vtkhdf)
+        io::vtkhdf::mesh2vtkhdfFine(pMesh, fPrefix, numFieldData,
+                                    fieldDataNames, fieldData, numPointData,
+                                    pointDataNames, pointData, 0, NULL, NULL,
+                                    false, level);
 #endif
 }
 
