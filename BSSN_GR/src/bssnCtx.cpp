@@ -2436,10 +2436,25 @@ void BSSNCtx::writeCceWorldtube() {
     // why this explicit call is required (DVector has no real destructor).
     cceDerivZip.destroy_vector();
 
-    // 5. BSSN -> ADM conversion + HDF5 row write, on rank 0 only (see the
-    //    KNOWN OPEN VERIFICATION ITEM #1 above -- this assumes `out` is
-    //    fully populated on every rank after interpolateToCoords, which
-    //    has not been independently confirmed).
+    // ot::da::interpolateToCoords only fills the entries owned by the LOCAL
+    // rank's octree partition (daUtils.h:65-66,89-90) -- base_buffer/
+    // deriv_buffer are otherwise still whatever they were zero-initialized
+    // to. This resolves KNOWN OPEN VERIFICATION ITEM #1 (it was an
+    // unconfirmed assumption, and a real multi-rank Marylou run falsified
+    // it: rank 0's buffer had every g/K/deriv field NaN, from bssn2adm's
+    // division by chi=0 at points rank 0 doesn't own). Every worldtube
+    // point is owned by exactly one active rank, so a sum-reduce over the
+    // active communicator onto rank 0 assembles the global result, mirroring
+    // the identical pattern in gwExtract.h (Psi4 extraction) and
+    // punctureTracker.h (puncture tracking).
+    std::vector<double> base_buffer_g(base_buffer.size(), 0.0);
+    std::vector<double> deriv_buffer_g(deriv_buffer.size(), 0.0);
+    MPI_Reduce(base_buffer.data(), base_buffer_g.data(), base_buffer.size(),
+              MPI_DOUBLE, MPI_SUM, 0, m_uiMesh->getMPICommunicator());
+    MPI_Reduce(deriv_buffer.data(), deriv_buffer_g.data(), deriv_buffer.size(),
+              MPI_DOUBLE, MPI_SUM, 0, m_uiMesh->getMPICommunicator());
+
+    // 5. BSSN -> ADM conversion + HDF5 row write, on rank 0 only.
     if (!m_uiMesh->getMPIRankGlobal()) {
         std::vector<std::vector<double>> row_values(
             bssn::cce::cce_dataset_names().size(),
@@ -2449,11 +2464,11 @@ void BSSNCtx::writeCceWorldtube() {
         for (unsigned int p = 0; p < n_pts; p++) {
             double base_at_point[bssn::cce::NUM_BASE_FIELDS];
             for (unsigned int f = 0; f < bssn::cce::NUM_BASE_FIELDS; f++) {
-                base_at_point[f] = base_buffer[f * n_pts + p];
+                base_at_point[f] = base_buffer_g[f * n_pts + p];
             }
             double deriv_at_point[bssn::cce::NUM_DERIV_DOFS];
             for (unsigned int d = 0; d < bssn::cce::NUM_DERIV_DOFS; d++) {
-                deriv_at_point[d] = deriv_buffer[d * n_pts + p];
+                deriv_at_point[d] = deriv_buffer_g[d * n_pts + p];
             }
             bssn::cce::bssn_point_to_adm_row(base_at_point, deriv_at_point,
                                             p + 1, row_values);
