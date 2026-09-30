@@ -188,6 +188,24 @@ bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
 
+# HDF5 is only actually needed by bssnSolver (the only target compiling
+# bssnCtx.cpp/cceWorldtube.cpp, i.e. the CCE worldtube writer). It is
+# deliberately NOT linked PUBLIC from dendro5 (see dendrolib/CMakeLists.txt)
+# specifically so tpid/bssnWAMRTest/checkDerivs do NOT dynamically load it
+# at process startup -- found via a real crash on Marylou where `tpid`
+# (which never calls a single HDF5 function) was taking a SIGILL very early
+# in process startup after HDF5 became a PUBLIC dendro5 dependency, almost
+# certainly from a static initializer in the parallel HDF5 build (or
+# something it pulls in) running CPU-specific code incompatible with the
+# allocated compute node. Re-declaring find_package here (cheap/idempotent,
+# matches the "these were already found, but it's good to repeat them"
+# convention already used for OpenMP/MPI/GSL above) guarantees
+# HDF5_C_LIBRARIES/HDF5_INCLUDE_DIRS are set in this directory's own scope
+# regardless of cross-directory CMake variable visibility.
+find_package(HDF5 REQUIRED COMPONENTS C)
+target_link_libraries(bssnSolver PRIVATE ${HDF5_C_LIBRARIES})
+target_include_directories(bssnSolver PRIVATE ${HDF5_INCLUDE_DIRS})
+
 if(WITH_CUDA)
   # Helper macro for CUDA executables so we guarantee RDC is on!
   macro(bssn_add_cuda_executable TARGET_NAME)
