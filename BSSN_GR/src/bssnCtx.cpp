@@ -2315,7 +2315,7 @@ void BSSNCtx::writeCceWorldtube() {
     // 2. Cartesian-derivative volume fields (chi, gtd0-5, alpha, beta0-2 --
     //    11 scalars x 3 directions = 33 dof), computed block-by-block
     //    directly into a locally-owned unzipped DVec, using the same
-    //    bssn::deriv_x/y/z function pointers (already wired to whichever
+    //    deriv_x/y/z function pointers (global, not members of bssn --
     //    order -- 4th/6th/8th -- this build was configured with, via
     //    set_appropriate_derivs()) that the RHS itself uses. Mirrors
     //    compute_constraint_variables()'s block loop above, but calls
@@ -2353,13 +2353,18 @@ void BSSNCtx::writeCceWorldtube() {
                     evolUnzipVar[bssn::cce::DERIV_SCALAR_SOURCE_VAR[s]] +
                     offset;
                 const auto scalar = static_cast<bssn::cce::DerivScalar>(s);
-                bssn::deriv_x(
+                // deriv_x/y/z (derivs.h) are global symbols, NOT members of
+                // namespace bssn -- confirmed by a real compile error on
+                // Marylou (gcc correctly rejected bssn::deriv_x). Unqualified
+                // names here resolve via normal scope lookup (bssn ->
+                // global), finding the correct global deriv_x/y/z.
+                deriv_x(
                     derivUnzip[bssn::cce::deriv_dof(scalar, 0)] + offset,
                     src, dx, sz, bflag);
-                bssn::deriv_y(
+                deriv_y(
                     derivUnzip[bssn::cce::deriv_dof(scalar, 1)] + offset,
                     src, dy, sz, bflag);
-                bssn::deriv_z(
+                deriv_z(
                     derivUnzip[bssn::cce::deriv_dof(scalar, 2)] + offset,
                     src, dz, sz, bflag);
             }
