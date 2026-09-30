@@ -2380,6 +2380,15 @@ void BSSNCtx::writeCceWorldtube() {
                              ot::DVEC_LOC::HOST, bssn::cce::NUM_DERIV_DOFS,
                              true);
     this->zip(cceDerivUnzip, cceDerivZip);
+    // DVector::~DVector() is a no-op (dvec.h:166) -- this is NOT an RAII
+    // type, create_vector() must be paired with an explicit destroy_vector()
+    // or the allocation leaks permanently when the local variable goes out
+    // of scope. cceDerivUnzip is done being used as of the zip() call above.
+    // Found via a real OOM kill on Marylou after ~25 steps with
+    // CCE_OUTPUT_FREQ=1 -- this function allocates two 33-field volume
+    // buffers every single call, so without this the leak compounds every
+    // timestep.
+    cceDerivUnzip.destroy_vector();
     DendroScalar* derivZip[bssn::cce::NUM_DERIV_DOFS];
     cceDerivZip.to_2d(derivZip);
 
@@ -2422,6 +2431,10 @@ void BSSNCtx::writeCceWorldtube() {
             cce_domain_coords.size(), grid_limits, domain_limits,
             &deriv_buffer[d * n_pts], validIndex);
     }
+    // cceDerivZip's last use was in the loop just above -- see the matching
+    // cceDerivUnzip.destroy_vector() comment earlier in this function for
+    // why this explicit call is required (DVector has no real destructor).
+    cceDerivZip.destroy_vector();
 
     // 5. BSSN -> ADM conversion + HDF5 row write, on rank 0 only (see the
     //    KNOWN OPEN VERIFICATION ITEM #1 above -- this assumes `out` is
