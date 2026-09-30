@@ -48,6 +48,27 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
                         unsigned int numPt, unsigned int timestep, double time);
 
 /**
+ * @brief writes the visualization output in the format(s) BSSN_VIS_FORMAT
+ * selects, as the full volume or as the slices BSSN_VTU_{X,Y}_SLICE and
+ * BSSN_VTU_Z_SLICE_ONLY select. VTU writes one file set per slice (x and y
+ * suffixed _x, _y); VTKHDF writes all selected slices into one file. Writes VTU
+ * instead, with a warning, when the format is unknown or the build lacks
+ * DENDRO_ENABLE_HDF5.
+ * @param[in] pMesh: current mesh
+ * @param[in] fPrefix: output file prefix, without extension
+ * @param[in] numFieldData: number of field data entries
+ * @param[in] fieldDataNames: field data names
+ * @param[in] fieldData: field data values
+ * @param[in] numPointData: number of point variables
+ * @param[in] pointDataNames: point variable names
+ * @param[in] pointData: point variables (zipped)
+ */
+void writeVisOutput(const ot::Mesh* pMesh, const char* fPrefix,
+                    unsigned int numFieldData, const char** fieldDataNames,
+                    const double* fieldData, unsigned int numPointData,
+                    const char** pointDataNames, const double** pointData);
+
+/**
  * @brief refine based on the black hole location locations.
  * @param[in] pMesh : pointer to the mesh.
  * @param[in] bhLoc : BH location

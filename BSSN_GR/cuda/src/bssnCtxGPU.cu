@@ -567,20 +567,10 @@ int BSSNCtxGPU::write_vtu() {
         sprintf(fPrefix, "%s_%d", bssn::BSSN_VTU_FILE_PREFIX.c_str(),
                 m_uiTinfo._m_uiStep);
 
-        if (bssn::BSSN_VTU_Z_SLICE_ONLY) {
-            unsigned int s_val[3]  = {1u << (m_uiMaxDepth - 1),
-                                      1u << (m_uiMaxDepth - 1),
-                                      1u << (m_uiMaxDepth - 1)};
-            unsigned int s_norm[3] = {0, 0, 1};
-            io::vtk::mesh2vtu_slice(
-                m_uiMesh, s_val, s_norm, fPrefix, 2, fDataNames, fData,
-                (numEvolVars + numConstVars), (const char**)&pDataNames_char[0],
-                (const double**)pData);
-        } else
-            io::vtk::mesh2vtuFine(m_uiMesh, fPrefix, 2, fDataNames, fData,
-                                  (numEvolVars + numConstVars),
-                                  (const char**)&pDataNames_char[0],
-                                  (const double**)pData);
+        bssn::writeVisOutput(m_uiMesh, fPrefix, 2, fDataNames, fData,
+                             (numEvolVars + numConstVars),
+                             (const char**)&pDataNames_char[0],
+                             (const double**)pData);
     }
 
 #endif

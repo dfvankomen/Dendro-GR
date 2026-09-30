@@ -4,13 +4,20 @@
 
 #include "dataUtils.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <limits>
 #include <utility>
 
 #include "bssnCtx.h"
+#include "logger.h"
+#include "oct2vtk.h"
 #include "parameters.h"
+
+#ifdef DENDRO_ENABLE_HDF5
+#include "oct2vtkhdf.h"
+#endif
 
 namespace bssn {
 
@@ -147,6 +154,75 @@ void writeBHCoordinates(const ot::Mesh* pMesh, const Point* ptLocs,
         fileGW.close();
         return;
     }
+}
+
+void writeVisOutput(const ot::Mesh* pMesh, const char* fPrefix,
+                    unsigned int numFieldData, const char** fieldDataNames,
+                    const double* fieldData, unsigned int numPointData,
+                    const char** pointDataNames, const double** pointData) {
+#ifdef DENDRO_ENABLE_HDF5
+    const bool hdf5Built = true;
+#else
+    const bool hdf5Built = false;
+#endif
+
+    const std::string& format = bssn::BSSN_VIS_FORMAT;
+    bool vtu                  = format == "vtu" || format == "both";
+    bool vtkhdf               = format == "vtkhdf" || format == "both";
+
+    const char* fallback      = NULL;
+    if (!vtu && !vtkhdf)
+        fallback = "is not one of vtu, vtkhdf, both";
+    else if (vtkhdf && !hdf5Built)
+        fallback = "needs a build with DENDRO_ENABLE_HDF5";
+
+    if (fallback) {
+        static bool warned = false;
+        if (!warned)
+            dendro::logger::warn(
+                "BSSN_VIS_FORMAT = \"{}\" {}, writing VTU instead", format,
+                fallback);
+        warned = true;
+        vtu    = true;
+        vtkhdf = false;
+    }
+
+    const bool s_axes[3]  = {bssn::BSSN_VTU_X_SLICE, bssn::BSSN_VTU_Y_SLICE,
+                             bssn::BSSN_VTU_Z_SLICE_ONLY};
+    const bool slice      = s_axes[0] || s_axes[1] || s_axes[2];
+    unsigned int s_val[3] = {1u << (m_uiMaxDepth - 1), 1u << (m_uiMaxDepth - 1),
+                             1u << (m_uiMaxDepth - 1)};
+
+    if (vtu && slice) {
+        // one file set per plane; z keeps the bare prefix it always had
+        const char* suffix[3] = {"_x", "_y", ""};
+        for (unsigned int d = 0; d < 3; d++) {
+            if (!s_axes[d]) continue;
+            unsigned int s_norm[3]   = {0, 0, 0};
+            s_norm[d]                = 1;
+            const std::string prefix = std::string(fPrefix) + suffix[d];
+            io::vtk::mesh2vtu_slice(pMesh, s_val, s_norm, prefix.c_str(),
+                                    numFieldData, fieldDataNames, fieldData,
+                                    numPointData, pointDataNames, pointData);
+        }
+    } else if (vtu)
+        io::vtk::mesh2vtuFine(pMesh, fPrefix, numFieldData, fieldDataNames,
+                              fieldData, numPointData, pointDataNames,
+                              pointData);
+
+#ifdef DENDRO_ENABLE_HDF5
+    const unsigned int level = std::min(bssn::BSSN_VTKHDF_COMPRESSION, 9u);
+    if (vtkhdf && slice)
+        io::vtkhdf::mesh2vtkhdf_slice(pMesh, s_val, s_axes, fPrefix,
+                                      numFieldData, fieldDataNames, fieldData,
+                                      numPointData, pointDataNames, pointData,
+                                      0, NULL, NULL, false, level);
+    else if (vtkhdf)
+        io::vtkhdf::mesh2vtkhdfFine(pMesh, fPrefix, numFieldData,
+                                    fieldDataNames, fieldData, numPointData,
+                                    pointDataNames, pointData, 0, NULL, NULL,
+                                    false, level);
+#endif
 }
 
 // The BH-derived kinematics that used to live here as free functions now live

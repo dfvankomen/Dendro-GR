@@ -218,6 +218,15 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW
              << "\tBSSN_VTU_Z_SLICE_ONLY :" << bssn::BSSN_VTU_Z_SLICE_ONLY
              << NRM << std::endl;
+        sout << YLW << "\tBSSN_VTU_X_SLICE :" << bssn::BSSN_VTU_X_SLICE << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_VTU_Y_SLICE :" << bssn::BSSN_VTU_Y_SLICE << NRM
+             << std::endl;
+        sout << YLW << "\tBSSN_VIS_FORMAT :" << bssn::BSSN_VIS_FORMAT << NRM
+             << std::endl;
+        sout << YLW
+             << "\tBSSN_VTKHDF_COMPRESSION :" << bssn::BSSN_VTKHDF_COMPRESSION
+             << NRM << std::endl;
         sout << YLW << "\tBSSN_IO_OUTPUT_GAP :" << bssn::BSSN_IO_OUTPUT_GAP
              << NRM << std::endl;
         sout << YLW << "\tBSSN_DENDRO_GRAIN_SZ :" << bssn::BSSN_DENDRO_GRAIN_SZ

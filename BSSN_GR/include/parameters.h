@@ -203,6 +203,12 @@ extern unsigned int BSSN_ENABLE_BLOCK_ADAPTIVITY;
 /**@brief file prefix for VTU*/
 extern std::string BSSN_VTU_FILE_PREFIX;
 
+/**@brief visualization output format: "vtu", "vtkhdf" or "both"*/
+extern std::string BSSN_VIS_FORMAT;
+
+/**@brief deflate level (0-9) for VTKHDF output, 0 disables compression*/
+extern unsigned int BSSN_VTKHDF_COMPRESSION;
+
 /**@brief file prefix for write check point*/
 extern std::string BSSN_CHKPT_FILE_PREFIX;
 
@@ -437,8 +443,15 @@ extern RefinementMode BSSN_REFINEMENT_MODE;
  * initial grid converge */
 extern bool BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE;
 
-/**@brief: if true output only the z slice*/
+/**@brief: write the slice normal to z instead of the full volume. The X, Y
+ * and Z slice switches combine: any that are set are all written*/
 extern bool BSSN_VTU_Z_SLICE_ONLY;
+
+/**@brief: write the slice normal to x instead of the full volume*/
+extern bool BSSN_VTU_X_SLICE;
+
+/**@brief: write the slice normal to y instead of the full volume*/
+extern bool BSSN_VTU_Y_SLICE;
 
 /**@brief TS off set for LTS in BSSN*/
 extern unsigned int BSSN_LTS_TS_OFFSET;
