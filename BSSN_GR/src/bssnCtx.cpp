@@ -1033,16 +1033,25 @@ int BSSNCtx::write_checkpt() {
         write_checkpt_to_slot(3);
     }
 
-    const int ret = write_checkpt_to_slot(cpIndex);
+    int ret       = write_checkpt_to_slot(cpIndex);
 
     // Publish the sentinel LAST, and only for the normal slot: a crash partway
     // through a write leaves .latest still naming the previous complete
-    // checkpoint. Slot 3 is deliberately never published, so auto-detect keeps
-    // landing on the newest normal slot rather than the merger snapshot.
-    chkpt_publish_latest(bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
-                         m_uiTinfo._m_uiStep, m_uiMesh->getMPIRank());
+    // checkpoint. Slot 3 is never published, so auto-detect keeps landing on
+    // the newest normal slot rather than the merger snapshot. The reduction
+    // also holds rank 0 until every rank has closed its files.
+    int retGlobal = 0;
+    par::Mpi_Allreduce(&ret, &retGlobal, 1, MPI_MAX,
+                       m_uiMesh->getMPICommunicator());
+    if (retGlobal == 0)
+        chkpt_publish_latest(bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                             m_uiTinfo._m_uiStep, m_uiMesh->getMPIRank());
+    else if (!m_uiMesh->getMPIRank())
+        std::cout << RED << "[BSSNCtx] checkpoint slot " << cpIndex
+                  << " failed to write; .latest still names the previous one"
+                  << NRM << std::endl;
 
-    return ret;
+    return retGlobal;
 }
 
 int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
@@ -1063,16 +1072,16 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
     chkpt_fname_oct(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
                     cpIndex, rank);
 
-    io::checkpoint::writeOctToFile(fName, pNodes,
-                                   m_uiMesh->getNumLocalMeshElements());
+    int status = io::checkpoint::writeOctToFile(
+        fName, pNodes, m_uiMesh->getNumLocalMeshElements());
 
     unsigned int numVars  = bssn::BSSN_NUM_VARS;
     const char** varNames = bssn::BSSN_VAR_NAMES;
 
-    chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
-                    cpIndex, rank);
-    io::checkpoint::writeVecToFile(fName, m_uiMesh, (const double**)eVar,
-                                   bssn::BSSN_NUM_VARS);
+    chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                    rank);
+    status |= io::checkpoint::writeVecToFile(
+        fName, m_uiMesh, (const double**)eVar, bssn::BSSN_NUM_VARS);
 
     if (!rank)
         std::cout << "   ...Finished writing the octree checkpoints!"
@@ -1087,8 +1096,9 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
                   << std::endl;
         std::ofstream outfile(fName);
         if (!outfile) {
+            // no early return: the AEH checkpoint below is collective
             std::cout << fName << " file open failed " << std::endl;
-            return 0;
+            status = 1;
         }
 
         // field list lives in bssnChkptSchema.h -- add new fields there
@@ -1123,6 +1133,10 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
 
         outfile << std::setw(4) << checkPoint << std::endl;
         outfile.close();
+        if (!outfile) {
+            std::cout << fName << " file write failed " << std::endl;
+            status = 1;
+        }
 
         std::cout << "   ...Finished writing the plain-text checkpoint!"
                   << std::endl;
@@ -1144,7 +1158,7 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
 
     dendro::logger::info("Finished writing checkpoint file");
 
-    return 0;
+    return status;
 }
 
 // Restore the BH history tracker, preferring the new BHHistory blob and falling
@@ -1225,10 +1239,10 @@ int BSSNCtx::restore_checkpt() {
 
     // Explicit slot skips the scan below, which only ever looks at 0/1 -- slot
     // 3 is otherwise unreachable. Missing slot falls back, never aborts.
-    bool slotDecided = false;
+    bool slotDecided              = false;
+    bool explicitSlot             = false;
     if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
-        const unsigned int slot =
-            (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
+        const unsigned int slot = (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
         unsigned int slotExists = 0;
 
         if (!rank) {
@@ -1247,7 +1261,8 @@ int BSSNCtx::restore_checkpt() {
         par::Mpi_Bcast(&slotExists, 1, 0, comm);
 
         if (slotExists) {
-            slotDecided  = true;
+            slotDecided      = true;
+            explicitSlot     = true;
             restoreFileIndex = slot;
             if (!rank)
                 std::cout << GRN << "[BSSNCtx] : " << NRM
@@ -1331,6 +1346,24 @@ int BSSNCtx::restore_checkpt() {
                               restoreFileIndex);
 
         par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
+    }
+
+    // A write that died partway (full disk, killed job) leaves short files;
+    // restore the other normal slot rather than abort on them. An explicitly
+    // requested slot is restored as asked.
+    if (!explicitSlot && restoreFileIndex < 2 &&
+        !chkpt_slot_complete(bssn::BSSN_CHKPT_FILE_PREFIX, restoreFileIndex,
+                             BSSN_NUM_VARS, comm)) {
+        const unsigned int other = 1 - restoreFileIndex;
+        if (chkpt_slot_complete(bssn::BSSN_CHKPT_FILE_PREFIX, other,
+                                BSSN_NUM_VARS, comm)) {
+            if (!rank)
+                std::cout << YLW << "WARNING: " << NRM << "checkpoint slot "
+                          << restoreFileIndex
+                          << " is incomplete; restoring slot " << other
+                          << " instead." << std::endl;
+            restoreFileIndex = other;
+        }
     }
 
     restoreStatus = 0;
@@ -1418,7 +1451,7 @@ int BSSNCtx::restore_checkpt() {
             std::cout
                 << "[BSSNCtx] : Restore step failed, restore file corrupted. "
                 << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     } else if (restoreStatusGlobal == 2) {
         if (!rank) {
             std::cout << "[BSSNCtx] : " << YLW << "WARNING:" << NRM
@@ -1440,7 +1473,7 @@ int BSSNCtx::restore_checkpt() {
                    "communicator shrinking not allowed in the restore step. )"
                 << std::endl;
 
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     bool isActive = (rank < activeCommSz);
@@ -1467,7 +1500,7 @@ int BSSNCtx::restore_checkpt() {
         if (!rank)
             std::cout << "[BSSNCtx]: octree (*.oct) restore file is corrupted "
                       << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     dendro::logger::debug("Now creating mesh from restored data");
@@ -1526,7 +1559,7 @@ int BSSNCtx::restore_checkpt() {
         if (!rank)
             std::cout << "[BSSNCtx]: varible (*.var) restore file currupted "
                       << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     std::swap(m_uiMesh, newMesh);
@@ -1724,7 +1757,7 @@ int BSSNCtx::terminal_output() {
                       << std::endl;
             if (std::isnan(min) || std::isnan(max)) {
                 std::cout << "[Error]: NAN detected " << std::endl;
-                MPI_Abort(m_uiMesh->getMPICommunicator(), 0);
+                MPI_Abort(m_uiMesh->getMPICommunicator(), 1);
             }
         }
 
@@ -1915,7 +1948,9 @@ int BSSNCtx::grid_transfer(const ot::Mesh* m_new) {
     ot::alloc_mpi_ctx<DendroScalar>(m_new, m_mpi_ctx, BSSN_NUM_VARS,
                                     BSSN_ASYNC_COMM_K);
 
-    m_uiIsETSSynced = false;
+    m_uiIsETSSynced        = false;
+    // the constraint vectors were just recreated empty on the new mesh
+    m_bConstraintsComputed = false;
 
 #ifdef __PROFILE_CTX__
     m_uiCtxpt[ts::CTXPROFILE::GRID_TRASFER].stop();

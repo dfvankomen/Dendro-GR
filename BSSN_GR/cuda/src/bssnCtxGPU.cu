@@ -7,11 +7,10 @@
  * @copyright Copyright (c) 2022
  *
  */
-#include "bssnCtxGPU.cuh"
-
 #include <filesystem>
 
 #include "bssnChkptSchema.h"
+#include "bssnCtxGPU.cuh"
 // CONST_MEM DEVICE_REAL device::refel_1d[2 * REFEL_CONST_MEM_MAX];
 
 namespace bssn {
@@ -600,14 +599,23 @@ int BSSNCtxGPU::write_checkpt() {
         write_checkpt_to_slot(3);
     }
 
-    const int ret = write_checkpt_to_slot(cpIndex);
+    int ret       = write_checkpt_to_slot(cpIndex);
 
     // published last, and never for slot 3, so it always names the newest
-    // COMPLETE normal checkpoint
-    chkpt_publish_latest(bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
-                         m_uiTinfo._m_uiStep, m_uiMesh->getMPIRank());
+    // COMPLETE normal checkpoint; the reduction holds rank 0 until every rank
+    // has closed its files
+    int retGlobal = 0;
+    par::Mpi_Allreduce(&ret, &retGlobal, 1, MPI_MAX,
+                       m_uiMesh->getMPICommunicator());
+    if (retGlobal == 0)
+        chkpt_publish_latest(bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                             m_uiTinfo._m_uiStep, m_uiMesh->getMPIRank());
+    else if (!m_uiMesh->getMPIRank())
+        std::cout << RED << "[BSSNCtx] checkpoint slot " << cpIndex
+                  << " failed to write; .latest still names the previous one"
+                  << NRM << std::endl;
 
-    return ret;
+    return retGlobal;
 }
 
 int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
@@ -621,10 +629,10 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
     char fName[256];
     const ot::TreeNode* pNodes = &(*(m_uiMesh->getAllElements().begin() +
                                      m_uiMesh->getElementLocalBegin()));
-    chkpt_fname_oct(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
-                    cpIndex, rank);
-    io::checkpoint::writeOctToFile(fName, pNodes,
-                                   m_uiMesh->getNumLocalMeshElements());
+    chkpt_fname_oct(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                    rank);
+    int status = io::checkpoint::writeOctToFile(
+        fName, pNodes, m_uiMesh->getNumLocalMeshElements());
 
     unsigned int numVars  = bssn::BSSN_NUM_VARS;
     const char** varNames = bssn::BSSN_VAR_NAMES;
@@ -635,10 +643,10 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
         io::checkpoint::writeVecToFile(fName,m_uiMesh,m_uiPrevVar[i]);
     }*/
 
-    chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
-                    cpIndex, rank);
-    io::checkpoint::writeVecToFile(fName, m_uiMesh, (const double**)eVar,
-                                   bssn::BSSN_NUM_VARS);
+    chkpt_fname_var(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX, cpIndex,
+                    rank);
+    status |= io::checkpoint::writeVecToFile(
+        fName, m_uiMesh, (const double**)eVar, bssn::BSSN_NUM_VARS);
 
     if (!rank) {
         chkpt_fname_step(fName, sizeof(fName), bssn::BSSN_CHKPT_FILE_PREFIX,
@@ -648,7 +656,7 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
         std::ofstream outfile(fName);
         if (!outfile) {
             std::cout << fName << " file open failed " << std::endl;
-            return 0;
+            status = 1;
         }
 
         // field list lives in bssnChkptSchema.h -- add new fields there
@@ -683,6 +691,10 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
 
         outfile << std::setw(4) << checkPoint << std::endl;
         outfile.close();
+        if (!outfile) {
+            std::cout << fName << " file write failed " << std::endl;
+            status = 1;
+        }
     }
 
     // the GPU runs BHaHAHA too now, so it has AH state worth saving
@@ -691,7 +703,7 @@ int BSSNCtxGPU::write_checkpt_to_slot(unsigned int cpIndex) {
                                        std::to_string(cpIndex) + ".json";
     AEH::ah_bah->create_checkpoint(m_uiMesh, aeh_chkpt_file);
 
-    return 0;
+    return status;
 }
 
 int BSSNCtxGPU::restore_checkpt() {
@@ -720,7 +732,8 @@ int BSSNCtxGPU::restore_checkpt() {
     unsigned int restoreFileIndex = 0;
 
     // explicit slot skips the 0/1 scan; slot 3 is otherwise unreachable
-    bool slotDecided = false;
+    bool slotDecided              = false;
+    bool explicitSlot             = false;
     if (bssn::BSSN_RESTORE_CHECKPT_SLOT >= 0) {
         const unsigned int slot = (unsigned int)bssn::BSSN_RESTORE_CHECKPT_SLOT;
         unsigned int slotExists = 0;
@@ -739,7 +752,8 @@ int BSSNCtxGPU::restore_checkpt() {
         par::Mpi_Bcast(&slotExists, 1, 0, comm);
 
         if (slotExists) {
-            slotDecided  = true;
+            slotDecided      = true;
+            explicitSlot     = true;
             restoreFileIndex = slot;
         }
     }
@@ -798,6 +812,22 @@ int BSSNCtxGPU::restore_checkpt() {
         }
 
         par::Mpi_Bcast(&restoreFileIndex, 1, 0, comm);
+    }
+
+    // a write that died partway leaves short files; restore the other normal
+    // slot rather than abort on them. An explicit slot is restored as asked.
+    if (!explicitSlot && restoreFileIndex < 2 &&
+        !chkpt_slot_complete(bssn::BSSN_CHKPT_FILE_PREFIX, restoreFileIndex,
+                             BSSN_NUM_VARS, comm)) {
+        const unsigned int other = 1 - restoreFileIndex;
+        if (chkpt_slot_complete(bssn::BSSN_CHKPT_FILE_PREFIX, other,
+                                BSSN_NUM_VARS, comm)) {
+            if (!rank)
+                std::cout << "WARNING: checkpoint slot " << restoreFileIndex
+                          << " is incomplete; restoring slot " << other
+                          << " instead." << std::endl;
+            restoreFileIndex = other;
+        }
     }
 
     restoreStatus = 0;
@@ -898,7 +928,7 @@ int BSSNCtxGPU::restore_checkpt() {
             std::cout
                 << "[BSSNCtx] : Restore step failed, restore file corrupted. "
                 << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     MPI_Bcast(&m_uiTinfo, sizeof(ts::TSInfo), MPI_BYTE, 0, comm);
@@ -921,7 +951,7 @@ int BSSNCtxGPU::restore_checkpt() {
                    "communicator shrinking not allowed in the restore step. )"
                 << std::endl;
 
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     bool isActive = (rank < activeCommSz);
@@ -948,7 +978,7 @@ int BSSNCtxGPU::restore_checkpt() {
         if (!rank)
             std::cout << "[BSSNCtx]: octree (*.oct) restore file is corrupted "
                       << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     newMesh = new ot::Mesh(octree, 1, m_uiElementOrder, activeCommSz, comm);
@@ -1025,7 +1055,7 @@ int BSSNCtxGPU::restore_checkpt() {
         if (!rank)
             std::cout << "[BSSNCtx]: varible (*.var) restore file currupted "
                       << std::endl;
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     std::swap(m_uiMesh, newMesh);
@@ -1228,7 +1258,7 @@ int BSSNCtxGPU::terminal_output() {
                       << std::endl;
             if (std::isnan(min) || std::isnan(max)) {
                 std::cout << "[Error]: NAN detected " << std::endl;
-                MPI_Abort(m_uiMesh->getMPICommunicator(), 0);
+                MPI_Abort(m_uiMesh->getMPICommunicator(), 1);
             }
         }
     }
