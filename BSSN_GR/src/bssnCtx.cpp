@@ -740,7 +740,8 @@ int BSSNCtx::init_grid() {
 
     for (unsigned int node = m_uiMesh->getNodeLocalBegin();
          node < m_uiMesh->getNodeLocalEnd(); node++)
-        enforce_bssn_constraints(zipIn, node);
+        m_dMinDetGt =
+            std::min(m_dMinDetGt, enforce_bssn_constraints(zipIn, node));
 
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
     m_uiBHLoc[0] = Point(bssn::BH1.getBHCoordX(), bssn::BH1.getBHCoordY(),
@@ -885,10 +886,20 @@ int BSSNCtx::extract_constraints() {
     m_evar.to_2d(evolVar);
     m_cvar.to_2d(consVar);
 
+    // pre-enforcement min since the last write; NaN if nothing was enforced
+    double minDetGt = std::numeric_limits<double>::quiet_NaN();
+    if (m_uiMesh->isActive()) {
+        MPI_Allreduce(&m_dMinDetGt, &minDetGt, 1, MPI_DOUBLE, MPI_MIN,
+                      m_uiMesh->getMPICommunicator());
+        if (minDetGt == std::numeric_limits<double>::max())
+            minDetGt = std::numeric_limits<double>::quiet_NaN();
+        m_dMinDetGt = std::numeric_limits<double>::max();
+    }
+
     bssn::extractConstraints(m_uiMesh, (const DendroScalar**)consVar,
                              evolVar[BHLOC::EXTRACTION_VAR_ID],
                              BHLOC::EXTRACTION_TOL, m_uiTinfo._m_uiStep,
-                             m_uiTinfo._m_uiT);
+                             m_uiTinfo._m_uiT, minDetGt);
 
     dendro::logger::info("Finished extracting constraints!");
     return 0;
@@ -1087,6 +1098,11 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
         std::cout << "   ...Finished writing the octree checkpoints!"
                   << std::endl;
 
+    // rank 0 writes the global min
+    double minDetGt = m_dMinDetGt;
+    MPI_Allreduce(&m_dMinDetGt, &minDetGt, 1, MPI_DOUBLE, MPI_MIN,
+                  m_uiMesh->getMPICommunicator());
+
     dendro::logger::debug(
         "Now writing json checkpoint file with current status");
     if (!rank) {
@@ -1124,6 +1140,7 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
         meta.mergeStep          = m_uiMergeStep;
         // must round-trip, or a post-merger restart re-writes slot 3
         meta.mergedChkptWritten = bssn::BSSN_MERGED_CHKPT_WRITTEN;
+        meta.minDetGt           = minDetGt;
 
         json checkPoint;
         chkpt_write_meta(checkPoint, meta);
@@ -1408,7 +1425,9 @@ int BSSNCtx::restore_checkpt() {
             meta.mergeTime          = m_dMergeTime;
             meta.mergeStep          = m_uiMergeStep;
             meta.mergedChkptWritten = bssn::BSSN_MERGED_CHKPT_WRITTEN;
+            meta.minDetGt           = m_dMinDetGt;
             chkpt_read_meta(checkPoint, meta);
+            m_dMinDetGt             = meta.minDetGt;
 
             m_uiTinfo._m_uiTb       = meta.tb;
             m_uiTinfo._m_uiTe       = meta.te;
@@ -1657,11 +1676,14 @@ int BSSNCtx::post_timestep(DVec& sIn) {
     // Node-independent algebraic constraint enforcement; runs every RK stage.
     const unsigned int nb = m_uiMesh->getNodeLocalBegin();
     const unsigned int ne = m_uiMesh->getNodeLocalEnd();
+    double minDet         = m_dMinDetGt;
 #ifdef DENDRO_HYBRID_OMP
-#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS)
+#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS) \
+    reduction(min : minDet)
 #endif
     for (unsigned int node = nb; node < ne; node++)
-        enforce_bssn_constraints(evar, node);
+        minDet = std::min(minDet, enforce_bssn_constraints(evar, node));
+    m_dMinDetGt = minDet;
 
     return 0;
 }
