@@ -62,6 +62,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     DVec m_var[VL::END];
 
     Point m_uiBHLoc[2];
+    // velocity from the last update, for the Heun predictor
+    Point m_uiBHVel[2];
+    bool m_bBHVelValid = false;
 
     // reusable BH history/kinematics tracker + latest per-horizon QoIs
     std::unique_ptr<dendro_bh::BHHistory> m_bhHistory;
