@@ -173,7 +173,14 @@ void readParamFile(const char* fName, MPI_Comm comm) {
         MPI_Abort(comm, 1);
     }
 
-    readParamTOMLFile(fName, comm);
+    try {
+        readParamTOMLFile(fName, comm);
+    } catch (const std::exception& e) {
+        if (!rank)
+            std::cerr << RED << "Error[parameter file]: " << e.what() << NRM
+                      << std::endl;
+        MPI_Abort(comm, 1);
+    }
 
     // do this last: it needs every prefix the par may have overridden
     ensure_output_dirs(comm);
@@ -621,7 +628,7 @@ void initialDataFunctionWrapper(const double xx_grid, const double yy_grid,
                           << bssn::BSSN_ID_TYPE << NRM << std::endl;
             }
 
-            MPI_Abort(comm, 0);
+            MPI_Abort(comm, 1);
 
             break;
     }
@@ -2329,7 +2336,7 @@ ot::Mesh* weakScalingReMesh(ot::Mesh* pMesh, unsigned int target_npes) {
                         << target_npes
                         << " is larger than global npes:" << npes);
 
-        MPI_Abort(comm, 0);
+        MPI_Abort(comm, 1);
     }
 
     const double R_RES_FAC         = 10;
