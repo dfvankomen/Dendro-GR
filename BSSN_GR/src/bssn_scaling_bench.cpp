@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
             if (!rank)
                 std::cout << "BH min level must be > " << (MAXDEAPTH_LEVEL_DIFF + 2)
                           << std::endl;
-            MPI_Abort(comm, 0);
+            MPI_Abort(comm, 1);
         }
         function2Octree(f_init, bssn::BSSN_NUM_VARS, varIndex, interpVars,
                         tmpNodes, (f2olmin - MAXDEAPTH_LEVEL_DIFF - 2),
