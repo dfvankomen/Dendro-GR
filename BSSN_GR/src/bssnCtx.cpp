@@ -1706,6 +1706,79 @@ int BSSNCtx::post_timestep(DVec& sIn) {
     return 0;
 }
 
+void BSSNCtx::rk_fused_enforce(const DendroScalar* base, unsigned int n,
+                               const DendroScalar* cf, const DVec* const* src,
+                               DVec& out) {
+    // Same per-node op order as axpy_multi then post_timestep, tiled so the
+    // enforce pass reads the tile from cache.
+    constexpr unsigned int MAXJ = 16;
+    constexpr unsigned int TILE = 256;
+    const unsigned int sz       = out.get_size() / BSSN_NUM_VARS;
+    const unsigned int nb       = m_uiMesh->getNodeLocalBegin();
+    const unsigned int ne       = m_uiMesh->getNodeLocalEnd();
+    const unsigned int ntiles   = (ne - nb + TILE - 1) / TILE;
+    const DendroScalar* sp[MAXJ];
+    for (unsigned int j = 0; j < n; j++) sp[j] = src[j]->get_vec_ptr();
+    DendroScalar* optr = out.get_vec_ptr();
+    DendroScalar* evar[BSSN_NUM_VARS];
+    out.to_2d(evar);
+
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS)
+#endif
+    for (unsigned int t = 0; t < ntiles; t++) {
+        const unsigned int b = nb + t * TILE;
+        const unsigned int e = std::min(b + TILE, ne);
+        for (unsigned int v = 0; v < BSSN_NUM_VARS; v++)
+            for (unsigned int node = b; node < e; node++) {
+                const unsigned int idx = v * sz + node;
+                DendroScalar acc       = base[idx];
+                for (unsigned int j = 0; j < n; j++) acc += cf[j] * sp[j][idx];
+                optr[idx] = acc;
+            }
+        for (unsigned int node = b; node < e; node++)
+            enforce_bssn_constraints(evar, node);
+    }
+}
+
+int BSSNCtx::rk_stage_input(const DVec& base, unsigned int n,
+                            const DendroScalar* cf, const DVec* const* src,
+                            DVec& out) {
+    if (n > 16 || base.get_loc() != ot::DVEC_LOC::HOST ||
+        base.get_type() != ot::DVEC_TYPE::OCT_SHARED_NODES ||
+        base.get_size() != out.get_size() ||
+        base.get_dof() != BSSN_NUM_VARS || out.get_vec_ptr() == nullptr)
+        return ts::Ctx<BSSNCtx, DendroScalar, unsigned int>::rk_stage_input(
+            base, n, cf, src, out);
+
+    // ghosts are copied untouched, as copy_data did
+    const unsigned int sz     = out.get_size() / BSSN_NUM_VARS;
+    const unsigned int nb     = m_uiMesh->getNodeLocalBegin();
+    const unsigned int ne     = m_uiMesh->getNodeLocalEnd();
+    const DendroScalar* bptr  = base.get_vec_ptr();
+    DendroScalar* optr        = out.get_vec_ptr();
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS)
+#endif
+    for (unsigned int v = 0; v < BSSN_NUM_VARS; v++) {
+        std::copy(bptr + v * sz, bptr + v * sz + nb, optr + v * sz);
+        std::copy(bptr + v * sz + ne, bptr + (v + 1) * sz, optr + v * sz + ne);
+    }
+    rk_fused_enforce(bptr, n, cf, src, out);
+    return 0;
+}
+
+int BSSNCtx::rk_combine(unsigned int n, const DendroScalar* cf,
+                        const DVec* const* src, DVec& y) {
+    if (n > 16 || y.get_loc() != ot::DVEC_LOC::HOST ||
+        y.get_type() != ot::DVEC_TYPE::OCT_SHARED_NODES ||
+        y.get_dof() != BSSN_NUM_VARS || y.get_vec_ptr() == nullptr)
+        return ts::Ctx<BSSNCtx, DendroScalar, unsigned int>::rk_combine(n, cf,
+                                                                        src, y);
+    rk_fused_enforce(y.get_vec_ptr(), n, cf, src, y);
+    return 0;
+}
+
 bool BSSNCtx::is_remesh() {
     bool isRefine         = false;
     // wkb 27 March 2025

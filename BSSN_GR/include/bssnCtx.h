@@ -227,6 +227,20 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /** @brief: function execute after each step*/
     int post_timestep(DVec& sIn);
 
+    /** @brief: RK stage input out = base + sum_j cf[j]*src[j] with the
+     * constraint enforcement fused into the same pass.*/
+    int rk_stage_input(const DVec& base, unsigned int n, const DendroScalar* cf,
+                       const DVec* const* src, DVec& out);
+
+    /** @brief: RK final combine y += sum_j cf[j]*src[j], enforcement fused.*/
+    int rk_combine(unsigned int n, const DendroScalar* cf,
+                   const DVec* const* src, DVec& y);
+
+    /** @brief: shared kernel for the two above, local nodes only.*/
+    void rk_fused_enforce(const DendroScalar* base, unsigned int n,
+                          const DendroScalar* cf, const DVec* const* src,
+                          DVec& out);
+
     /** @brief: function execute after each step*/
     bool is_remesh();
 
