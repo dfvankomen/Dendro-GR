@@ -124,7 +124,11 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     const bool puncture_block = is_puncture_block(pmin, pmax, sz, PW);
     if (puncture_block) set_block_explicit_derivs(true);
 #endif
+#ifdef DENDRO_USE_NEW_DERIVS
+#include "constraint_derivs_trim.h"
+#else
 #include "constraint_derivs.h"
+#endif
 #ifdef DENDRO_USE_NEW_DERIVS
     if (puncture_block) set_block_explicit_derivs(false);
 #endif

@@ -49,6 +49,12 @@ unsigned bssn_compiled_deriv_order();
  */
 void set_block_explicit_derivs(bool on);
 
+// xy/xz/yz of u plus the grad_x/grad_y feeders, trimmed to what the chains read
+void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,
+                     double *const ux, double *const uy, const double *const u,
+                     const double dx, const double dy, const double dz,
+                     const unsigned int *sz, unsigned bflag);
+
 /**
  * @brief Does a puncture lie in this block (interior bounds expanded by
  * BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS-1 block widths)? Shared by the RHS and
