@@ -1706,6 +1706,7 @@ int BSSNCtx::post_timestep(DVec& sIn) {
     return 0;
 }
 
+#ifdef BSSN_RK_FUSE
 void BSSNCtx::rk_fused_enforce(const DendroScalar* base, unsigned int n,
                                const DendroScalar* cf, const DVec* const* src,
                                DVec& out) {
@@ -1778,6 +1779,7 @@ int BSSNCtx::rk_combine(unsigned int n, const DendroScalar* cf,
     rk_fused_enforce(y.get_vec_ptr(), n, cf, src, y);
     return 0;
 }
+#endif
 
 bool BSSNCtx::is_remesh() {
     bool isRefine         = false;

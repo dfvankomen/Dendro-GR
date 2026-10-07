@@ -227,6 +227,7 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /** @brief: function execute after each step*/
     int post_timestep(DVec& sIn);
 
+#ifdef BSSN_RK_FUSE
     /** @brief: RK stage input out = base + sum_j cf[j]*src[j] with the
      * constraint enforcement fused into the same pass.*/
     int rk_stage_input(const DVec& base, unsigned int n, const DendroScalar* cf,
@@ -240,6 +241,7 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     void rk_fused_enforce(const DendroScalar* base, unsigned int n,
                           const DendroScalar* cf, const DVec* const* src,
                           DVec& out);
+#endif
 
     /** @brief: function execute after each step*/
     bool is_remesh();

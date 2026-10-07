@@ -70,6 +70,13 @@ dgr_require_at_most_one("BSSN scalar RHS body"
 dgr_require_at_most_one("BSSN constraint kernel"
   BSSN_USE_CASCADE_CONSTRAINTS_AVX BSSN_USE_CASCADE_CONSTRAINTS_AVX512)
 option(BSSN_PHYSCON_BLOCK_HISTO "Dump a per-block-size tally of vector vs scalar constraint kernel dispatch to stderr" OFF)
+option(BSSN_DERIV_TRIM "Interior mixed-derivative pre-pass writes the x/y feeders only where the chains read them (new derivs)" ON)
+option(BSSN_RK_FUSE "Override the RK stage-input/combine hooks with one fused pass incl. constraint enforcement (needs DENDRO_RK_FUSE)" ${DENDRO_RK_FUSE})
+if(BSSN_RK_FUSE AND NOT DENDRO_RK_FUSE)
+  set(BSSN_RK_FUSE OFF)
+endif()
+message(STATUS "BSSN deriv mixed-set trim: ${BSSN_DERIV_TRIM}")
+message(STATUS "BSSN RK fusion override: ${BSSN_RK_FUSE} (DENDRO_RK_FUSE=${DENDRO_RK_FUSE})")
 
 # Advisory: if user picks a cascade AVX* option with a CPU_ARCH that doesn't
 # provide the ISA, compile will fail on the intrinsics (clear error). The
@@ -257,6 +264,8 @@ elseif(BSSN_USE_CASCADE_CONSTRAINTS_AVX)
 else()
   message(STATUS "BSSN constraint kernel: scalar (physconeqs.cpp)")
 endif()
+bssn_add_def(BSSN_DERIV_TRIM BSSN_DERIV_TRIM)
+bssn_add_def(BSSN_RK_FUSE BSSN_RK_FUSE)
 bssn_add_def(BSSN_EXTRACT_GRAVITATIONAL_WAVES BSSN_EXTRACT_GRAVITATIONAL_WAVES)
 
 if(BSSN_ENABLE_AVX AND CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

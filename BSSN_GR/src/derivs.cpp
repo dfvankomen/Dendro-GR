@@ -279,6 +279,7 @@ void set_block_explicit_derivs(bool on) {
     s_block_explicit_derivs = on;
 }
 
+#ifdef BSSN_DERIV_TRIM
 void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,
                      double *const ux, double *const uy, const double *const u,
                      const double dx, const double dy, const double dz,
@@ -294,6 +295,7 @@ void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,
     new_deriv_z(dxz, ux, dz, sz, bflag);
     new_deriv_z(dyz, uy, dz, sz, bflag);
 }
+#endif
 #endif
 
 void deriv42_x_wrapper(double *const Dxu, const double *const u,
