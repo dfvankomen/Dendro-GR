@@ -1749,8 +1749,11 @@ void BSSNCtx::rk_fused_enforce(const DendroScalar* base, unsigned int n,
     DendroScalar* evar[BSSN_NUM_VARS];
     out.to_2d(evar);
 
+    // track the pre-enforcement min det(gt), as post_timestep does
+    double minDet = m_dMinDetGt;
 #ifdef DENDRO_HYBRID_OMP
-#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS)
+#pragma omp parallel for num_threads(bssn::BSSN_HYBRID_NTHREADS) \
+    reduction(min : minDet)
 #endif
     for (unsigned int t = 0; t < ntiles; t++) {
         const unsigned int b = nb + t * TILE;
@@ -1763,8 +1766,9 @@ void BSSNCtx::rk_fused_enforce(const DendroScalar* base, unsigned int n,
                 optr[idx] = acc;
             }
         for (unsigned int node = b; node < e; node++)
-            enforce_bssn_constraints(evar, node);
+            minDet = std::min(minDet, enforce_bssn_constraints(evar, node));
     }
+    m_dMinDetGt = minDet;
 }
 
 int BSSNCtx::rk_stage_input(const DVec& base, unsigned int n,
