@@ -92,10 +92,12 @@ def main():
             "-- pass the correct --l-max for this file."
             % (values.size, args.l_max, n_expected))
 
-    # Unit-sphere Cartesian coords for the 3D scatter (radius is cosmetic).
-    x = np.sin(theta_flat) * np.cos(phi_flat)
-    y = np.sin(theta_flat) * np.sin(phi_flat)
-    z = np.cos(theta_flat)
+    # Cartesian coords for the 3D scatter, scaled to the actual extraction
+    # radius when given (--radius), unit sphere otherwise.
+    plot_radius = args.radius if args.radius is not None else 1.0
+    x = plot_radius * np.sin(theta_flat) * np.cos(phi_flat)
+    y = plot_radius * np.sin(theta_flat) * np.sin(phi_flat)
+    z = plot_radius * np.cos(theta_flat)
 
     vmin, vmax = float(values.min()), float(values.max())
     cmap = "viridis"  # perceptually-uniform sequential colormap for magnitude data
@@ -106,10 +108,16 @@ def main():
     sc = ax3d.scatter(x, y, z, c=values, cmap=cmap, vmin=vmin, vmax=vmax,
                        s=25, depthshade=True)
     ax3d.set_box_aspect((1, 1, 1))
-    ax3d.set_xlabel("x")
-    ax3d.set_ylabel("y")
-    ax3d.set_zlabel("z")
-    ax3d.set_title("SWSH collocation grid (unit sphere)")
+    ax3d.set_xlim3d(-plot_radius, plot_radius)
+    ax3d.set_ylim3d(-plot_radius, plot_radius)
+    ax3d.set_zlim3d(-plot_radius, plot_radius)
+    unit = "M" if args.radius is not None else "(unit sphere)"
+    ax3d.set_xlabel("x [%s]" % unit)
+    ax3d.set_ylabel("y [%s]" % unit)
+    ax3d.set_zlabel("z [%s]" % unit)
+    ax3d.set_title("SWSH collocation grid, r=%g %s" % (plot_radius, unit)
+                    if args.radius is not None else
+                    "SWSH collocation grid (unit sphere)")
 
     ax2d = fig.add_subplot(1, 2, 2)
     sc2 = ax2d.scatter(phi_flat, theta_flat, c=values, cmap=cmap,

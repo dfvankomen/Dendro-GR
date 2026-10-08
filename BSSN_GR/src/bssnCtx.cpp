@@ -2389,6 +2389,26 @@ void BSSNCtx::writeCceWorldtube() {
     // buffers every single call, so without this the leak compounds every
     // timestep.
     cceDerivUnzip.destroy_vector();
+    // zip() alone does not cross-rank-sync nodes shared between two MPI
+    // ranks' local partitions -- compute_constraint_variables() does an
+    // explicit readFromGhostBegin/End on its own freshly-zipped m_cvar for
+    // exactly this reason (bssnCtx.cpp:711-713), right after its own zip()
+    // call. m_evar (the base BSSN fields we interpolate directly, elsewhere
+    // in this function) never needs this because it's kept ghost-synced as
+    // an invariant of the normal RK time-stepping -- but cceDerivZip is a
+    // brand-new vector computed and zipped fresh on every call, with no such
+    // guarantee, and this step was missing. Found from a real artifact on
+    // Marylou output: every *derivative* dataset (but not the base fields)
+    // showed corrupted/bleeding values exactly near phi=0,pi/2,pi,3pi/2,2pi
+    // -- i.e. near x=0 or y=0, which is exactly where Dendro's
+    // origin-centered octree puts many block (and so rank-partition)
+    // boundaries, so unsynced nodes there fed stale data into
+    // interpolateToCoords and its local stencil spread the error into
+    // nearby (theta,phi) samples.
+    m_uiMesh->readFromGhostBegin(cceDerivZip.get_vec_ptr(),
+                                 cceDerivZip.get_dof());
+    m_uiMesh->readFromGhostEnd(cceDerivZip.get_vec_ptr(),
+                               cceDerivZip.get_dof());
     DendroScalar* derivZip[bssn::cce::NUM_DERIV_DOFS];
     cceDerivZip.to_2d(derivZip);
 
