@@ -281,6 +281,8 @@ macro(bssn_add_executable TARGET_NAME)
 endmacro()
 
 bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
+# bssngr_main.cpp plus the local time stepper as TS_MODE 0
+bssn_add_executable(bssnSolverLTS src/bssngr_lts_main.cpp src/bssnAEH.cpp src/bssnCtx.cpp)
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
