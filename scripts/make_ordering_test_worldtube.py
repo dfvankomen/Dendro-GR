@@ -1,13 +1,25 @@
 ##
-# @brief: Injects a known, analytic spherical-harmonic pattern Y_{l,m}(theta,phi)
-#          into a copy of an already-validated worldtube HDF5 file, as an
-#          empirical check of cceWorldtube.cpp's SWSH angular ordering
-#          (Dendro_CCE_v2.1.md Section 9.3 item #2).
+# @brief: Builds a worldtube HDF5 file that is EXACTLY flat space (Lapse=1,
+#         g_ii=1, everything else=0) plus one known, analytic
+#         spherical-harmonic perturbation Y_{l,m}(theta,phi) added to Lapse,
+#         as an empirical check of cceWorldtube.cpp's SWSH angular ordering
+#         (Dendro_CCE_v2.1.md Section 9.3 item #2).
 #
 # Uses m=0 by default so phi-ordering (already confirmed from SpECTRE's own
 # SwshCollocation.cpp source -- see project notes) can't interfere: an m=0
 # mode has no phi dependence at all, isolating the one still-uncertain
 # piece, theta's ring order.
+#
+# IMPORTANT: this does NOT perturb the real q1 data (an earlier version of
+# this script did, and the result was inconclusive -- the real q1 worldtube
+# already has its own physical (l=2,m=+-2) quadrupole content, and the
+# ADM->Bondi gauge transform PreprocessCceWorldtube applies is nonlinear, so
+# a perturbation added on top of real data can get mixed with that
+# pre-existing structure in the output, making it impossible to tell which
+# part of the output mode content came from the perturbation vs. the
+# binary's own physics. Starting from an EXACTLY flat background removes
+# that ambiguity -- any mode content in the output is attributable only to
+# the perturbation (and to the ordering code being tested).
 #
 # After running this, feed the output through PreprocessCceWorldtube (same
 # as any other worldtube file) and check which (l,m) mode actually shows up
@@ -27,7 +39,15 @@ import shutil
 import h5py
 import numpy as np
 
+from check_cce_worldtube import EXPECTED_DATASETS, GDIAG
 from plot_cce_swsh_grid import swsh_grid, flatten_grid
+
+# Flat-space value for each dataset: 1.0 for the metric diagonal and Lapse,
+# 0.0 for everything else (off-diagonal metric, all derivatives, Shift, K,
+# AuxiliaryShift). Mirrors check_cce_worldtube.py's own near-flat-space
+# sanity expectations.
+FLAT_VALUE = {name: (1.0 if (name in GDIAG or name == "Lapse") else 0.0)
+             for name in EXPECTED_DATASETS}
 
 try:
     from scipy.special import sph_harm_y
@@ -80,22 +100,29 @@ def main():
     perturbation = args.amplitude * real_spherical_harmonic(
         args.l, args.m, theta_flat, phi_flat)
 
+    # Only borrowing the input file's structure (time column, row count,
+    # Legend, HDF5 attributes) -- every dataset's VALUES get overwritten
+    # below with exact flat space, regardless of what the real run had.
     shutil.copyfile(args.input_h5, args.output_h5)
 
     with h5py.File(args.output_h5, "r+") as f:
-        lapse = f["Lapse.dat"]
-        data = lapse[:, :]
         n_pts = perturbation.size
-        if data.shape[1] - 1 != n_pts:
-            raise SystemExit(
-                "Lapse.dat has %d points but --l-max %d implies %d -- pass "
-                "the correct --l-max for this file." % (data.shape[1] - 1,
-                                                         args.l_max, n_pts))
-        data[:, 1:] += perturbation[np.newaxis, :]
-        lapse[...] = data
+        for name in EXPECTED_DATASETS:
+            ds = f[name + ".dat"]
+            data = ds[:, :]
+            if data.shape[1] - 1 != n_pts:
+                raise SystemExit(
+                    "%s.dat has %d points but --l-max %d implies %d -- pass "
+                    "the correct --l-max for this file."
+                    % (name, data.shape[1] - 1, args.l_max, n_pts))
+            data[:, 1:] = FLAT_VALUE[name]
+            if name == "Lapse":
+                data[:, 1:] += perturbation[np.newaxis, :]
+            ds[...] = data
 
-    print("Wrote %s: injected amplitude=%.3g * Re(Y_%d,%d) into Lapse at "
-          "every timestep." % (args.output_h5, args.amplitude, args.l, args.m))
+    print("Wrote %s: exact flat space + amplitude=%.3g * Re(Y_%d,%d) "
+          "injected into Lapse at every timestep." %
+          (args.output_h5, args.amplitude, args.l, args.m))
     print("Next: run this through PreprocessCceWorldtube (same as usual), "
           "then check the resulting modal file's per-mode amplitude -- the "
           "(l=%d, m=%d) mode should dominate; if a different l shows up "
