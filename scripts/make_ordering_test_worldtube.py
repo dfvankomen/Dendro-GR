@@ -1,25 +1,35 @@
 ##
 # @brief: Builds a worldtube HDF5 file that is EXACTLY flat space (Lapse=1,
 #         g_ii=1, everything else=0) plus one known, analytic
-#         spherical-harmonic perturbation Y_{l,m}(theta,phi) added to Lapse,
-#         as an empirical check of cceWorldtube.cpp's SWSH angular ordering
-#         (Dendro_CCE_v2.1.md Section 9.3 item #2).
+#         spherical-harmonic perturbation Y_{l,m}(theta,phi) added to one
+#         field (--field, default Kxx), as an empirical check of
+#         cceWorldtube.cpp's SWSH angular ordering (Dendro_CCE_v2.1.md
+#         Section 9.3 item #2).
 #
 # Uses m=0 by default so phi-ordering (already confirmed from SpECTRE's own
 # SwshCollocation.cpp source -- see project notes) can't interfere: an m=0
 # mode has no phi dependence at all, isolating the one still-uncertain
 # piece, theta's ring order.
 #
-# IMPORTANT: this does NOT perturb the real q1 data (an earlier version of
-# this script did, and the result was inconclusive -- the real q1 worldtube
-# already has its own physical (l=2,m=+-2) quadrupole content, and the
-# ADM->Bondi gauge transform PreprocessCceWorldtube applies is nonlinear, so
-# a perturbation added on top of real data can get mixed with that
-# pre-existing structure in the output, making it impossible to tell which
-# part of the output mode content came from the perturbation vs. the
-# binary's own physics. Starting from an EXACTLY flat background removes
-# that ambiguity -- any mode content in the output is attributable only to
-# the perturbation (and to the ordering code being tested).
+# IMPORTANT, two iterations of this script's mistakes so far, both fixed:
+# 1. Perturbing the real q1 data gave an inconclusive result -- the real
+#    worldtube already has its own physical (l=2,m=+-2) quadrupole content,
+#    and the ADM->Bondi gauge transform PreprocessCceWorldtube applies is
+#    nonlinear, so a perturbation on top of real data can get mixed with
+#    that pre-existing structure, making it impossible to tell which part
+#    of the output came from the perturbation vs. the binary's own physics.
+#    Fixed by starting from an EXACTLY flat background instead (below).
+# 2. Perturbing Lapse's VALUE while leaving DxLapse/DyLapse/DzLapse at their
+#    flat value (0) gave an all-zero result -- an angularly-varying Lapse
+#    necessarily has a nonzero gradient too, and leaving the derivative
+#    fields inconsistent with the value apparently starves the ADM->Bondi
+#    conversion of the information it needs (it likely leans on the
+#    derivative fields, not just the raw value). Fixed by perturbing Kxx
+#    instead (the default --field): per Dendro_CCE_v2.1.md Section 6.1,
+#    AdmMetricNodal does NOT need derivatives of K at all, so there's no
+#    derivative dataset to keep consistent -- a genuine value-only
+#    perturbation, and K's flat-space value is already 0 (no baseline to
+#    add on top of, unlike Lapse's 1).
 #
 # After running this, feed the output through PreprocessCceWorldtube (same
 # as any other worldtube file) and check which (l,m) mode actually shows up
@@ -69,10 +79,16 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Inject a known Y_(l,m) pattern into a worldtube file's "
-                     "Lapse dataset, for an empirical SWSH-ordering check.")
+        description="Inject a known Y_(l,m) pattern into one dataset of a "
+                     "worldtube file (over an exactly-flat background), for "
+                     "an empirical SWSH-ordering check.")
     parser.add_argument("input_h5", help="path to an existing, validated worldtube h5 file")
     parser.add_argument("output_h5", help="path to write the modified copy")
+    parser.add_argument("--field", default="Kxx",
+                         help="which dataset to perturb (default: Kxx -- a "
+                              "value-only field with no paired derivative "
+                              "dataset to keep consistent, unlike Lapse/g/"
+                              "Shift which all have Dx/Dy/Dz counterparts)")
     parser.add_argument("--l", type=int, default=3,
                          help="l of the injected mode (default 3 -- has 3 "
                               "sign changes in theta, easy to misidentify "
@@ -105,6 +121,9 @@ def main():
     # below with exact flat space, regardless of what the real run had.
     shutil.copyfile(args.input_h5, args.output_h5)
 
+    if args.field not in FLAT_VALUE:
+        raise SystemExit("--field must be one of: %s" % EXPECTED_DATASETS)
+
     with h5py.File(args.output_h5, "r+") as f:
         n_pts = perturbation.size
         for name in EXPECTED_DATASETS:
@@ -116,13 +135,13 @@ def main():
                     "the correct --l-max for this file."
                     % (name, data.shape[1] - 1, args.l_max, n_pts))
             data[:, 1:] = FLAT_VALUE[name]
-            if name == "Lapse":
+            if name == args.field:
                 data[:, 1:] += perturbation[np.newaxis, :]
             ds[...] = data
 
     print("Wrote %s: exact flat space + amplitude=%.3g * Re(Y_%d,%d) "
-          "injected into Lapse at every timestep." %
-          (args.output_h5, args.amplitude, args.l, args.m))
+          "injected into %s at every timestep." %
+          (args.output_h5, args.amplitude, args.l, args.m, args.field))
     print("Next: run this through PreprocessCceWorldtube (same as usual), "
           "then check the resulting modal file's per-mode amplitude -- the "
           "(l=%d, m=%d) mode should dominate; if a different l shows up "
