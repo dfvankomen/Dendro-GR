@@ -1,17 +1,16 @@
 ##
 # @brief: Builds a worldtube HDF5 file that is EXACTLY flat space (Lapse=1,
 #         g_ii=1, everything else=0) plus one known, analytic
-#         spherical-harmonic perturbation Y_{l,m}(theta,phi) added to one
-#         field (--field, default Kxx), as an empirical check of
-#         cceWorldtube.cpp's SWSH angular ordering (Dendro_CCE_v2.1.md
-#         Section 9.3 item #2).
+#         spherical-harmonic perturbation Y_{l,m}(theta,phi) added to K's
+#         trace (Kxx=Kyy=Kzz), as an empirical check of cceWorldtube.cpp's
+#         SWSH angular ordering (Dendro_CCE_v2.1.md Section 9.3 item #2).
 #
 # Uses m=0 by default so phi-ordering (already confirmed from SpECTRE's own
 # SwshCollocation.cpp source -- see project notes) can't interfere: an m=0
 # mode has no phi dependence at all, isolating the one still-uncertain
 # piece, theta's ring order.
 #
-# IMPORTANT, two iterations of this script's mistakes so far, both fixed:
+# IMPORTANT, three iterations of this script's mistakes so far, all fixed:
 # 1. Perturbing the real q1 data gave an inconclusive result -- the real
 #    worldtube already has its own physical (l=2,m=+-2) quadrupole content,
 #    and the ADM->Bondi gauge transform PreprocessCceWorldtube applies is
@@ -23,13 +22,23 @@
 #    flat value (0) gave an all-zero result -- an angularly-varying Lapse
 #    necessarily has a nonzero gradient too, and leaving the derivative
 #    fields inconsistent with the value apparently starves the ADM->Bondi
-#    conversion of the information it needs (it likely leans on the
-#    derivative fields, not just the raw value). Fixed by perturbing Kxx
-#    instead (the default --field): per Dendro_CCE_v2.1.md Section 6.1,
-#    AdmMetricNodal does NOT need derivatives of K at all, so there's no
-#    derivative dataset to keep consistent -- a genuine value-only
-#    perturbation, and K's flat-space value is already 0 (no baseline to
-#    add on top of, unlike Lapse's 1).
+#    conversion of the information it needs. Fixed by switching to K (no
+#    paired derivative dataset in the AdmMetricNodal contract -- Section
+#    6.1 of Dendro_CCE_v2.1.md -- so nothing to keep consistent).
+# 3. Perturbing ONLY Kxx (leaving Kxy/Kyy/Kzz/etc. at zero) gave power
+#    spread across many (l,m) with ONLY even m -- because Kxx is a single
+#    CARTESIAN TENSOR COMPONENT, not a scalar. A Cartesian component that
+#    varies with theta while its tensor partners stay fixed at zero does
+#    NOT correspond to an axisymmetric physical field; projecting it onto
+#    spherical basis vectors (which themselves carry phi-dependence, e.g.
+#    theta_hat ~ (cos(theta)cos(phi), cos(theta)sin(phi), -sin(theta)))
+#    mixes in factors like cos^2(phi) -- which decompose into exactly m=0
+#    and m=+-2 content, matching what was observed. Fixed by perturbing K's
+#    TRACE instead: Kxx=Kyy=Kzz=f(theta,phi) (K_ij = f * delta_ij). Since
+#    the identity tensor is the same in any orthonormal basis, this has NO
+#    basis-projection mixing -- whatever (l,m) content f has should come
+#    through cleanly. Also physically well-motivated: K's trace is tied to
+#    the expansion of outgoing null rays, closely related to DuR.
 #
 # After running this, feed the output through PreprocessCceWorldtube (same
 # as any other worldtube file) and check which (l,m) mode actually shows up
@@ -79,16 +88,11 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Inject a known Y_(l,m) pattern into one dataset of a "
+        description="Inject a known Y_(l,m) pattern into K's trace of a "
                      "worldtube file (over an exactly-flat background), for "
                      "an empirical SWSH-ordering check.")
     parser.add_argument("input_h5", help="path to an existing, validated worldtube h5 file")
     parser.add_argument("output_h5", help="path to write the modified copy")
-    parser.add_argument("--field", default="Kxx",
-                         help="which dataset to perturb (default: Kxx -- a "
-                              "value-only field with no paired derivative "
-                              "dataset to keep consistent, unlike Lapse/g/"
-                              "Shift which all have Dx/Dy/Dz counterparts)")
     parser.add_argument("--l", type=int, default=3,
                          help="l of the injected mode (default 3 -- has 3 "
                               "sign changes in theta, easy to misidentify "
@@ -101,10 +105,10 @@ def main():
     parser.add_argument("--l-max", type=int, default=20,
                          help="CCE_LMAX the input file used (default 20)")
     parser.add_argument("--amplitude", type=float, default=1e-3,
-                         help="perturbation amplitude added to Lapse -- "
-                              "small relative to Lapse~1, but far above "
-                              "the pipeline's existing ~1e-9 noise floor "
-                              "so the injected signal clearly dominates")
+                         help="perturbation amplitude added to K's trace -- "
+                              "far above the pipeline's existing ~1e-9 "
+                              "noise floor so the injected signal clearly "
+                              "dominates")
     args = parser.parse_args()
 
     theta, phi = swsh_grid(args.l_max)
@@ -121,8 +125,10 @@ def main():
     # below with exact flat space, regardless of what the real run had.
     shutil.copyfile(args.input_h5, args.output_h5)
 
-    if args.field not in FLAT_VALUE:
-        raise SystemExit("--field must be one of: %s" % EXPECTED_DATASETS)
+    # Perturb K's TRACE (Kxx=Kyy=Kzz=f), not one lopsided Cartesian
+    # component -- see mistake #3 above for why a single component mixes
+    # (l,m) content through the basis-vector projection.
+    trace_fields = {"Kxx", "Kyy", "Kzz"}
 
     with h5py.File(args.output_h5, "r+") as f:
         n_pts = perturbation.size
@@ -135,13 +141,13 @@ def main():
                     "the correct --l-max for this file."
                     % (name, data.shape[1] - 1, args.l_max, n_pts))
             data[:, 1:] = FLAT_VALUE[name]
-            if name == args.field:
+            if name in trace_fields:
                 data[:, 1:] += perturbation[np.newaxis, :]
             ds[...] = data
 
     print("Wrote %s: exact flat space + amplitude=%.3g * Re(Y_%d,%d) "
-          "injected into %s at every timestep." %
-          (args.output_h5, args.amplitude, args.l, args.m, args.field))
+          "injected into K's trace (Kxx=Kyy=Kzz) at every timestep." %
+          (args.output_h5, args.amplitude, args.l, args.m))
     print("Next: run this through PreprocessCceWorldtube (same as usual), "
           "then check the resulting modal file's per-mode amplitude -- the "
           "(l=%d, m=%d) mode should dominate; if a different l shows up "
