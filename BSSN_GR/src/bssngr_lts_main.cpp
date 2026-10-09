@@ -543,6 +543,34 @@ int main(int argc, char** argv) {
             setenv("DENDRO_ENUTS_OWNER_SYNC", "1", 0);
             setenv("DENDRO_ENUTS_SYNC_FAST", "1", 0);
             setenv("DENDRO_ENUTS_STAGE_TIME", "1", 0);
+            // the work-weighted start-up partition: apply it after the initial
+            // grid has converged (so weighted and unweighted runs start from one
+            // mesh) and with the evolution vector's ghosts filled first
+            setenv("DENDRO_ENUTS_WPART_LATE", "1", 0);
+            setenv("DENDRO_ENUTS_WPART_GHOST_SYNC", "1", 0);
+            // the production CAHD coefficient (C dx^2 / dt_min) is unstable
+            // under LTS on a fine mesh at any step ratio above 1-2 (q12 blows
+            // up at ratio 2). unless a form was chosen (DENDRO_CAHD_ETIENNE,
+            // DENDRO_LTS_CAHD_DT, DENDRO_LTS_CAHD_RULE) use the block's own
+            // step in the coefficient, which is stable but damps coarse
+            // blocks less than the uniform stepper does.
+            if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE") &&
+                !std::getenv("DENDRO_LTS_CAHD_DT") &&
+                !std::getenv("DENDRO_LTS_CAHD_RULE")) {
+                if (!rank)
+                    std::cout << YLW
+                              << "[LTS] CAHD is on: using the block's own step "
+                                 "in its coefficient (DENDRO_LTS_CAHD_DT=1); "
+                                 "this is not the uniform stepper's damping"
+                              << NRM << std::endl;
+                setenv("DENDRO_LTS_CAHD_DT", "1", 0);
+            }
+            // same solution, about a third less memory (RK4 only)
+            if (rkType == RKType::RK4) {
+                setenv("DENDRO_ENUTS_STAGE_SCRATCH", "1", 0);
+                setenv("DENDRO_ENUTS_LAZY_TMP", "1", 0);
+                setenv("DENDRO_ENUTS_STAGE_RING", "1", 0);
+            }
             // the weighted repartition remeshes at init; DENDRO_NUTS_NO_WPART=1
             // keeps the LTS run on the grid the uniform run starts from
             const bool useWpart = !std::getenv("DENDRO_NUTS_NO_WPART");
@@ -590,6 +618,15 @@ int main(int argc, char** argv) {
 
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());
         ets->init();
+        if (enuts && !std::getenv("DENDRO_NUTS_NO_WPART")) {
+            // the LTS init repartitioned by work (weighted SFC), so the mesh
+            // object is new: redo what the remesh block does for one
+            bssn::deallocate_bssn_deriv_workspace();
+            bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+            bssnCtx->reinit_derivs_pool();
+            bssnCtx->calculate_full_grid_size();
+            bssnCtx->compute_lts_ts_offset();
+        }
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
