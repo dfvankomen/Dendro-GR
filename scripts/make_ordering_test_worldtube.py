@@ -26,9 +26,25 @@ import shutil
 
 import h5py
 import numpy as np
-from scipy.special import sph_harm_y
 
 from plot_cce_swsh_grid import swsh_grid, flatten_grid
+
+try:
+    from scipy.special import sph_harm_y
+
+    def real_spherical_harmonic(l, m, theta, phi):
+        return np.real(sph_harm_y(l, m, theta, phi))
+except ImportError:
+    # Older scipy (no sph_harm_y yet): fall back to the deprecated
+    # sph_harm(m, n, theta, phi), whose argument NAMES are swapped from the
+    # physics convention used everywhere else in this project -- scipy's
+    # 'theta' is azimuthal (our phi) and its 'phi' is polar/colatitude (our
+    # theta). Passing our (theta, phi) straight through would silently
+    # compute the WRONG function.
+    from scipy.special import sph_harm
+
+    def real_spherical_harmonic(l, m, theta, phi):
+        return np.real(sph_harm(m, l, phi, theta))
 
 
 def main():
@@ -58,11 +74,11 @@ def main():
     theta, phi = swsh_grid(args.l_max)
     theta_flat, phi_flat = flatten_grid(theta, phi)
 
-    # sph_harm_y(l, m, theta, phi): theta=polar/colatitude, phi=azimuthal --
-    # SAME convention as this whole project (NOT scipy's older, deprecated
-    # sph_harm(m, l, theta, phi), which confusingly swaps theta/phi meaning).
-    y_lm = sph_harm_y(args.l, args.m, theta_flat, phi_flat)
-    perturbation = args.amplitude * np.real(y_lm)
+    # real_spherical_harmonic(l, m, theta, phi): theta=polar/colatitude,
+    # phi=azimuthal -- SAME convention as this whole project, regardless of
+    # which scipy API is available underneath (see the import block above).
+    perturbation = args.amplitude * real_spherical_harmonic(
+        args.l, args.m, theta_flat, phi_flat)
 
     shutil.copyfile(args.input_h5, args.output_h5)
 
