@@ -151,6 +151,12 @@ extern bool BSSN_CAKO_ENABLED;
 /** @brief the parameter that controls the CAHD strength */
 extern double BSSN_CAHD_C;
 
+/**@brief: partitioning method applied to the evolution mesh after the initial
+ * data is set. 0 = SFC (no repartition). non-zero values map to
+ * PartitioningOptions in dendrolib (4 = per-level SFC split) and need a build
+ * with BSSN_WITH_GRAPH_PARTITIONING. */
+extern unsigned int BSSN_PARTITIONING_METHOD;
+
 /**@brief min bh domain add these to the parameter file.*/
 extern double BSSN_COMPD_MIN[3];
 /**@brief min bh domain @todo add these to the parameter file. */

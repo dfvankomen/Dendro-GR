@@ -535,6 +535,10 @@ int main(int argc, char** argv) {
         // non-null only under LTS, for the calls ETS does not have
         ts::ExplicitNUTS<DendroScalar, bssn::BSSNCtx>* enuts = nullptr;
 
+        if (useLTS && bssn::BSSN_PARTITIONING_METHOD != 0) {
+            // the labelling replaces the weighted start-up partition
+            setenv("DENDRO_NUTS_NO_WPART", "1", 1);
+        }
         if (useLTS) {
             // LTS equals the uniform stepper at step ratio 1 only with the
             // interface fixes and the per-stage time, so they are on here
@@ -618,6 +622,33 @@ int main(int argc, char** argv) {
 
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());
         ets->init();
+#ifdef BSSN_WITH_GRAPH_PARTITIONING
+        // repartition once the initial data is set: build a relabelled twin of
+        // the SFC mesh, move the evolution vector onto it, re-sync the stepper
+        if (bssn::BSSN_PARTITIONING_METHOD != 0) {
+            if (!rank)
+                std::cout << CYN << BLD << "Applying partitioning method "
+                          << bssn::BSSN_PARTITIONING_METHOD << NRM << std::endl;
+            if (bssnCtx->maybe_apply_partitioning()) {
+                bssn::deallocate_bssn_deriv_workspace();
+                bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+                bssnCtx->reinit_derivs_pool();
+                bssnCtx->calculate_full_grid_size();
+                if (useLTS) bssnCtx->compute_lts_ts_offset();
+                ets->sync_with_mesh();
+                if (!rank)
+                    std::cout << GRN << BLD << "...labelled partition active."
+                              << NRM << std::endl;
+            }
+        }
+#else
+        if (bssn::BSSN_PARTITIONING_METHOD != 0) {
+            if (!rank)
+                std::cerr << "BSSN_PARTITIONING_METHOD needs a build with "
+                             "BSSN_WITH_GRAPH_PARTITIONING" << std::endl;
+            MPI_Abort(comm, 1);
+        }
+#endif
         if (enuts && !std::getenv("DENDRO_NUTS_NO_WPART")) {
             // the LTS init repartitioned by work (weighted SFC), so the mesh
             // object is new: redo what the remesh block does for one
@@ -759,6 +790,13 @@ int main(int argc, char** argv) {
 
             if (step != 0 && due(bssn::BSSN_REMESH_TEST_FREQ, step, time, tNextRemesh)) {
                 bool isRemesh = bssnCtx->is_remesh();
+                if (isRemesh && bssnCtx->is_labelled()) {
+                    // stage one of the port: no remesh on a labelled mesh yet
+                    if (!rank_global)
+                        std::cerr << "remesh on a labelled mesh is not ported "
+                                     "to this main yet" << std::endl;
+                    MPI_Abort(comm, 1);
+                }
                 if (isRemesh) {
                     if (!rank_global)
                         std::cout << YLW << "[ETS] : Remesh is triggered."

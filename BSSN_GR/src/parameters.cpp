@@ -56,6 +56,7 @@ double BSSN_EPSILON_CAKO_GAUGE                         = 0.99;
 double BSSN_EPSILON_CAKO_OTHER                         = 0.3;
 bool BSSN_CAKO_ENABLED                                 = false;
 double BSSN_CAHD_C                                     = 0.0;
+unsigned int BSSN_PARTITIONING_METHOD                  = 0;
 
 double BSSN_LOAD_IMB_TOL                               = 0.1;
 unsigned int BSSN_SPLIT_FIX                            = 2;
@@ -576,6 +577,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER,
          UseInitialValue},
         {"BSSN_CAHD_C", bssn::BSSN_CAHD_C, UseInitialValue},
+        {"BSSN_PARTITIONING_METHOD", bssn::BSSN_PARTITIONING_METHOD,
+         UseInitialValue},
         // lambda and xi are added later
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
         {"BSSN_HYBRID_RHS_SCHEDULE", bssn::BSSN_HYBRID_RHS_SCHEDULE,
@@ -1244,6 +1247,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_EPSILON_CAKO_GAUGE", bssn::BSSN_EPSILON_CAKO_GAUGE},
             {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER},
             {"BSSN_CAHD_C", bssn::BSSN_CAHD_C},
+            {"BSSN_PARTITIONING_METHOD", bssn::BSSN_PARTITIONING_METHOD},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},

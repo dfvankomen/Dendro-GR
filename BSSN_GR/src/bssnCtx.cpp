@@ -11,6 +11,7 @@
  */
 
 #include "bssnCtx.h"
+#include "bssn_partitioning.h"
 
 #include <mpi.h>
 #include <sys/types.h>
@@ -368,7 +369,7 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     double dt_blk = 0.0;
     if (cahd_mode == 1 || cahd_mode == 2) {
         const unsigned int blev =
-            m_uiMesh->getAllElements()[blkList[blk].getLocalElementBegin()]
+            m_uiMesh->getAllElements()[blkList[blk].firstElementID()]
                 .getLevel();
         const double dt_min = m_uiTinfo._m_uiTh;
         dt_blk = dt_min * getBlkTimestepFac(blev, 0, m_uiLtsLmax);
@@ -1890,6 +1891,65 @@ int BSSNCtx::rk_combine(unsigned int n, const DendroScalar* cf,
 }
 #endif
 
+int BSSNCtx::swap_to_graph_partition(ot::Mesh* graphMesh) {
+#ifdef BSSN_WITH_GRAPH_PARTITIONING
+    if (graphMesh == nullptr || graphMesh == m_uiMesh) return 0;
+
+    // the evolution data moves; the working vectors carry no state
+    bssn::redistributeDVec(m_uiMesh, graphMesh, m_var[VL::CPU_EV]);
+
+    m_var[VL::CPU_CV].destroy_vector();
+    m_var[VL::CPU_CV_UZ_IN].destroy_vector();
+    m_var[VL::CPU_EV_UZ_IN].destroy_vector();
+    m_var[VL::CPU_EV_UZ_OUT].destroy_vector();
+    m_var[VL::CPU_CV].create_vector(graphMesh, ot::DVEC_TYPE::OCT_SHARED_NODES,
+                                    ot::DVEC_LOC::HOST,
+                                    BSSN_CONSTRAINT_NUM_VARS, true);
+    m_var[VL::CPU_CV_UZ_IN].create_vector(
+        graphMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
+        BSSN_CONSTRAINT_NUM_VARS, true);
+    m_var[VL::CPU_EV_UZ_IN].create_vector(
+        graphMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
+        BSSN_NUM_VARS, true);
+    m_var[VL::CPU_EV_UZ_OUT].create_vector(
+        graphMesh, ot::DVEC_TYPE::OCT_LOCAL_WITH_PADDING, ot::DVEC_LOC::HOST,
+        BSSN_NUM_VARS, true);
+
+    ot::dealloc_mpi_ctx<DendroScalar>(m_uiMesh, m_mpi_ctx, BSSN_NUM_VARS,
+                                      BSSN_ASYNC_COMM_K);
+    ot::alloc_mpi_ctx<DendroScalar>(graphMesh, m_mpi_ctx, BSSN_NUM_VARS,
+                                    BSSN_ASYNC_COMM_K);
+
+    ot::Mesh* oldMesh = m_uiMesh;
+    m_uiMesh          = graphMesh;
+    delete oldMesh;
+
+    m_uiIsLabelled         = true;
+    m_uiIsETSSynced        = false;
+    m_bConstraintsComputed = false;
+#endif
+    return 0;
+}
+
+bool BSSNCtx::maybe_apply_partitioning() {
+#ifdef BSSN_WITH_GRAPH_PARTITIONING
+    if (bssn::BSSN_PARTITIONING_METHOD == 0 || m_uiMesh == nullptr) return false;
+
+    Point pt_min(bssn::BSSN_GRID_MIN_X, bssn::BSSN_GRID_MIN_Y,
+                 bssn::BSSN_GRID_MIN_Z);
+    Point pt_max(bssn::BSSN_GRID_MAX_X, bssn::BSSN_GRID_MAX_Y,
+                 bssn::BSSN_GRID_MAX_Z);
+    ot::Mesh* graphMesh = bssn::buildGraphTwin(
+        m_uiMesh, bssn::BSSN_ELE_ORDER, bssn::BSSN_DENDRO_GRAIN_SZ,
+        bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX, pt_min, pt_max);
+    if (graphMesh == m_uiMesh) return false;
+    swap_to_graph_partition(graphMesh);
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool BSSNCtx::is_remesh() {
     bool isRefine         = false;
     // wkb 27 March 2025
@@ -2264,7 +2324,7 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
 
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
         const unsigned int blev =
-            pNodes[blkList[blk].getLocalElementBegin()].getLevel();
+            pNodes[blkList[blk].firstElementID()].getLevel();
         ot::TreeNode blkNode = blkList[blk].getBlockNode();
         const unsigned int szby2 =
             (1u << (m_uiMaxDepth - blkNode.getLevel() - 1));

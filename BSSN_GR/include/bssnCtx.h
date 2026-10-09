@@ -65,6 +65,7 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     // velocity from the last update, for the Heun predictor
     Point m_uiBHVel[2];
     bool m_bBHVelValid = false;
+    bool m_uiIsLabelled = false;
 
     /**@brief LTS: puncture motion integrated at the block cadence from
      * pre_timestep_blk, since one evolve() is a whole coarse step. each rank
@@ -393,6 +394,17 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     };
 
     int grid_transfer(const ot::Mesh* m_new);
+
+    // ---- repartitioning (BSSN_WITH_GRAPH_PARTITIONING) ----
+    /**@brief move the evolution data and the working buffers onto a freshly
+     * built labelled mesh and take ownership of it. no-op without the flag.*/
+    int swap_to_graph_partition(ot::Mesh* graphMesh);
+    /**@brief once, after the initial data: if BSSN_PARTITIONING_METHOD != 0
+     * build a relabelled twin of the SFC mesh and swap to it. returns true if
+     * the mesh changed (the caller then re-syncs the stepper).*/
+    bool maybe_apply_partitioning();
+    /**@brief true once the evolution mesh carries a non-SFC labelling.*/
+    bool is_labelled() const { return m_uiIsLabelled; }
 
     void calculate_full_grid_size();
 
