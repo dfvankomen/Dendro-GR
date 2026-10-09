@@ -285,6 +285,7 @@ int BSSNCtx::rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
 
     return 0;
 }
+#endif
 
 int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
                      unsigned int dof, unsigned int local_blk_id,
@@ -336,12 +337,48 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
     ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
 
+    // bssnrhs takes (blk_time, uZipConstVars) and forms &uZipConstVars[v][offset],
+    // so hand it a block-aligned slice of the ctx's constraint unzip and offset 0
+    // (matching the block-local in/out buffers). a constraint-coupled term (CAHD)
+    // would read whatever the last compute_constraint_variables() left there.
+    DendroScalar* consFull[bssn::BSSN_CONSTRAINT_NUM_VARS];
+    m_var[VL::CPU_CV_UZ_IN].to_2d(consFull);
+    const unsigned int cvOffset = blkList[blk].getOffset();
+    const DendroScalar* consBlk[bssn::BSSN_CONSTRAINT_NUM_VARS];
+    for (unsigned int v = 0; v < bssn::BSSN_CONSTRAINT_NUM_VARS; v++)
+        consBlk[v] = consFull[v] + cvOffset;
+
+    // the CAHD term keeps the global step in its coefficient under LTS too: its
+    // strength is set by the finest step, and a block's own step would weaken
+    // it. at rate C / dt_min a block with step ratio r integrates that mode at
+    // z = C r, past RK4's limit for large r. DENDRO_LTS_CAHD_DT=2 (opt-in)
+    // bounds it: dt_used = max(dt_min, C dt_blk / CMAX), the production rate on
+    // every block with r < CMAX / C and the strongest stable rate beyond
+    // (DENDRO_LTS_CAHD_CMAX, default 2).
+    static const bool cahd_bound = []() {
+        const char* e = std::getenv("DENDRO_LTS_CAHD_DT");
+        return e && std::atoi(e) == 2;
+    }();
+    static const double cahd_cmax = []() {
+        const char* e = std::getenv("DENDRO_LTS_CAHD_CMAX");
+        return e ? std::atof(e) : 2.0;
+    }();
+    double dt_blk = 0.0;
+    if (cahd_bound) {
+        const unsigned int blev =
+            m_uiMesh->getAllElements()[blkList[blk].getLocalElementBegin()]
+                .getLevel();
+        const double dt_min = m_uiTinfo._m_uiTh;
+        dt_blk = std::max(dt_min,
+                          bssn::BSSN_CAHD_C * dt_min *
+                              getBlkTimestepFac(blev, 0, m_uiLtsLmax) / cahd_cmax);
+    }
 #ifdef BSSN_RHS_STAGED_COMP
     bssnrhs_sep(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-                bflag);
+                bflag, blk_time, (const DendroScalar**)consBlk);
 #else
     bssnrhs(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-            bflag);
+            bflag, blk_time, (const DendroScalar**)consBlk, dt_blk);
 #endif
 
 #ifdef __PROFILE_CTX__
@@ -380,9 +417,19 @@ int BSSNCtx::pre_stage_blk(DendroScalar* in, unsigned int dof,
     bflag = blkList[blk].getBlkNodeFlag();
     const unsigned int pw = blkList[blk].get1DPadWidth();
 
+    // pre-enforcement det(gt) of the interior, as post_timestep records it on
+    // every stage of the uniform stepper
+    double minDet = std::numeric_limits<double>::max();
     if (!bflag) {
-        for (unsigned int node = 0; node < NN; node++)
-            enforce_bssn_constraints(unzipIn, node);
+        for (unsigned int k = 0; k < sz[2]; k++)
+            for (unsigned int j = 0; j < sz[1]; j++)
+                for (unsigned int i = 0; i < sz[0]; i++) {
+                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
+                    const double det   = enforce_bssn_constraints(unzipIn, nid);
+                    if (i >= pw && i < sz[0] - pw && j >= pw &&
+                        j < sz[1] - pw && k >= pw && k < sz[2] - pw)
+                        minDet = std::min(minDet, det);
+                }
 
     } else {
         // note that we can apply enforce bssn constraints in the right padd, at
@@ -392,9 +439,14 @@ int BSSNCtx::pre_stage_blk(DendroScalar* in, unsigned int dof,
             for (unsigned int j = pw; j < sz[1] - pw; j++)
                 for (unsigned int i = pw; i < sz[0] - pw; i++) {
                     const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    enforce_bssn_constraints(unzipIn, nid);
+                    minDet = std::min(minDet,
+                                      enforce_bssn_constraints(unzipIn, nid));
                 }
     }
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp critical(bssn_lts_min_det)
+#endif
+    m_dMinDetGt = std::min(m_dMinDetGt, minDet);
 
     delete[] unzipIn;
     return 0;
@@ -441,9 +493,19 @@ int BSSNCtx::post_timestep_blk(DendroScalar* in, unsigned int dof,
     bflag = blkList[blk].getBlkNodeFlag();
     const unsigned int pw = blkList[blk].get1DPadWidth();
 
+    // the interior is what gets zipped back, so its pre-enforcement det(gt)
+    // is the one post_timestep records for the uniform stepper
+    double minDet = std::numeric_limits<double>::max();
     if (!bflag) {
-        for (unsigned int node = 0; node < NN; node++)
-            enforce_bssn_constraints(unzipIn, node);
+        for (unsigned int k = 0; k < sz[2]; k++)
+            for (unsigned int j = 0; j < sz[1]; j++)
+                for (unsigned int i = 0; i < sz[0]; i++) {
+                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
+                    const double det   = enforce_bssn_constraints(unzipIn, nid);
+                    if (i >= pw && i < sz[0] - pw && j >= pw &&
+                        j < sz[1] - pw && k >= pw && k < sz[2] - pw)
+                        minDet = std::min(minDet, det);
+                }
         // for(unsigned int k=pw; k < sz[2]-pw; k++)
         // for(unsigned int j=pw; j < sz[1]-pw; j++)
         // for(unsigned int i=pw; i < sz[0]-pw; i++)
@@ -460,14 +522,18 @@ int BSSNCtx::post_timestep_blk(DendroScalar* in, unsigned int dof,
             for (unsigned int j = pw; j < sz[1] - pw; j++)
                 for (unsigned int i = pw; i < sz[0] - pw; i++) {
                     const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    enforce_bssn_constraints(unzipIn, nid);
+                    minDet = std::min(minDet,
+                                      enforce_bssn_constraints(unzipIn, nid));
                 }
     }
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp critical(bssn_lts_min_det)
+#endif
+    m_dMinDetGt = std::min(m_dMinDetGt, minDet);
 
     delete[] unzipIn;
     return 0;
 }
-#endif
 
 int BSSNCtx::initialize() {
     if (bssn::BSSN_RESTORE_SOLVER) {
@@ -2102,6 +2168,10 @@ int BSSNCtx::grid_transfer(const ot::Mesh* m_new) {
     return 0;
 }
 
+// DENDRO_LTS_DT_MAX=<t>: largest block step allowed, as a power-of-two cap on
+// the step factor. recomputed with the offset because dt_min moves at remesh.
+static unsigned int s_lts_dtmax_cap = 0u;
+
 unsigned int BSSNCtx::compute_lts_ts_offset() {
     const ot::Block* blkList     = m_uiMesh->getLocalBlockList().data();
     const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
@@ -2119,6 +2189,33 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
     const double dt_eta_fac = dt_min * ETA_CONST;
+
+    static const double dt_max = []() {
+        const char* e = std::getenv("DENDRO_LTS_DT_MAX");
+        return e ? std::atof(e) : 0.0;
+    }();
+    s_lts_dtmax_cap = 0u;
+    if (dt_max > 0) {
+        unsigned int p = 1u;
+        while (2.0 * p * dt_min <= dt_max) p <<= 1;
+        s_lts_dtmax_cap = p;
+    }
+
+    // DENDRO_LTS_LEVEL_INFO=1 (opt-in print): per level, blocks, elements,
+    // smallest block-centre and block-nearest radius, largest eta at both, the
+    // CFL step of the level and dt * eta at that step (the full-ladder value
+    // the Gamma-driver damping term sees; RK4 is stable to about 2.78).
+    static const bool lvl_info = std::getenv("DENDRO_LTS_LEVEL_INFO") != nullptr;
+    // DENDRO_LTS_ETA_C=<C> (opt-in): bound the block step by dt * eta <= C, in
+    // place of the default dt_min * ETA_CONST / eta, which ties the bound to the
+    // finest step. <= 0 or unset keeps the default.
+    static const double eta_c = []() {
+        const char* e = std::getenv("DENDRO_LTS_ETA_C");
+        return e ? std::atof(e) : 0.0;
+    }();
+    const unsigned int nl = m_uiMaxDepth + 1;
+    std::vector<double> lv_blk(nl, 0.0), lv_ele(nl, 0.0), lv_rmin(nl, 1e300),
+        lv_rnear(nl, 1e300), lv_eta(nl, 0.0), lv_eta_near(nl, 0.0);
 
     for (unsigned int blk = 0; blk < numBlocks; blk++) {
         const unsigned int blev =
@@ -2148,10 +2245,53 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
                   bssn::RIT_ETA_OUTER;
         }
 
-        const double dt_eta      = dt_eta_fac * (1 / eta);
+        // eta at the point of the block nearest the origin: the largest the
+        // damping gets inside the block (eta falls with r), so the bound below
+        // uses it. The block centre (eta above) understates it by up to 4x on
+        // the level where the profile falls off (q1: level 5, 0.31 vs 1.20).
+        double eta_near = eta, r_near_blk = r_coord;
+        {
+            Point lo_oct(blkNode.minX(), blkNode.minY(), blkNode.minZ());
+            Point hi_oct(blkNode.maxX(), blkNode.maxY(), blkNode.maxZ());
+            Point lo, hi;
+            m_uiMesh->octCoordToDomainCoord(lo_oct, lo);
+            m_uiMesh->octCoordToDomainCoord(hi_oct, hi);
+            double r2 = 0.0;
+            const double lc[3] = {lo.x(), lo.y(), lo.z()};
+            const double hc[3] = {hi.x(), hi.y(), hi.z()};
+            for (int d = 0; d < 3; d++) {
+                const double c = std::max(lc[d], std::min(0.0, hc[d]));
+                r2 += c * c;
+            }
+            const double r_near = std::sqrt(r2);
+            r_near_blk          = r_near;
+            if (bssn::RIT_ETA_FUNCTION == 0) {
+                eta_near = ETA_CONST;
+                if (r_near >= ETA_R0)
+                    eta_near *= pow((ETA_R0 / r_near), ETA_DAMPING_EXP);
+            } else {
+                const double w = r_near / bssn::RIT_ETA_WIDTH;
+                eta_near = (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) *
+                               exp(-w * w * w * w) +
+                           bssn::RIT_ETA_OUTER;
+            }
+            eta_near = std::max(eta_near, eta);
+        }
+        const double dt_eta =
+            (eta_c > 0) ? (eta_c / eta_near) : dt_eta_fac * (1 / eta);
         const double dt_cfl      = (1u << (lmax - blev)) * dt_min;
 
         const double dt_feasible = std::min(dt_eta, dt_cfl);
+
+        // DENDRO_LTS_LEVEL_INFO=1: per-level census for the step bound (below)
+        if (lvl_info) {
+            lv_blk[blev] += 1.0;
+            lv_ele[blev] += blkList[blk].numElements();
+            lv_rmin[blev]     = std::min(lv_rmin[blev], r_coord);
+            lv_rnear[blev]    = std::min(lv_rnear[blev], r_near_blk);
+            lv_eta[blev]      = std::max(lv_eta[blev], eta);
+            lv_eta_near[blev] = std::max(lv_eta_near[blev], eta_near);
+        }
 
         if (dt_feasible > dt_min) {
             unsigned int lts_offset =
@@ -2165,9 +2305,40 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
     par::Mpi_Allreduce(&BSSN_LTS_TS_OFFSET, &lts_offset_max, 1, MPI_MAX,
                        m_uiMesh->getMPIGlobalCommunicator());
     BSSN_LTS_TS_OFFSET = lts_offset_max;
+    m_uiLtsLmax        = lmax;
 
     if (m_uiMesh->isActive() && (!(m_uiMesh->getMPIRankGlobal())))
         std::cout << "LTS offset : " << BSSN_LTS_TS_OFFSET << std::endl;
+
+    if (lvl_info && m_uiMesh->isActive()) {
+        MPI_Comm comm = m_uiMesh->getMPICommunicator();
+        std::vector<double> g_blk(nl), g_ele(nl), g_rmin(nl), g_rnear(nl),
+            g_eta(nl), g_eta_near(nl);
+        par::Mpi_Reduce(lv_blk.data(), g_blk.data(), nl, MPI_SUM, 0, comm);
+        par::Mpi_Reduce(lv_ele.data(), g_ele.data(), nl, MPI_SUM, 0, comm);
+        par::Mpi_Reduce(lv_rmin.data(), g_rmin.data(), nl, MPI_MIN, 0, comm);
+        par::Mpi_Reduce(lv_rnear.data(), g_rnear.data(), nl, MPI_MIN, 0, comm);
+        par::Mpi_Reduce(lv_eta.data(), g_eta.data(), nl, MPI_MAX, 0, comm);
+        par::Mpi_Reduce(lv_eta_near.data(), g_eta_near.data(), nl, MPI_MAX, 0,
+                        comm);
+        if (!m_uiMesh->getMPIRank()) {
+            printf("[lts-level-info] dt_min %.6g eta_c %.4g offset %u\n", dt_min,
+                   eta_c, BSSN_LTS_TS_OFFSET);
+            printf("[lts-level-info] lev blocks elements r_centre_min "
+                   "r_near_min eta_centre_max eta_near_max dt_cfl dt_cfl*eta_near "
+                   "fac dt_used*eta_near\n");
+            for (unsigned int l = lmin; l <= lmax; l++) {
+                if (g_blk[l] == 0.0) continue;
+                const double dt_cfl = (1u << (lmax - l)) * dt_min;
+                const unsigned int fac = getBlkTimestepFac(l, lmin, lmax);
+                printf("[lts-level-info] %u %.0f %.0f %.4g %.4g %.4g %.4g %.6g "
+                       "%.4g %u %.4g\n",
+                       l, g_blk[l], g_ele[l], g_rmin[l], g_rnear[l], g_eta[l],
+                       g_eta_near[l], dt_cfl, dt_cfl * g_eta_near[l], fac,
+                       fac * dt_min * g_eta_near[l]);
+            }
+        }
+    }
 
     return BSSN_LTS_TS_OFFSET;
 }
@@ -2175,11 +2346,34 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
 unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
                                         unsigned int lmax) {
     const unsigned int ldiff = BSSN_LTS_TS_OFFSET;
+    unsigned int fac;
     if ((lmax - blev) <= ldiff)
-        return 1;
-    else {
-        return 1u << (lmax - blev - ldiff);
-    }
+        fac = 1;
+    else
+        fac = 1u << (lmax - blev - ldiff);
+
+    // DENDRO_LTS_RATIO_CAP=<c> (opt-in): cap the coarse-to-fine step ratio to
+    // trade LTS speedup for accuracy. unset or 0 = no cap, 1 = every block on
+    // the finest step. This is the ONLY choke point for the ratio:
+    // update_ele_timestep, the pt%BLK_DT scheduler, coarset_t and the
+    // per-element m_uiEleDT the correction operator reads all derive from here,
+    // so a single clamp stays self-consistent. The cap is snapped DOWN to a
+    // power of two so the sub-cycle factor ladder {1,2,4,...} stays nested.
+    // Independent of BSSN_LTS_TS_OFFSET / eta (physical gauge damping) — clamps
+    // from the top, leaves the eta-driven floor untouched.
+    static const unsigned int ratio_cap = []() -> unsigned int {
+        const char* e = getenv("DENDRO_LTS_RATIO_CAP");
+        if (e == nullptr) return 0u;
+        const int c = atoi(e);
+        if (c <= 1) return (c == 1) ? 1u : 0u;  // <=0 disables; 1 => GTS-like
+        unsigned int p = 1u;
+        while ((p << 1) <= (unsigned int)c) p <<= 1;  // largest pow2 <= c
+        return p;
+    }();
+    if (ratio_cap != 0u && fac > ratio_cap) fac = ratio_cap;
+    if (s_lts_dtmax_cap != 0u && fac > s_lts_dtmax_cap) fac = s_lts_dtmax_cap;
+
+    return fac;
 }
 
 void BSSNCtx::evolve_bh_loc() {

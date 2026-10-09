@@ -166,7 +166,8 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
 void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
              const unsigned int &offset, const double *pmin, const double *pmax,
              const unsigned int *sz, const unsigned int &bflag, const double t,
-             const double **uZipConstVars) {
+             const double **uZipConstVars,
+             const double dt_blk) {
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];
     const double *const K     = &uZipVars[VAR::U_K][offset];
@@ -242,7 +243,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double lambda_f[2]             = {BSSN_LAMBDA_F[0], BSSN_LAMBDA_F[1]};
 
     // for CAHD we need also need dt, dx_i, and dx_min
-    const double dt                      = bssn::BSSN_RK45_TIME_STEP_SIZE;
+    // dt_blk > 0: LTS hands in the step the CAHD coefficient should use
+    const double dt =
+        (dt_blk > 0.0) ? dt_blk : bssn::BSSN_RK45_TIME_STEP_SIZE;
     // dx_i is the current dx (which is our hx)
     const double dx_i                    = hx;
     // dx_min is the minimum resolution of the entire grid

@@ -66,6 +66,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     Point m_uiBHVel[2];
     bool m_bBHVelValid = false;
 
+    /**@brief finest level of the mesh, cached by compute_lts_ts_offset.*/
+    unsigned int m_uiLtsLmax  = 0;
+
     // reusable BH history/kinematics tracker + latest per-horizon QoIs
     std::unique_ptr<dendro_bh::BHHistory> m_bhHistory;
 
