@@ -50,6 +50,59 @@ def flatten_grid(theta, phi):
     return theta_flat, phi_flat
 
 
+def make_grid_figure(theta_flat, phi_flat, values, field, t_val, row, l_max,
+                     radius):
+    """Builds and returns the 3D-sphere + theta-phi-map figure for one
+    field's collocation values at one timestep. Shared by
+    plot_cce_swsh_grid.py (single field) and plotall_cce_swsh_grid.py (loops
+    over every field) so the two don't drift out of sync."""
+    n_pts = theta_flat.size
+
+    # Cartesian coords for the 3D scatter, scaled to the actual extraction
+    # radius when given, unit sphere otherwise.
+    plot_radius = radius if radius is not None else 1.0
+    x = plot_radius * np.sin(theta_flat) * np.cos(phi_flat)
+    y = plot_radius * np.sin(theta_flat) * np.sin(phi_flat)
+    z = plot_radius * np.cos(theta_flat)
+
+    vmin, vmax = float(values.min()), float(values.max())
+    cmap = "viridis"  # perceptually-uniform sequential colormap for magnitude data
+
+    fig = plt.figure(figsize=(13, 6))
+
+    ax3d = fig.add_subplot(1, 2, 1, projection="3d")
+    ax3d.scatter(x, y, z, c=values, cmap=cmap, vmin=vmin, vmax=vmax,
+                s=25, depthshade=True)
+    ax3d.set_box_aspect((1, 1, 1))
+    ax3d.set_xlim3d(-plot_radius, plot_radius)
+    ax3d.set_ylim3d(-plot_radius, plot_radius)
+    ax3d.set_zlim3d(-plot_radius, plot_radius)
+    unit = "M" if radius is not None else "(unit sphere)"
+    ax3d.set_xlabel("x [%s]" % unit)
+    ax3d.set_ylabel("y [%s]" % unit)
+    ax3d.set_zlabel("z [%s]" % unit)
+    ax3d.set_title("SWSH collocation grid, r=%g %s" % (plot_radius, unit)
+                    if radius is not None else
+                    "SWSH collocation grid (unit sphere)")
+
+    ax2d = fig.add_subplot(1, 2, 2)
+    sc2 = ax2d.scatter(phi_flat, theta_flat, c=values, cmap=cmap,
+                       vmin=vmin, vmax=vmax, s=25)
+    ax2d.invert_yaxis()
+    ax2d.set_xlabel(r"$\phi$ (equally spaced)")
+    ax2d.set_ylabel(r"$\theta$ (Gauss-Legendre, clustered near poles)")
+    ax2d.set_title(r"$\theta$-$\phi$ map")
+
+    cbar = fig.colorbar(sc2, ax=[ax3d, ax2d], shrink=0.8, pad=0.05)
+    cbar.set_label(field)
+
+    radius_note = (" @ r=%g" % radius) if radius is not None else ""
+    fig.suptitle("%s%s, t=%.4g (row %d), l_max=%d (%d points)"
+                 % (field, radius_note, t_val, row, l_max, n_pts))
+
+    return fig
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plot the CCE SWSH collocation grid, colored by one field.")
@@ -92,48 +145,8 @@ def main():
             "-- pass the correct --l-max for this file."
             % (values.size, args.l_max, n_expected))
 
-    # Cartesian coords for the 3D scatter, scaled to the actual extraction
-    # radius when given (--radius), unit sphere otherwise.
-    plot_radius = args.radius if args.radius is not None else 1.0
-    x = plot_radius * np.sin(theta_flat) * np.cos(phi_flat)
-    y = plot_radius * np.sin(theta_flat) * np.sin(phi_flat)
-    z = plot_radius * np.cos(theta_flat)
-
-    vmin, vmax = float(values.min()), float(values.max())
-    cmap = "viridis"  # perceptually-uniform sequential colormap for magnitude data
-
-    fig = plt.figure(figsize=(13, 6))
-
-    ax3d = fig.add_subplot(1, 2, 1, projection="3d")
-    sc = ax3d.scatter(x, y, z, c=values, cmap=cmap, vmin=vmin, vmax=vmax,
-                       s=25, depthshade=True)
-    ax3d.set_box_aspect((1, 1, 1))
-    ax3d.set_xlim3d(-plot_radius, plot_radius)
-    ax3d.set_ylim3d(-plot_radius, plot_radius)
-    ax3d.set_zlim3d(-plot_radius, plot_radius)
-    unit = "M" if args.radius is not None else "(unit sphere)"
-    ax3d.set_xlabel("x [%s]" % unit)
-    ax3d.set_ylabel("y [%s]" % unit)
-    ax3d.set_zlabel("z [%s]" % unit)
-    ax3d.set_title("SWSH collocation grid, r=%g %s" % (plot_radius, unit)
-                    if args.radius is not None else
-                    "SWSH collocation grid (unit sphere)")
-
-    ax2d = fig.add_subplot(1, 2, 2)
-    sc2 = ax2d.scatter(phi_flat, theta_flat, c=values, cmap=cmap,
-                        vmin=vmin, vmax=vmax, s=25)
-    ax2d.invert_yaxis()
-    ax2d.set_xlabel(r"$\phi$ (equally spaced)")
-    ax2d.set_ylabel(r"$\theta$ (Gauss-Legendre, clustered near poles)")
-    ax2d.set_title(r"$\theta$-$\phi$ map")
-
-    cbar = fig.colorbar(sc2, ax=[ax3d, ax2d], shrink=0.8, pad=0.05)
-    cbar.set_label(args.field)
-
-    radius_note = (" @ r=%g" % args.radius) if args.radius is not None else ""
-    fig.suptitle("%s%s, t=%.4g (row %d), l_max=%d (%d points)"
-                 % (args.field, radius_note, t_val, args.row, args.l_max,
-                    n_expected))
+    fig = make_grid_figure(theta_flat, phi_flat, values, args.field, t_val,
+                           args.row, args.l_max, args.radius)
 
     out = args.out
     if out is None:
