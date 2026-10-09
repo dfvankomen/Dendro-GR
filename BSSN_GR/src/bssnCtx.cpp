@@ -460,6 +460,7 @@ int BSSNCtx::post_stage_blk(DendroScalar* in, unsigned int dof,
 int BSSNCtx::pre_timestep_blk(DendroScalar* in, unsigned int dof,
                               unsigned int local_blk_id,
                               DendroScalar blk_time) {
+    lts_track_bh_blk(in, local_blk_id, blk_time);
     return 0;
 }
 
@@ -2376,6 +2377,162 @@ unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
     return fac;
 }
 
+void BSSNCtx::lts_track_bh_blk(const DendroScalar* in,
+                               unsigned int local_blk_id,
+                               DendroScalar blk_time) {
+#ifdef BSSN_EXTRACT_BH_LOCATIONS
+    // called at the start of a block step, once per stage, with the block's
+    // step input: padding synced, all of it at blk_time. take the same Heun
+    // update as computeBHLocations from the last update time to blk_time, with
+    // the shift read from this block.
+    const ot::Block& b       = m_uiMesh->getLocalBlockList()[local_blk_id];
+    const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+                       bssn::BSSN_COMPD_MIN[2]);
+    const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+                       bssn::BSSN_COMPD_MAX[2]);
+    const unsigned int PW    = bssn::BSSN_PADDING_WIDTH;
+    const unsigned int sz[3] = {b.getAllocationSzX(), b.getAllocationSzY(),
+                                b.getAllocationSzZ()};
+    const unsigned int NN    = sz[0] * sz[1] * sz[2];
+    const double h[3]        = {b.computeDx(pt_min, pt_max),
+                                b.computeDy(pt_min, pt_max),
+                                b.computeDz(pt_min, pt_max)};
+    const double lo[3]       = {GRIDX_TO_X(b.getBlockNode().minX()),
+                                GRIDY_TO_Y(b.getBlockNode().minY()),
+                                GRIDZ_TO_Z(b.getBlockNode().minZ())};
+    const double hi[3]       = {GRIDX_TO_X(b.getBlockNode().maxX()),
+                                GRIDY_TO_Y(b.getBlockNode().maxY()),
+                                GRIDZ_TO_Z(b.getBlockNode().maxZ())};
+    const double mass[2]     = {bssn::BSSN_BH1_MASS, bssn::BSSN_BH2_MASS};
+    const double t_eps       = 1e-9 * m_uiTinfo._m_uiTh;
+
+    // element-order Lagrange in each direction on the padded block grid. a
+    // point inside the block uses the nodes of the element holding it, which
+    // is the interpolant the uniform stepper's tracker uses; a point in the
+    // padding uses the nearest full stencil.
+    constexpr unsigned int NPMAX = 16;
+    const unsigned int NP        = bssn::BSSN_ELE_ORDER + 1;
+    assert(NP <= NPMAX);
+    auto shift_at = [&](const double* x, double* beta) {
+        unsigned int i0[3];
+        double w[3][NPMAX];
+        for (unsigned int d = 0; d < 3; d++) {
+            const double s  = (x[d] - (lo[d] - PW * h[d])) / h[d];
+            const int nIn   = (int)sz[d] - 2 * (int)PW - 1;  // interior intervals
+            const double si = s - PW;
+            int i;
+            if (si >= 0 && si <= nIn) {
+                int e = (int)std::floor(si / (NP - 1));
+                e     = std::max(0, std::min(e, nIn / (int)(NP - 1) - 1));
+                i     = (int)PW + e * (int)(NP - 1);
+            } else {
+                i = (int)std::floor(s) - (int)(NP - 1) / 2;
+                i = std::max(0, std::min(i, (int)sz[d] - (int)NP));
+            }
+            i0[d] = i;
+            for (unsigned int a = 0; a < NP; a++) {
+                double l = 1.0;
+                for (unsigned int c = 0; c < NP; c++)
+                    if (c != a) l *= (s - (i + (double)c)) / ((double)a - (double)c);
+                w[d][a] = l;
+            }
+        }
+        for (unsigned int v = 0; v < 3; v++) {
+            const DendroScalar* u = in + (VAR::U_BETA0 + v) * NN;
+            double acc            = 0.0;
+            for (unsigned int k = 0; k < NP; k++)
+                for (unsigned int j = 0; j < NP; j++)
+                    for (unsigned int i = 0; i < NP; i++)
+                        acc += w[2][k] * w[1][j] * w[0][i] *
+                               u[(i0[2] + k) * sz[1] * sz[0] +
+                                 (i0[1] + j) * sz[0] + (i0[0] + i)];
+            beta[v] = acc;
+        }
+    };
+    // distance outside the block (0 = inside or on a face), -1 = outside its
+    // padding. on a face the padded stencil returns the face values, so a
+    // neighbour across the face is as good a source as the block itself.
+    auto outside = [&](const double* x) {
+        double r = 0.0;
+        for (unsigned int d = 0; d < 3; d++) {
+            if (x[d] < lo[d] - PW * h[d] || x[d] > hi[d] + PW * h[d]) return -1.0;
+            r = std::max(r, std::max(lo[d] - x[d], x[d] - hi[d]));
+        }
+        return std::max(r, 0.0);
+    };
+    const double hmax = std::max(h[0], std::max(h[1], h[2]));
+
+    for (unsigned int bh = 0; bh < 2; bh++) {
+        if (mass[bh] <= 1.0e-6) continue;  // inert puncture stays pinned
+#ifdef DENDRO_HYBRID_OMP
+#pragma omp critical(bssn_lts_bh_track)
+#endif
+        {
+            LtsBHTrack& k = m_ltsBH[bh];
+            if (!k.init) {
+                k      = LtsBHTrack();
+                k.init = true;
+                k.x[0] = m_uiBHLoc[bh].x(); k.x[1] = m_uiBHLoc[bh].y();
+                k.x[2] = m_uiBHLoc[bh].z();
+                k.v[0] = m_uiBHVel[bh].x(); k.v[1] = m_uiBHVel[bh].y();
+                k.v[2] = m_uiBHVel[bh].z();
+                k.t    = m_uiTinfo._m_uiT;
+            }
+            // a later time is a new update. the same time again (the other
+            // stages of this step, or another block) only redoes the update if
+            // this block is a better source, so the result does not depend on
+            // the order the blocks are visited in.
+            const bool fresh = blk_time > k.t + t_eps;
+            const bool again = std::fabs(blk_time - k.t) <= t_eps && k.dist >= 0;
+            if (fresh || again) {
+                const double* x0 = fresh ? k.x : k.px;
+                const double* v0 = fresh ? k.v : k.pv;
+                const double t0  = fresh ? k.t : k.pt;
+                const double dt  = blk_time - t0;
+                double pred[3];
+                for (unsigned int d = 0; d < 3; d++)
+                    pred[d] = m_bBHVelValid ? x0[d] + dt * v0[d] : x0[d];
+                const double q = outside(pred);
+                const double tol = 1e-6 * hmax;
+                // nearer wins; then the finer block; then the lower id
+                const bool better =
+                    q >= 0 &&
+                    (q < k.dist - tol ||
+                     (q <= k.dist + tol &&
+                      (hmax < k.h * (1 - 1e-9) ||
+                       (hmax <= k.h * (1 + 1e-9) && (int)local_blk_id < k.blk))));
+                if (q >= 0 && (fresh || better)) {
+                    double beta[3], nx[3], nv[3];
+                    shift_at(pred, beta);
+                    for (unsigned int d = 0; d < 3; d++) {
+                        nv[d] = -beta[d];
+                        nx[d] = x0[d] + dt * (m_bBHVelValid ? 0.5 * (v0[d] + nv[d])
+                                                            : nv[d]);
+                    }
+                    if (fresh) {
+                        k.bad += k.pendBad;
+                        for (unsigned int d = 0; d < 3; d++) {
+                            k.px[d] = k.x[d];
+                            k.pv[d] = k.v[d];
+                        }
+                        k.pt = k.t;
+                    }
+                    for (unsigned int d = 0; d < 3; d++) {
+                        k.x[d] = nx[d];
+                        k.v[d] = nv[d];
+                    }
+                    k.t       = blk_time;
+                    k.dist    = q;
+                    k.h       = hmax;
+                    k.blk     = (int)local_blk_id;
+                    k.pendBad = q > tol ? dt : 0.0;
+                }
+            }
+        }
+    }
+#endif
+}
+
 void BSSNCtx::evolve_bh_loc() {
     dendro::logger::debug("Now evolving BH locations");
 #ifdef BSSN_EXTRACT_BH_LOCATIONS
@@ -2387,9 +2544,82 @@ void BSSNCtx::evolve_bh_loc() {
 
     // compute how long it's been since the last time we calculatd it, thanks to
     // storing history!
-    const double dt = this->m_uiTinfo._m_uiStep == 0
-                          ? 0.0
-                          : m_uiTinfo._m_uiT - m_bhHistory->times().back();
+    double dt = this->m_uiTinfo._m_uiStep == 0
+                    ? 0.0
+                    : m_uiTinfo._m_uiT - m_bhHistory->times().back();
+
+    // LTS: each rank tracked the punctures on its own at the block cadence
+    // (lts_track_bh_blk). take the rank that got furthest, then the one that
+    // spent the least time reading from padding, then the lowest rank, and
+    // leave the time it did not cover to the update below. nothing tracked
+    // (uniform stepper) leaves dt and the state untouched.
+    double ltsCov[2]    = {0, 0};  // time each puncture was tracked by blocks
+    const double dtFull = dt;
+    if (dt > 0) {
+        MPI_Comm gcomm = m_uiMesh->getMPIGlobalCommunicator();
+        int grank;
+        MPI_Comm_rank(gcomm, &grank);
+        const double tPrev = m_uiTinfo._m_uiT - dt;
+        double key[2], best[2], snd[14], rcv[14];
+        bool any = false;
+        if (std::getenv("DENDRO_LTS_BH_DEBUG"))
+            for (unsigned int bh = 0; bh < 2; bh++) {
+                const LtsBHTrack& k = m_ltsBH[bh];
+                printf("[lts-bh] rank %d bh %u init %d dist %.3e blk %d t %.6f "
+                       "x %.10f %.10f %.3e bad %.6f\n",
+                       grank, bh, (int)k.init, k.dist, k.blk, k.t, k.x[0],
+                       k.x[1], k.x[2], k.bad + k.pendBad);
+            }
+        for (unsigned int pass = 0; pass < 3; pass++) {
+            for (unsigned int bh = 0; bh < 2; bh++) {
+                const LtsBHTrack& k = m_ltsBH[bh];
+                const bool in = k.init && k.dist >= 0 &&
+                                (pass == 0 || key[bh] == best[bh]);
+                key[bh] = !in ? -1e300
+                              : (pass == 0 ? k.t
+                                           : (pass == 1 ? -(k.bad + k.pendBad)
+                                                        : -(double)grank));
+            }
+            MPI_Allreduce(key, best, 2, MPI_DOUBLE, MPI_MAX, gcomm);
+        }
+        for (unsigned int bh = 0; bh < 2; bh++) {
+            const bool mine = best[bh] > -1e299 && key[bh] == best[bh];
+            const LtsBHTrack& k = m_ltsBH[bh];
+            for (unsigned int d = 0; d < 3; d++) {
+                snd[7 * bh + d]     = mine ? k.x[d] : 0.0;
+                snd[7 * bh + 3 + d] = mine ? k.v[d] : 0.0;
+            }
+            snd[7 * bh + 6] = mine ? k.bad + k.pendBad : 0.0;
+            key[bh]         = mine ? k.t - tPrev : 0.0;
+        }
+        MPI_Allreduce(snd, rcv, 14, MPI_DOUBLE, MPI_SUM, gcomm);
+        MPI_Allreduce(key, ltsCov, 2, MPI_DOUBLE, MPI_SUM, gcomm);
+        double covered = dt;
+        for (unsigned int bh = 0; bh < 2; bh++) {
+            if (best[bh] > -1e299) {
+                any           = true;
+                m_uiBHLoc[bh] = Point(rcv[7 * bh], rcv[7 * bh + 1], rcv[7 * bh + 2]);
+                m_uiBHVel[bh] =
+                    Point(rcv[7 * bh + 3], rcv[7 * bh + 4], rcv[7 * bh + 5]);
+                if (rcv[7 * bh + 6] > 0)
+                    dendro::logger::warn(
+                        "[BH] LTS: puncture {} was read from block padding for "
+                        "{} of {}",
+                        bh, rcv[7 * bh + 6], ltsCov[bh]);
+            }
+            if ((bh == 0 ? bssn::BSSN_BH1_MASS : bssn::BSSN_BH2_MASS) > 1.0e-6)
+                covered = std::min(covered, ltsCov[bh]);
+        }
+        if (any) {
+            dendro::logger::info(
+                "[BH] LTS block tracking covered {} and {} of dt = {}",
+                ltsCov[0], ltsCov[1], dt);
+            m_bBHVelValid = true;
+            dt            = std::max(0.0, dt - covered);
+        }
+    }
+    for (unsigned int bh = 0; bh < 2; bh++) m_ltsBH[bh].init = false;
+
     DVec sIn        = this->get_evolution_vars();
 
     Point bhLoc[2];
@@ -2404,6 +2634,17 @@ void BSSNCtx::evolve_bh_loc() {
 
     bssn::computeBHLocations((const ot::Mesh*)m_uiMesh, m_uiBHLoc, bhLoc, evar,
                              dt, m_uiBHVel, m_bBHVelValid);
+    // LTS: the update above ran over the longest uncovered time; a puncture
+    // the blocks tracked further only gets its own share of that move
+    if (dt > 0)
+        for (unsigned int bh = 0; bh < 2; bh++) {
+            const double f = std::max(0.0, dtFull - ltsCov[bh]) / dt;
+            if (f < 1.0)
+                bhLoc[bh] = Point(
+                    m_uiBHLoc[bh].x() + f * (bhLoc[bh].x() - m_uiBHLoc[bh].x()),
+                    m_uiBHLoc[bh].y() + f * (bhLoc[bh].y() - m_uiBHLoc[bh].y()),
+                    m_uiBHLoc[bh].z() + f * (bhLoc[bh].z() - m_uiBHLoc[bh].z()));
+        }
     // if(!m_uiMesh->getMPIRankGlobal())
     // {
     //     std::cout<<"bh0 "<<bhLoc[0]<<std::endl;

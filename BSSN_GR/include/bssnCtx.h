@@ -66,8 +66,30 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     Point m_uiBHVel[2];
     bool m_bBHVelValid = false;
 
+    /**@brief LTS: puncture motion integrated at the block cadence from
+     * pre_timestep_blk, since one evolve() is a whole coarse step. each rank
+     * integrates on its own from the state of the last evolve_bh_loc, using
+     * the best of its blocks whose padded box holds the puncture: the block
+     * holding it, else the one it is least far outside of. evolve_bh_loc takes
+     * the rank that got furthest with the least time spent outside its blocks,
+     * and covers the time that is left with one update from the zipped vector.
+     * x, v, t = state after the latest update, px, pv, pt = before it (a better
+     * block at the same time redoes it).*/
+    struct LtsBHTrack {
+        bool init    = false;
+        double x[3]  = {0, 0, 0}, v[3] = {0, 0, 0}, t = 0;
+        double px[3] = {0, 0, 0}, pv[3] = {0, 0, 0}, pt = 0;
+        double dist  = -1;  // how far outside the source block, -1 = no update
+        double h     = 0;   // grid spacing of the source block
+        int blk      = -1;
+        // time covered by updates read from padding, and that of the latest
+        double bad = 0, pendBad = 0;
+    };
+    LtsBHTrack m_ltsBH[2];
     /**@brief finest level of the mesh, cached by compute_lts_ts_offset.*/
     unsigned int m_uiLtsLmax  = 0;
+    void lts_track_bh_blk(const DendroScalar* in, unsigned int local_blk_id,
+                          DendroScalar blk_time);
 
     // reusable BH history/kinematics tracker + latest per-horizon QoIs
     std::unique_ptr<dendro_bh::BHHistory> m_bhHistory;
