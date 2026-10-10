@@ -1,0 +1,60 @@
+#!/bin/bash
+
+#SBATCH -J "q1_merger_cce"   # job name -- rename per run
+#SBATCH -t 24:00:00   # walltime
+#SBATCH --ntasks=1    # CCE performs best single-core
+#SBATCH --nodes=1
+#SBATCH --mem-per-cpu=16384M
+#SBATCH --mail-user=ngarey@byu.edu
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --export=ALL
+#SBATCH --qos=physics
+##SBATCH --partition=m12   # or physics2, m9, physics
+#SBATCH --output="logfiles/log.%j.out"
+
+currentfolder=$(dirname "$(realpath "$0")")
+jobname=$SLURM_JOB_NAME
+
+# # # # # # Config -- set these per run # # # # # #
+WORLDTUBE_H5="cce_worldtube_test.h5"     # match CCE_OUTPUT_FILE in Dendro par file
+EXTRACTION_RADIUS=100                     # match CCE_EXTRACTION_RADIUS in Dendro par file (default is max of BSSN_GW_RADAII)
+SPECTRE_BUILD="$HOME/Dendro/spectre-build/bin"
+SPECTRE_SRC="$HOME/Dendro/spectre"
+DENDRO_SCRIPTS="$HOME/Dendro/Dendro-CCE/scripts"
+
+# # # # # # Preliminaries # # # # # #
+echo "Job running in: $currentfolder"
+cd "$currentfolder" || exit 1
+# Load different gcc build for spectre
+source "$HOME/.bash_profile"
+source "$HOME/spectre_env.sh"
+
+
+# # # # # # Step 1: PreprocessCceWorldtube # # # # # #
+echo "Generating PreprocessCceWorldtube.yaml: $(date)"
+python3 "$DENDRO_SCRIPTS/cce_worldtube_first.py" \
+    --radius "$EXTRACTION_RADIUS" \
+    --write-yaml PreprocessCceWorldtube.yaml \
+    --input-h5 "$WORLDTUBE_H5" \
+    --output-h5 "ReducedWorldtubeR0${EXTRACTION_RADIUS}.h5" \
+    &> "outfiles/PreprocessYamlGen_${jobname}.txt"
+
+echo "Starting PreprocessCceWorldtube: $(date)"
+"$SPECTRE_BUILD/PreprocessCceWorldtube" --input-file PreprocessCceWorldtube.yaml \
+    &> "outfiles/PreprocessCceWorldtube_${jobname}.txt"
+echo "Finished PreprocessCceWorldtube: $(date)"
+
+# # # # # # Step 2: CharacteristicExtract # # # # # #
+# Uses the DEFAULT MaxPartiallyFlatJ0/J0MaxIterations
+# If initial-data convergence fails, relax values (note MaxIterations has a cap of 2000)
+cp "$SPECTRE_SRC/tests/InputFiles/Cce/CharacteristicExtract.yaml" CharacteristicExtract.yaml
+sed -i "s/BoundaryDataFilename: CceR0257.h5/BoundaryDataFilename: ReducedWorldtubeR0${EXTRACTION_RADIUS}.h5/" \
+    CharacteristicExtract.yaml
+
+echo "Starting CharacteristicExtract: $(date)"
+mpirun -np 1 --mca pml ob1 --mca btl self \
+    "$SPECTRE_BUILD/CharacteristicExtract" --input-file CharacteristicExtract.yaml \
+    &> "outfiles/CharacteristicExtract_${jobname}.txt"
+echo "Finished CharacteristicExtract: $(date)"

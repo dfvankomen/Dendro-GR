@@ -414,7 +414,14 @@ CCE_ENABLED = true
 # this is validated (see Dendro_CCE_v2.1.md Section 9.2)
 CCE_OUTPUT_FREQ = 1
 
-# bare filename -> written directly in the run's working directory, no
-# subdirectory needs to be pre-created (unlike BSSN_VTU_FILE_PREFIX etc.
-# above, which expect vtu/, cp/, dat/, bah/ to already exist)
-CCE_OUTPUT_FILE = "cce_worldtube_test.h5"
+# "cce/" prefix -> written into a cce/ subdirectory of the run's working
+# directory, same convention as BSSN_VTU_FILE_PREFIX/BSSN_CHECKPT_FILE_PREFIX/
+# etc. above (vtu/, cp/, dat/, bah/). cceH5Dat.cpp's H5Fcreate() call does NOT
+# auto-create parent directories (plain HDF5 call, no mkdir logic), so cce/
+# must be pre-created (mkdir -p cce) before the run, exactly like those other
+# prefixed directories already need to be. Keeps the raw worldtube output
+# alongside everything PreprocessCceWorldtube/CharacteristicExtract later
+# produce from it (PreprocessCceWorldtube.yaml, ReducedWorldtubeR0100.h5,
+# CharacteristicExtract.yaml, CharacteristicExtractReduction.h5), rather than
+# scattered between the job root and a separate cce/ directory.
+CCE_OUTPUT_FILE = "cce/cce_worldtube_test.h5"

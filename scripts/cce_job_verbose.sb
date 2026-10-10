@@ -1,0 +1,117 @@
+#!/bin/bash
+
+#SBATCH -J "q1_merger_cce"   # job name -- rename per run
+#SBATCH -t 24:00:00   # walltime -- a guess for a through-merger worldtube;
+                       # CCE is single-core and fast once the MPI fix below
+                       # is applied, but there's no prior run at this length
+                       # to time against, so give it room and tighten later
+#SBATCH --ntasks=1    # CCE performs best single-core (see CharacteristicExtract.yaml's
+                       # own ResourceInfo comment: "Can ignore this section
+                       # since CCE performs best on a single core") -- this
+                       # is NOT the 512-task BSSN job
+#SBATCH --nodes=1
+#SBATCH --mem-per-cpu=16384M   # bumped above the BSSN script's 4096M -- a
+                                # through-merger worldtube has far more rows
+                                # than the 2M test, and H5LookaheadTimes loads
+                                # many timesteps into memory at once
+#SBATCH --mail-user=ngarey@byu.edu
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --export=ALL
+#SBATCH --qos=physics
+##SBATCH --partition=m12   # or physics2, m9, physics
+#SBATCH --output="logfiles/log.%j.out"
+# NOTE: create the logfiles/ directory (mkdir -p logfiles outfiles) BEFORE
+# submitting this job -- SLURM opens the --output path immediately at job
+# start, before any of this script's own commands run, so a missing
+# logfiles/ dir here will make the job fail before it even starts.
+
+currentfolder=$(dirname "$(realpath "$0")")
+jobname=$SLURM_JOB_NAME
+
+# # # # # # Config -- set these per run # # # # # #
+WORLDTUBE_H5="cce_worldtube_test.h5"      # match CCE_OUTPUT_FILE in the Dendro-GR
+                                           # par file -- this script is meant to be
+                                           # run FROM WITHIN the same directory
+                                           # Dendro-GR wrote this file into (e.g. a
+                                           # "cce/" subfolder of the job directory),
+                                           # so a bare relative filename is fine
+EXTRACTION_RADIUS=100                     # match CCE_EXTRACTION_RADIUS in the Dendro
+                                           # par file (default there is the max of
+                                           # BSSN_GW_RADAII, unless overridden)
+SPECTRE_BUILD="$HOME/Dendro/spectre-build/bin"
+SPECTRE_SRC="$HOME/Dendro/spectre"
+DENDRO_SCRIPTS="$HOME/Dendro/Dendro-CCE/scripts"   # the CCE-enabled Dendro-GR branch's
+                                                    # clone, NOT the default Dendro-GR
+                                                    # clone (which has no CCE code) --
+                                                    # confirm this matches your actual
+                                                    # Marylou directory layout
+
+# # # # # # Preliminaries # # # # # #
+echo "Job running in: $currentfolder"
+# By default a SLURM job's working directory is wherever your shell sat when
+# you ran `sbatch`, NOT necessarily where this .sb file itself lives on disk
+# -- cd'ing to $currentfolder (computed from the script's own realpath) pins
+# every relative path below to the script's actual location regardless of
+# where it was submitted from.
+cd "$currentfolder" || exit 1
+
+# Load different gcc build for spectre. This overlay (gcc/13.2.0, boost,
+# CHARM_ROOT) is deliberately NOT part of the default .bash_profile, so it
+# can't interfere with Dendro-GR's own default gcc/14.1 toolchain -- source
+# both explicitly here so the job is self-contained regardless of what the
+# submitting shell happened to have active (--export=ALL alone would only
+# carry through whatever was loaded in that shell at submit time).
+source "$HOME/.bash_profile"
+source "$HOME/spectre_env.sh"
+
+
+# # # # # # Step 1: PreprocessCceWorldtube # # # # # #
+# Regenerates the YAML fresh each run (radius/filenames can change run to
+# run) rather than hand-editing a stale copy.
+echo "Generating PreprocessCceWorldtube.yaml: $(date)"
+python3 "$DENDRO_SCRIPTS/cce_worldtube_first.py" \
+    --radius "$EXTRACTION_RADIUS" \
+    --write-yaml PreprocessCceWorldtube.yaml \
+    --input-h5 "$WORLDTUBE_H5" \
+    --output-h5 "ReducedWorldtubeR0${EXTRACTION_RADIUS}.h5" \
+    &> "outfiles/PreprocessYamlGen_${jobname}.txt"
+
+echo "Starting PreprocessCceWorldtube: $(date)"
+"$SPECTRE_BUILD/PreprocessCceWorldtube" --input-file PreprocessCceWorldtube.yaml \
+    &> "outfiles/PreprocessCceWorldtube_${jobname}.txt"
+echo "Finished PreprocessCceWorldtube: $(date)"
+
+# # # # # # Step 2: CharacteristicExtract # # # # # #
+# Start from SpECTRE's own stock template and point it at this run's
+# reduced worldtube file. Uses the DEFAULT (tight) MaxPartiallyFlatJ0/
+# J0MaxIterations -- unlike the near-flat 2M toy test, a through-merger run
+# has real physical content and should converge without the relaxation that
+# test needed. If initial-data convergence fails here too (same symptom as
+# before: "max|J| at scri+ ... exceeds the threshold set by MaxPartiallyFlatJ0"),
+# that's the first thing to revisit -- relax MaxPartiallyFlatJ0 and/or raise
+# J0MaxIterations. Note J0MaxIterations has a hard schema cap of 2000 (not a
+# mere suggestion) -- SpECTRE rejects anything above that outright at parse
+# time, confirmed from its own error message when 3000 was tried.
+cp "$SPECTRE_SRC/tests/InputFiles/Cce/CharacteristicExtract.yaml" CharacteristicExtract.yaml
+sed -i "s/BoundaryDataFilename: CceR0257.h5/BoundaryDataFilename: ReducedWorldtubeR0${EXTRACTION_RADIUS}.h5/" \
+    CharacteristicExtract.yaml
+
+# IMPORTANT: --mca pml ob1 --mca btl self (NOT self,sm,tcp) -- including tcp
+# in the btl list caused a ~300-600x slowdown (a SpECTRE-declared 20-second
+# analytic test took 30+ minutes with self,sm,tcp; the same run completed in
+# 3 seconds with self alone), almost certainly from intra-node messages
+# routing through slow TCP loopback instead of the fast self/sm paths even
+# though self/sm were nominally available. -np 1 genuinely needs no transport
+# beyond self, so dropping sm/tcp entirely is both safe and dramatically
+# faster. Separately, the default `pml ucx` also segfaults inside
+# uct_md_query during MPI_Init on this cluster regardless of process count --
+# `pml ob1` avoids that code path entirely. Both fixes are required, not
+# just one -- `pml ucx` crashes outright, and `pml ob1` with tcp included is
+# merely catastrophically slow rather than crashing.
+echo "Starting CharacteristicExtract: $(date)"
+mpirun -np 1 --mca pml ob1 --mca btl self \
+    "$SPECTRE_BUILD/CharacteristicExtract" --input-file CharacteristicExtract.yaml \
+    &> "outfiles/CharacteristicExtract_${jobname}.txt"
+echo "Finished CharacteristicExtract: $(date)"
