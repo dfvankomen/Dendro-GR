@@ -406,6 +406,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /**@brief true once the evolution mesh carries a non-SFC labelling.*/
     bool is_labelled() const { return m_uiIsLabelled; }
 
+    /**@brief DENDRO_LTS_RANK_WORK=1: print per-rank block right-hand-side totals*/
+    void lts_rank_work_report();
+
     void calculate_full_grid_size();
 
     void store_bh_loc_history();

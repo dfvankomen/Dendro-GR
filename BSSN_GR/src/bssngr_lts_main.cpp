@@ -978,6 +978,7 @@ int main(int argc, char** argv) {
 #endif
 
         dump_evar_bin(bssnCtx->get_mesh(), bssnCtx->get_evolution_vars());
+        bssnCtx->lts_rank_work_report();
 
         double t2 = MPI_Wtime() - t1;
         double t2_g;
