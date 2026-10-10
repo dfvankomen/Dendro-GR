@@ -424,4 +424,4 @@ CCE_OUTPUT_FREQ = 1
 # produce from it (PreprocessCceWorldtube.yaml, ReducedWorldtubeR0100.h5,
 # CharacteristicExtract.yaml, CharacteristicExtractReduction.h5), rather than
 # scattered between the job root and a separate cce/ directory.
-CCE_OUTPUT_FILE = "cce/cce_worldtube_test.h5"
+CCE_OUTPUT_FILE = "cce/cce_worldtube.h5"

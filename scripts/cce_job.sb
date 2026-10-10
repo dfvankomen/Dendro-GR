@@ -18,7 +18,7 @@ currentfolder=$(dirname "$(realpath "$0")")
 jobname=$SLURM_JOB_NAME
 
 # # # # # # Config -- set these per run # # # # # #
-WORLDTUBE_H5="cce_worldtube_test.h5"     # match CCE_OUTPUT_FILE in Dendro par file
+WORLDTUBE_H5="cce_worldtube.h5"     # match CCE_OUTPUT_FILE in Dendro par file
 EXTRACTION_RADIUS=100                     # match CCE_EXTRACTION_RADIUS in Dendro par file (default is max of BSSN_GW_RADAII)
 SPECTRE_BUILD="$HOME/Dendro/spectre-build/bin"
 SPECTRE_SRC="$HOME/Dendro/spectre"

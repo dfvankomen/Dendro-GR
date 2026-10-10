@@ -31,7 +31,7 @@ currentfolder=$(dirname "$(realpath "$0")")
 jobname=$SLURM_JOB_NAME
 
 # # # # # # Config -- set these per run # # # # # #
-WORLDTUBE_H5="cce_worldtube_test.h5"      # match CCE_OUTPUT_FILE in the Dendro-GR
+WORLDTUBE_H5="cce_worldtube.h5"      # match CCE_OUTPUT_FILE in the Dendro-GR
                                            # par file -- this script is meant to be
                                            # run FROM WITHIN the same directory
                                            # Dendro-GR wrote this file into (e.g. a
