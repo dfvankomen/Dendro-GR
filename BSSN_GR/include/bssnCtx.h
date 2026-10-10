@@ -398,7 +398,11 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     // ---- repartitioning (BSSN_WITH_GRAPH_PARTITIONING) ----
     /**@brief move the evolution data and the working buffers onto a freshly
      * built labelled mesh and take ownership of it. no-op without the flag.*/
-    int swap_to_graph_partition(ot::Mesh* graphMesh);
+    int swap_to_graph_partition(ot::Mesh* graphMesh, bool labelled = true);
+
+    /**@brief labelled mesh -> SFC mesh with the same elements (state moved);
+     * the remesh test and the remesh run on SFC. false if not labelled*/
+    bool to_sfc_partition();
     /**@brief once, after the initial data: if BSSN_PARTITIONING_METHOD != 0
      * build a relabelled twin of the SFC mesh and swap to it. returns true if
      * the mesh changed (the caller then re-syncs the stepper).*/

@@ -1943,7 +1943,7 @@ int BSSNCtx::rk_combine(unsigned int n, const DendroScalar* cf,
 }
 #endif
 
-int BSSNCtx::swap_to_graph_partition(ot::Mesh* graphMesh) {
+int BSSNCtx::swap_to_graph_partition(ot::Mesh* graphMesh, bool labelled) {
 #ifdef BSSN_WITH_GRAPH_PARTITIONING
     if (graphMesh == nullptr || graphMesh == m_uiMesh) return 0;
 
@@ -1976,11 +1976,36 @@ int BSSNCtx::swap_to_graph_partition(ot::Mesh* graphMesh) {
     m_uiMesh          = graphMesh;
     delete oldMesh;
 
-    m_uiIsLabelled         = true;
+    m_uiIsLabelled         = labelled;
     m_uiIsETSSynced        = false;
     m_bConstraintsComputed = false;
 #endif
     return 0;
+}
+
+bool BSSNCtx::to_sfc_partition() {
+#ifdef BSSN_WITH_GRAPH_PARTITIONING
+    if (!m_uiIsLabelled || m_uiMesh == nullptr) return false;
+
+    Point pt_min(bssn::BSSN_GRID_MIN_X, bssn::BSSN_GRID_MIN_Y,
+                 bssn::BSSN_GRID_MIN_Z);
+    Point pt_max(bssn::BSSN_GRID_MAX_X, bssn::BSSN_GRID_MAX_Y,
+                 bssn::BSSN_GRID_MAX_Z);
+    // re-canonicalize ghost-shared values before the move (no-op unless
+    // DENDRO_FORCE_POS_BCAST), as the remesh sandwich of the first port did
+    if (m_uiMesh->isActive() && m_var[VL::CPU_EV].get_vec_ptr())
+        m_uiMesh->broadcastCgValuesByPhysPosPublic(
+            m_var[VL::CPU_EV].get_vec_ptr(), m_var[VL::CPU_EV].get_dof());
+    // a full SFC mesh (with blocks): the refinement test and the remesh run on
+    // it unchanged, then maybe_apply_partitioning() labels the result
+    ot::Mesh* sfcMesh = bssn::buildSFCTwin(
+        m_uiMesh, bssn::BSSN_ELE_ORDER, bssn::BSSN_DENDRO_GRAIN_SZ,
+        bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX, pt_min, pt_max, true);
+    swap_to_graph_partition(sfcMesh, false);
+    return true;
+#else
+    return false;
+#endif
 }
 
 bool BSSNCtx::maybe_apply_partitioning() {

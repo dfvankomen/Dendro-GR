@@ -251,7 +251,7 @@ inline void redistributeDVec(ot::Mesh* srcMesh, ot::Mesh* dstMesh,
 inline ot::Mesh* buildSFCTwin(ot::Mesh* srcMesh, unsigned int eleOrder,
                               unsigned int grainSz, double ldTol,
                               unsigned int splitFix, const Point& pt_min,
-                              const Point& pt_max) {
+                              const Point& pt_max, bool blockSetup = false) {
     MPI_Comm comm = srcMesh->getMPIGlobalCommunicator();
     std::vector<ot::TreeNode> oct;
     if (srcMesh->isActive()) {
@@ -260,13 +260,14 @@ inline ot::Mesh* buildSFCTwin(ot::Mesh* srcMesh, unsigned int eleOrder,
              e < srcMesh->getElementLocalEnd(); e++)
             oct.push_back(pN[e]);
     }
+    // blockSetup=true: a full mesh the solver can step and test for remesh on.
     // blockSetup=false: the twin is transient and never unzips — block
     // decomposition + zip plan are ~90% of the FDM ctor cost and unused.
     // (A/B'd 2026-06-11: BBH collapse reproduced with full-block twin +
     // forced twin plan, so the twin is NOT the cause.)
     ot::Mesh* sfcMesh = ot::createMesh(
         oct.data(), oct.size(), eleOrder, comm, 1, ot::SM_TYPE::FDM, grainSz,
-        ldTol, splitFix, /*getWeight*/ NULL, /*blockSetup*/ false);
+        ldTol, splitFix, /*getWeight*/ NULL, blockSetup);
     sfcMesh->setDomainBounds(pt_min, pt_max);
     // re-arm the flag so ReMesh's successor mesh builds its blocks (the
     // twin itself still never unzips; no block state is faked).
@@ -347,7 +348,8 @@ inline ot::Mesh* buildSFCTwin(ot::Mesh* srcMesh, unsigned int /*eleOrder*/,
                               unsigned int /*grainSz*/, double /*ldTol*/,
                               unsigned int /*splitFix*/,
                               const Point& /*pt_min*/,
-                              const Point& /*pt_max*/) {
+                              const Point& /*pt_max*/,
+                              bool /*blockSetup*/ = false) {
     return srcMesh;
 }
 

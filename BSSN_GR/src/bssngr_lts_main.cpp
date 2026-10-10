@@ -789,22 +789,46 @@ int main(int argc, char** argv) {
             if (useLTS) bssnCtx->evolve_bh_loc();
 
             if (step != 0 && due(bssn::BSSN_REMESH_TEST_FREQ, step, time, tNextRemesh)) {
-                bool isRemesh = bssnCtx->is_remesh();
-                if (isRemesh && bssnCtx->is_labelled()) {
-                    // stage one of the port: no remesh on a labelled mesh yet
-                    if (!rank_global)
-                        std::cerr << "remesh on a labelled mesh is not ported "
-                                     "to this main yet" << std::endl;
-                    MPI_Abort(comm, 1);
+                // a labelled mesh goes back to SFC for the refinement test
+                // and the remesh (both assume SFC element ranges), and is
+                // labelled again afterwards, remeshed or not
+                const bool wasLabelled = bssnCtx->is_labelled();
+                const double tLab0     = MPI_Wtime();
+                if (wasLabelled) {
+                    bssnCtx->to_sfc_partition();
+                    bssn::deallocate_bssn_deriv_workspace();
+                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+                    bssnCtx->reinit_derivs_pool();
                 }
+                const double tLab1 = MPI_Wtime();
+                bool isRemesh      = bssnCtx->is_remesh();
                 if (isRemesh) {
                     if (!rank_global)
                         std::cout << YLW << "[ETS] : Remesh is triggered."
                                   << NRM << std::endl;
-
                     bssnCtx->remesh_and_gridtransfer(bssn::BSSN_DENDRO_GRAIN_SZ,
                                                      bssn::BSSN_LOAD_IMB_TOL,
                                                      bssn::BSSN_SPLIT_FIX);
+                }
+                if (wasLabelled) {
+                    const double tLab2 = MPI_Wtime();
+                    bssnCtx->maybe_apply_partitioning();
+                    if (!rank_global)
+                        std::cout << "[labelled-remesh] to SFC "
+                                  << (tLab1 - tLab0) << " s, relabel "
+                                  << (MPI_Wtime() - tLab2) << " s, remesh "
+                                  << (isRemesh ? 1 : 0) << std::endl;
+                    if (!isRemesh) {
+                        // the mesh object is new even without a remesh
+                        bssn::deallocate_bssn_deriv_workspace();
+                        bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+                        bssnCtx->reinit_derivs_pool();
+                        if (useLTS) bssnCtx->compute_lts_ts_offset();
+                        ets->sync_with_mesh();
+                        bssnCtx->calculate_full_grid_size();
+                    }
+                }
+                if (isRemesh) {
                     bssn::deallocate_bssn_deriv_workspace();
                     bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
                     // Rebuild deriv pool for the new mesh (avoid lazy JIT races).
