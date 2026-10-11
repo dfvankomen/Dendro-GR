@@ -547,6 +547,13 @@ int main(int argc, char** argv) {
             setenv("DENDRO_ENUTS_OWNER_SYNC", "1", 0);
             setenv("DENDRO_ENUTS_SYNC_FAST", "1", 0);
             setenv("DENDRO_ENUTS_STAGE_TIME", "1", 0);
+            // owner-sync cuts measured on q12 (loop 61.6 -> 54.7 s): no interior
+            // self-copy, no per-sub-step element-time exchange, threaded pack /
+            // unpack, and one shared parent-to-child store per pass
+            setenv("DENDRO_ENUTS_OWN_NO_SELFCOPY", "1", 0);
+            setenv("DENDRO_ENUTS_OWN_NO_ETIME_XCH", "1", 0);
+            setenv("DENDRO_ENUTS_OWN_XCH_OMP", "1", 0);
+            setenv("DENDRO_ENUTS_OWN_P2C_SHARED", "2", 0);
             // the work-weighted start-up partition: apply it after the initial
             // grid has converged (so weighted and unweighted runs start from one
             // mesh) and with the evolution vector's ghosts filled first
