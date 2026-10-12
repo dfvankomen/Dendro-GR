@@ -554,6 +554,9 @@ int main(int argc, char** argv) {
             setenv("DENDRO_ENUTS_OWN_NO_ETIME_XCH", "1", 0);
             setenv("DENDRO_ENUTS_OWN_XCH_OMP", "1", 0);
             setenv("DENDRO_ENUTS_OWN_P2C_SHARED", "2", 0);
+            // send a ghost slot only when a block that reads it steps (q12: 58 %
+            // fewer doubles exchanged, loop 50.9 -> 46.8 s)
+            setenv("DENDRO_ENUTS_XCH_SCOPED", "1", 0);
             // the work-weighted start-up partition: apply it after the initial
             // grid has converged (so weighted and unweighted runs start from one
             // mesh) and with the evolution vector's ghosts filled first
