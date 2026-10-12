@@ -581,6 +581,9 @@ int main(int argc, char** argv) {
                 setenv("DENDRO_ENUTS_STAGE_SCRATCH", "1", 0);
                 setenv("DENDRO_ENUTS_LAZY_TMP", "1", 0);
                 setenv("DENDRO_ENUTS_STAGE_RING", "1", 0);
+                // the ring's accumulator update rides in the stage-input sweep
+                // (19 instead of 31 block sweeps per sub-step; q12 loop 54.5 -> 51.0 s)
+                setenv("DENDRO_ENUTS_RING_FUSED", "1", 0);
             }
             // the weighted repartition remeshes at init; DENDRO_NUTS_NO_WPART=1
             // keeps the LTS run on the grid the uniform run starts from
