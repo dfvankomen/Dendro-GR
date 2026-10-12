@@ -295,6 +295,8 @@ int BSSNCtx::rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
 // lts_rank_work_report() at the end of the run.
 static const bool s_lts_rank_work = std::getenv("DENDRO_LTS_RANK_WORK") != nullptr;
 static double s_lts_rw_calls = 0.0, s_lts_rw_pts = 0.0, s_lts_rw_secs = 0.0;
+// owned (interior) points of those calls, and seconds in pre_stage_blk
+static double s_lts_rw_own = 0.0, s_lts_rw_pre = 0.0;
 
 void BSSNCtx::lts_rank_work_report() {
     if (!s_lts_rank_work || !m_uiMesh->isActive()) return;
@@ -308,24 +310,27 @@ void BSSNCtx::lts_rank_work_report() {
         if (b.numElements() == 1) single += 1.0;
     }
     const ts::EnutsProf& P = ts::EnutsProf::global();  // zeros without DENDRO_ENUTS_PROF=1
-    double loc[12] = {(double)blkList.size(), (double)m_uiMesh->getNumLocalMeshElements(),
+    double loc[14] = {(double)blkList.size(), (double)m_uiMesh->getNumLocalMeshElements(),
                       s_lts_rw_calls, s_lts_rw_pts, s_lts_rw_secs, pts1, big, single,
                       P.t[ts::EnutsProf::RHS], P.t[ts::EnutsProf::EDG_END],
                       P.t[ts::EnutsProf::SYNC_BLK],
-                      P.partial > 0 ? P.blk_sum / P.partial : 0.0};
+                      P.partial > 0 ? P.blk_sum / P.partial : 0.0,
+                      s_lts_rw_own, s_lts_rw_pre};
     MPI_Comm comm = m_uiMesh->getMPICommunicator();
     const int np  = m_uiMesh->getMPICommSize();
-    std::vector<double> all(12 * (size_t)np, 0.0);
-    MPI_Gather(loc, 12, MPI_DOUBLE, all.data(), 12, MPI_DOUBLE, 0, comm);
+    std::vector<double> all(14 * (size_t)np, 0.0);
+    MPI_Gather(loc, 14, MPI_DOUBLE, all.data(), 14, MPI_DOUBLE, 0, comm);
     if (m_uiMesh->getMPIRank()) return;
     printf("[lts-rank-work] rank blocks single_elem_blocks elements rhs_calls "
            "rhs_points rhs_thread_secs ns_per_point points_one_pass largest_block "
-           "rhs_phase_wall eledg_end_wall sync_blk_wall active_blocks_per_substep\n");
+           "rhs_phase_wall eledg_end_wall sync_blk_wall active_blocks_per_substep "
+           "rhs_owned_points ns_per_owned_point pre_stage_thread_secs\n");
     for (int r = 0; r < np; r++) {
-        const double* a = &all[12 * (size_t)r];
-        printf("[lts-rank-work] %d %.0f %.0f %.0f %.0f %.6g %.4f %.3f %.6g %.0f %.3f %.3f %.3f %.2f\n", r,
+        const double* a = &all[14 * (size_t)r];
+        printf("[lts-rank-work] %d %.0f %.0f %.0f %.0f %.6g %.4f %.3f %.6g %.0f %.3f %.3f %.3f %.2f %.6g %.3f %.4f\n", r,
                a[0], a[7], a[1], a[2], a[3], a[4],
-               a[3] > 0 ? 1e9 * a[4] / a[3] : 0.0, a[5], a[6], a[8], a[9], a[10], a[11]);
+               a[3] > 0 ? 1e9 * a[4] / a[3] : 0.0, a[5], a[6], a[8], a[9], a[10], a[11],
+               a[12], a[12] > 0 ? 1e9 * a[4] / a[12] : 0.0, a[13]);
     }
     fflush(stdout);
 }
@@ -435,6 +440,8 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
         s_lts_rw_pts += (double)NN;
 #pragma omp atomic
         s_lts_rw_secs += rw_dt;
+#pragma omp atomic
+        s_lts_rw_own += (double)(sz[0] - 2 * PW) * (sz[1] - 2 * PW) * (sz[2] - 2 * PW);
     }
 
 #ifdef __PROFILE_CTX__
@@ -446,6 +453,7 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 
 int BSSNCtx::pre_stage_blk(DendroScalar* in, unsigned int dof,
                            unsigned int local_blk_id, DendroScalar blk_time) {
+    const double rw_t0 = s_lts_rank_work ? MPI_Wtime() : 0.0;
     DendroScalar** unzipIn = new DendroScalar*[dof];
     const unsigned int blk = local_blk_id;
 
@@ -505,6 +513,11 @@ int BSSNCtx::pre_stage_blk(DendroScalar* in, unsigned int dof,
     m_dMinDetGt = std::min(m_dMinDetGt, minDet);
 
     delete[] unzipIn;
+    if (s_lts_rank_work) {
+        const double rw_dt = MPI_Wtime() - rw_t0;
+#pragma omp atomic
+        s_lts_rw_pre += rw_dt;
+    }
     return 0;
 }
 
