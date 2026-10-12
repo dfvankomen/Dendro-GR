@@ -224,6 +224,33 @@ int main(int argc, char** argv) {
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
 
+#if defined(BSSN_USE_CASCADE_AVX_FUSED) ||       \
+    defined(BSSN_USE_CASCADE_AVX512_FUSED) ||    \
+    defined(BSSN_USE_CASCADE_IR_AVX_FUSED) ||    \
+    defined(BSSN_USE_CASCADE_IR_AVX512_FUSED)
+    // the fused kernels inline the E6 stencils
+    {
+#ifdef DENDRO_USE_NEW_DERIVS
+        const auto is_e6 = [](const std::string& s) {
+            return s == "E6" || s == "E6Simd";
+        };
+        const bool ok = is_e6(bssn::BSSN_DERIVTYPE_FIRST) &&
+                        is_e6(bssn::BSSN_DERIVTYPE_SECOND);
+#else
+        const bool ok = (bssn::BSSN_ELE_ORDER == 6);
+#endif
+        if (!ok) {
+            if (!rank)
+                std::cerr << RED
+                          << "Error[parameter file]: the fused RHS kernels "
+                             "need 6th-order explicit derivatives (E6 or "
+                             "E6Simd)"
+                          << NRM << std::endl;
+            MPI_Abort(comm, 1);
+        }
+    }
+#endif
+
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
     // Resolve the RHS block-loop schedule now that the parfile is parsed:
     // BSSN_HYBRID_RHS_SCHEDULE (parfile) > OMP_SCHEDULE (env) > dynamic,1.
