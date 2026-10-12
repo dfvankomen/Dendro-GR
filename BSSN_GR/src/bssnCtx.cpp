@@ -405,6 +405,9 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     //      stability number (identical to it on blocks at the finest step,
     //      r times weaker damping on a block at ratio r);
     //   2: max(dt_min, C dt_blk / CMAX) with DENDRO_LTS_CAHD_CMAX (default 2).
+    //   3: as 2 with the block's largest chi and the term's 1 / (1 + 10 dx^2)
+    //      in the bound, so chi times the diffusion number per block step is
+    //      at most CMAX on any mesh (default 0.07; RK4 fails near 0.077).
     static const int cahd_mode = []() {
         const char* e = std::getenv("DENDRO_LTS_CAHD_DT");
         return e ? std::atoi(e) : 0;
@@ -422,6 +425,20 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
         dt_blk = dt_min * getBlkTimestepFac(blev, 0, m_uiLtsLmax);
         if (cahd_mode == 2)
             dt_blk = std::max(dt_min, bssn::BSSN_CAHD_C * dt_blk / cahd_cmax);
+    } else if (cahd_mode == 3) {
+        const unsigned int blev =
+            m_uiMesh->getAllElements()[blkList[blk].firstElementID()]
+                .getLevel();
+        const double dt_min   = m_uiTinfo._m_uiTh;
+        const DendroScalar* c = unzipIn[bssn::VAR::U_CHI];
+        double chi_max        = 0.0;
+        for (unsigned int n = 0; n < NN; n++)
+            chi_max = std::max(chi_max, (double)c[n]);
+        static const double b3 =
+            std::getenv("DENDRO_LTS_CAHD_CMAX") ? cahd_cmax : 0.07;
+        dt_blk = dt_min * getBlkTimestepFac(blev, 0, m_uiLtsLmax);
+        dt_blk = std::max(dt_min, bssn::BSSN_CAHD_C * chi_max * dt_blk /
+                                      (b3 * (1.0 + 10.0 * dx * dx)));
     }
 
     const double rw_t0 = s_lts_rank_work ? MPI_Wtime() : 0.0;
