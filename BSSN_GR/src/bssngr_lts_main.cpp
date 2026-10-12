@@ -720,6 +720,22 @@ int main(int argc, char** argv) {
             bssn::BSSN_REMESH_TEST_FREQ * bssn::BSSN_RK45_TIME_STEP_SIZE;
         double tNextOut = 0, tNextGW = 0, tNextIO = 0, tNextAEH = 0,
                tNextChk = 0;
+        if (useLTS && start_step != 0) {
+            // restart: an uninterrupted run fires at this step only for an
+            // interval boundary inside the coarse step that just ended, so
+            // start every gate from the first boundary after its beginning
+            const double tPrev = ets->curr_time() - enuts->get_dt_max();
+            auto after         = [&](unsigned int freq) {
+                const double dt = freq * bssn::BSSN_RK45_TIME_STEP_SIZE;
+                return freq ? (std::floor(tPrev / dt + 1e-9) + 1.0) * dt : 0.0;
+            };
+            tNextRemesh = after(bssn::BSSN_REMESH_TEST_FREQ);
+            tNextOut    = after(bssn::BSSN_TIME_STEP_OUTPUT_FREQ);
+            tNextGW     = after(bssn::BSSN_GW_EXTRACT_FREQ_TRUE);
+            tNextIO     = after(bssn::BSSN_IO_OUTPUT_FREQ_TRUE);
+            tNextAEH    = after(AEH::AEH_SOLVER_FREQ);
+            tNextChk    = after(bssn::BSSN_CHECKPT_FREQ);
+        }
 
         dendro::logger::info("Now beginning ETS time stepper");
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
@@ -1003,7 +1019,29 @@ int main(int argc, char** argv) {
 
             // Write checkpoint  data
             if (due(bssn::BSSN_CHECKPT_FREQ, step, time, tNextChk)) {
-                bssnCtx->write_checkpt();
+                // the checkpoint files hold per-rank SFC ranges, so a labelled
+                // mesh goes back to SFC for the write, as for a remesh
+                const bool wasLabelled = bssnCtx->is_labelled();
+                if (wasLabelled) bssnCtx->to_sfc_partition();
+                // a step is a coarse step under LTS, so the step count does
+                // not alternate the two slots: use the interval index
+                int slot = -1;
+                if (useLTS)
+                    slot = (int)((long long)std::floor(
+                                     time / (bssn::BSSN_CHECKPT_FREQ *
+                                             bssn::BSSN_RK45_TIME_STEP_SIZE) +
+                                     1e-9) %
+                                 2);
+                bssnCtx->write_checkpt(slot);
+                if (wasLabelled) {
+                    bssnCtx->maybe_apply_partitioning();
+                    bssn::deallocate_bssn_deriv_workspace();
+                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
+                    bssnCtx->reinit_derivs_pool();
+                    if (useLTS) bssnCtx->compute_lts_ts_offset();
+                    ets->sync_with_mesh();
+                    bssnCtx->calculate_full_grid_size();
+                }
             }
 
             bssnCtx->prepare_for_next_iter();

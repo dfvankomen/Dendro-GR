@@ -284,8 +284,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /** @brief: write bh coords */
     int write_bh_coords();
 
-    /** @brief: writes checkpoint*/
-    int write_checkpt();
+    /** @brief: writes checkpoint; slot 0 / 1 picks the file set, -1 alternates
+     * on the step count */
+    int write_checkpt(int slot = -1);
 
     /**@brief write a full checkpoint to a specific slot index. */
     int write_checkpt_to_slot(unsigned int cpIndex);

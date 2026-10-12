@@ -1194,13 +1194,14 @@ int BSSNCtx::write_bh_coords() {
     return 0;
 }
 
-int BSSNCtx::write_checkpt() {
+int BSSNCtx::write_checkpt(int slot) {
     if (!m_uiMesh->isActive()) return 0;
 
     // every other checkpoint index should be 0 or 1, this allows "alternate"
     // file writing
     const unsigned int cpIndex =
-        (m_uiTinfo._m_uiStep / bssn::BSSN_CHECKPT_FREQ) % 2;
+        slot >= 0 ? (unsigned int)(slot % 2)
+                  : (m_uiTinfo._m_uiStep / bssn::BSSN_CHECKPT_FREQ) % 2;
 
     const bool is_merged =
         ((bssn::BSSN_BH_LOC[0] - bssn::BSSN_BH_LOC[1]).abs() < 0.1);
