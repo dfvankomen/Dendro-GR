@@ -819,7 +819,7 @@ void BSSNCtx::compute_constraint_variables() {
                   << std::endl;
     }
 
-    const std::vector<ot::Block> blkList = m_uiMesh->getLocalBlockList();
+    const std::vector<ot::Block>& blkList = m_uiMesh->getLocalBlockList();
 
     unsigned int offset;
     double ptmin[3], ptmax[3];
@@ -968,8 +968,6 @@ int BSSNCtx::write_vtu() {
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
     DVec& m_cvar     = m_var[VL::CPU_CV];
     DVec& m_cvar_unz = m_var[VL::CPU_CV_UZ_IN];
-
-    this->unzip(m_evar, m_evar_unz, BSSN_ASYNC_COMM_K);
 
     DendroScalar* consUnzipVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
     DendroScalar* consVar[bssn::BSSN_CONSTRAINT_NUM_VARS];
@@ -1829,7 +1827,9 @@ bool BSSNCtx::is_remesh() {
     DVec& m_evar     = m_var[VL::CPU_EV];
     DVec& m_evar_unz = m_var[VL::CPU_EV_UZ_IN];
 
-    this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
+    // BH_LOC refines on the BH positions alone
+    if (bssn::BSSN_REFINEMENT_MODE != bssn::RefinementMode::BH_LOC)
+        this->unzip(m_evar, m_evar_unz, bssn::BSSN_ASYNC_COMM_K);
 
     DendroScalar* unzipVar[BSSN_NUM_VARS];
     m_evar_unz.to_2d(unzipVar);
