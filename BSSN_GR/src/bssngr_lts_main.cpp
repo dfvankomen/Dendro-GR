@@ -563,8 +563,13 @@ int main(int argc, char** argv) {
             // rank and misses on a labelled mesh (same values, no misses)
             setenv("DENDRO_INTERP_DIRECT", "1", 0);
             // a step is a coarse step here and the finder is gated on time,
-            // so its own step-count gate on the diagnostics files is wrong
-            setenv("DENDRO_AEH_WRITE_EVERY_FIND", "1", 0);
+            // so its own step-count gate on the diagnostics files is wrong.
+            // the finder exists since the parameters were read, so the
+            // variable alone would come too late
+            if (AEH::ah_bah) {
+                const char* e = std::getenv("DENDRO_AEH_WRITE_EVERY_FIND");
+                AEH::ah_bah->set_write_every_find(!e || std::atoi(e) != 0);
+            }
             // the work-weighted start-up partition: apply it after the initial
             // grid has converged (so weighted and unweighted runs start from one
             // mesh) and with the evolution vector's ghosts filled first
@@ -733,6 +738,14 @@ int main(int argc, char** argv) {
             // interval boundary inside the coarse step that just ended, so
             // start every gate from the first boundary after its beginning
             const double tPrev = ets->curr_time() - enuts->get_dt_max();
+            // a run restored after the merger was already on the post-merger
+            // intervals (the loop sets them again at its first step)
+            if (bssnCtx->is_bh_merged(0.1)) {
+                bssn::BSSN_REMESH_TEST_FREQ =
+                    bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
+                bssn::BSSN_GW_EXTRACT_FREQ =
+                    bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER;
+            }
             auto after         = [&](unsigned int freq) {
                 const double dt = freq * bssn::BSSN_RK45_TIME_STEP_SIZE;
                 return freq ? (std::floor(tPrev / dt + 1e-9) + 1.0) * dt : 0.0;
