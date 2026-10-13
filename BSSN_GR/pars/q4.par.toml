@@ -189,6 +189,8 @@ BSSN_XI = [ 0, 0, 0 ]
 CHI_FLOOR = 0.0001
 BSSN_TRK0 = 0.0
 KO_DISS_SIGMA = 0.4
+# One-pass KO filter, same stencil as the default KO4 at element order 6
+BSSN_DERIV_POSTRHS_FILTER = "KO4Simd"
 
 # ETA as a function parameters
 BSSN_ETA_R0 = 1.31
