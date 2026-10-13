@@ -288,6 +288,11 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
      * on the step count */
     int write_checkpt(int slot = -1);
 
+    /**@brief: which stepper drives this context (a step is a coarse step
+     * under LTS, so a checkpoint only restores under the stepper that wrote it)*/
+    static void set_subcycled(bool lts) { s_iSubcycled = lts ? 1 : 0; }
+    static int s_iSubcycled;
+
     /**@brief write a full checkpoint to a specific slot index. */
     int write_checkpt_to_slot(unsigned int cpIndex);
 

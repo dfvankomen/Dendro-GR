@@ -43,6 +43,8 @@ struct ChkptMeta {
     double bhv1[3]            = {0.0, 0.0, 0.0};
     double bhv2[3]            = {0.0, 0.0, 0.0};
     bool bhVelValid           = false;
+    // 1 = written by the sub-cycled (LTS) stepper, 0 = uniform, -1 = not recorded
+    int subcycled             = -1;
 
     bool bhMerged             = false;
     double mergeTime          = 0.0;
@@ -99,6 +101,7 @@ void chkpt_fields(V& v, ChkptMeta& m) {
         v.opt("DENDRO_BSSN_MERGED_CHKPT_WRITTEN", m.mergedChkptWritten);
 
     v.opt("DENDRO_BSSN_MIN_DET_GT", m.minDetGt);
+    v.opt("DENDRO_TS_SUBCYCLED", m.subcycled);
 }
 
 /**@brief visitor that serializes into a json object. */

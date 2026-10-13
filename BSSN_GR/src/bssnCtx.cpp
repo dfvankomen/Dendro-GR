@@ -1211,6 +1211,8 @@ int BSSNCtx::write_bh_coords() {
     return 0;
 }
 
+int BSSNCtx::s_iSubcycled = -1;
+
 int BSSNCtx::write_checkpt(int slot) {
     if (!m_uiMesh->isActive()) return 0;
 
@@ -1325,6 +1327,7 @@ int BSSNCtx::write_checkpt_to_slot(unsigned int cpIndex) {
         meta.bh2[1]             = m_uiBHLoc[1].y();
         meta.bh2[2]             = m_uiBHLoc[1].z();
         meta.bhVelValid         = m_bBHVelValid;
+        meta.subcycled          = s_iSubcycled;
         meta.bhv1[0]            = m_uiBHVel[0].x();
         meta.bhv1[1]            = m_uiBHVel[0].y();
         meta.bhv1[2]            = m_uiBHVel[0].z();
@@ -1649,6 +1652,17 @@ int BSSNCtx::restore_checkpt() {
             m_uiBHLoc[0] = Point(meta.bh1[0], meta.bh1[1], meta.bh1[2]);
             m_uiBHLoc[1] = Point(meta.bh2[0], meta.bh2[1], meta.bh2[2]);
             m_bBHVelValid = meta.bhVelValid;
+            if (meta.subcycled >= 0 && s_iSubcycled >= 0 &&
+                meta.subcycled != s_iSubcycled) {
+                if (!rank)
+                    std::cout << " [BSSNCtx] : checkpoint written by the "
+                              << (meta.subcycled ? "LTS" : "uniform")
+                              << " stepper cannot be restored under the "
+                              << (s_iSubcycled ? "LTS" : "uniform")
+                              << " stepper (the step counts differ)."
+                              << std::endl;
+                MPI_Abort(comm, 1);
+            }
             m_uiBHVel[0]  = Point(meta.bhv1[0], meta.bhv1[1], meta.bhv1[2]);
             m_uiBHVel[1]  = Point(meta.bhv2[0], meta.bhv2[1], meta.bhv2[2]);
 

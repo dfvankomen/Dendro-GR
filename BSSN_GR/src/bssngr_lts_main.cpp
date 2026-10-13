@@ -519,6 +519,7 @@ int main(int argc, char** argv) {
             std::cout << GRN << "Now setting up the "
                       << (useLTS ? "local" : "uniform") << " time stepper!"
                       << NRM << std::endl;
+        bssn::BSSNCtx::set_subcycled(useLTS);
         bssn::BSSNCtx* bssnCtx = new bssn::BSSNCtx(mesh);
 
         // select time integrator based on BSSN_RK_TYPE (index-matched to
