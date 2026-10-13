@@ -9,17 +9,21 @@
 #          SpECTRE's WorldtubeBufferUpdater correctly rejects as
 #          non-monotonic).
 #
-# Finds, for every one of the 49 expected datasets, the first row index
-# where its time column stops being strictly increasing (if any), takes the
-# minimum such safe row count across all of them, and writes a new file
-# truncated uniformly to that many rows -- so every dataset stays
-# row-for-row time-aligned, matching what check_cce_worldtube.py itself
-# verifies.
+# Unlike the first version of this script (which just truncated everything
+# after the FIRST bad row), this scans the WHOLE file and removes every bad
+# row it finds, wherever it occurs -- in case a long multi-day run gets
+# copied mid-write more than once. For each of the 49 expected datasets, a
+# row is "bad" if its time value doesn't exceed the time of the last row
+# RETAINED so far (checked per-dataset, against the retained sequence, so
+# multiple scattered incidents are each caught correctly rather than only
+# the first). The union of bad row indices across all 49 datasets is then
+# dropped uniformly from every dataset, so they all stay row-for-row
+# time-aligned, matching what check_cce_worldtube.py itself verifies.
 #
 # Usage:
 #   python fix_torn_write.py <input.h5> <output.h5>
 #
-# @date: 2026-10-10
+# @date: 2026-10-13
 
 import argparse
 import shutil
@@ -30,46 +34,60 @@ import numpy as np
 from check_cce_worldtube import EXPECTED_DATASETS
 
 
-def first_non_monotonic_index(t):
-    """Returns the row index of the first break in strict monotonicity, or
-    len(t) if the whole column is clean."""
-    diffs = np.diff(t)
-    bad = np.where(diffs <= 0)[0]
-    return int(bad[0] + 1) if bad.size else len(t)
+def find_bad_rows(t):
+    """Returns the set of row indices in time column `t` that are bad --
+    non-increasing relative to the last RETAINED good row, not just the
+    immediately preceding row, so consecutive/scattered bad rows are each
+    caught rather than only the first one found."""
+    bad = set()
+    last_good_time = t[0]
+    for i in range(1, len(t)):
+        if t[i] > last_good_time:
+            last_good_time = t[i]
+        else:
+            bad.add(i)
+    return bad
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Truncate a torn-write-corrupted worldtube h5 file to "
-                     "its last fully-consistent row, uniformly across all "
-                     "49 datasets.")
+        description="Remove every torn-write-corrupted row from a worldtube "
+                     "h5 file, wherever it occurs, uniformly across all 49 "
+                     "datasets.")
     parser.add_argument("input_h5")
     parser.add_argument("output_h5")
     args = parser.parse_args()
 
-    safe_rows = None
+    bad_rows = set()
+    n_rows = None
     with h5py.File(args.input_h5, "r") as f:
         for name in EXPECTED_DATASETS:
             t = f[name + ".dat"][:, 0]
-            n = first_non_monotonic_index(t)
-            if n < len(t):
-                print("%s.dat: time column breaks monotonicity at row %d "
-                      "(t=%.6g -> %.6g)" % (name, n, t[n - 1], t[n]))
-            if safe_rows is None or n < safe_rows:
-                safe_rows = n
+            n_rows = len(t) if n_rows is None else n_rows
+            this_bad = find_bad_rows(t)
+            for i in sorted(this_bad):
+                print("%s.dat: row %d is bad (t=%.6g, following t=%.6g)"
+                     % (name, i, t[i], t[i - 1]))
+            bad_rows |= this_bad
 
-    print("Safe row count across all datasets: %d" % safe_rows)
+    if not bad_rows:
+        print("No bad rows found -- file is already clean.")
+    else:
+        print("Removing %d bad row(s) total (union across all datasets): %s"
+             % (len(bad_rows), sorted(bad_rows)))
+
+    keep = np.array([i for i in range(n_rows) if i not in bad_rows])
 
     shutil.copyfile(args.input_h5, args.output_h5)
     with h5py.File(args.output_h5, "r+") as f:
         for name in EXPECTED_DATASETS:
             ds = f[name + ".dat"]
-            data = ds[:safe_rows, :]
-            ds.resize((safe_rows, ds.shape[1]))
+            data = ds[:, :][keep, :]
+            ds.resize((len(keep), ds.shape[1]))
             ds[...] = data
 
-    print("Wrote %s, truncated to %d rows (t up to %.6g)"
-         % (args.output_h5, safe_rows, data[-1, 0]))
+    print("Wrote %s: %d rows kept (of %d), t up to %.6g"
+         % (args.output_h5, len(keep), n_rows, data[-1, 0]))
 
 
 if __name__ == "__main__":
