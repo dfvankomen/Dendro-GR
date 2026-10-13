@@ -2061,10 +2061,25 @@ bool BSSNCtx::maybe_apply_partitioning() {
                  bssn::BSSN_GRID_MIN_Z);
     Point pt_max(bssn::BSSN_GRID_MAX_X, bssn::BSSN_GRID_MAX_Y,
                  bssn::BSSN_GRID_MAX_Z);
+    // a mesh restored on more ranks than wrote it is active on the old count
+    // only, and the labelled rebuild needs every rank: spread it by SFC first
+    bool spread = false;
+    if (!m_uiMesh->allRanksActive()) {
+        ot::Mesh* sfcMesh = bssn::buildSFCTwin(
+            m_uiMesh, bssn::BSSN_ELE_ORDER, bssn::BSSN_DENDRO_GRAIN_SZ,
+            bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX, pt_min, pt_max,
+            true);
+        if (sfcMesh->allRanksActive()) {
+            swap_to_graph_partition(sfcMesh, false);
+            spread = true;
+        } else {
+            delete sfcMesh;
+        }
+    }
     ot::Mesh* graphMesh = bssn::buildGraphTwin(
         m_uiMesh, bssn::BSSN_ELE_ORDER, bssn::BSSN_DENDRO_GRAIN_SZ,
         bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX, pt_min, pt_max);
-    if (graphMesh == m_uiMesh) return false;
+    if (graphMesh == m_uiMesh) return spread;
     swap_to_graph_partition(graphMesh);
     return true;
 #else
