@@ -2263,8 +2263,11 @@ void BSSNCtx::write_grid_summary_data() {
                 file_grid_data << std::scientific;
 
                 if (!m_uiWroteGridInfoHeader) {
-                    file_grid_data << "timeStep,simTime,commSize,wTime,"
-                                      "meshSize,totalGridPoints,stepSize\n";
+                    // a resumed run appends to the file it already has
+                    file_grid_data.seekp(0, std::ios::end);
+                    if (file_grid_data.tellp() == 0)
+                        file_grid_data << "timeStep,simTime,commSize,wTime,"
+                                          "meshSize,totalGridPoints,stepSize\n";
 
                     m_uiWroteGridInfoHeader = true;
                 }
@@ -2762,6 +2765,13 @@ void BSSNCtx::evolve_bh_loc() {
     double dt = this->m_uiTinfo._m_uiStep == 0
                     ? 0.0
                     : m_uiTinfo._m_uiT - m_bhHistory->times().back();
+    // already at this time (LTS folds the block tracks in before a checkpoint
+    // write, and a restored history ends at the checkpoint time)
+    if (m_uiTinfo._m_uiStep != 0 &&
+        dt < 1e-14 * (1.0 + std::fabs(m_uiTinfo._m_uiT))) {
+        m_bBHEvolved = true;
+        return;
+    }
 
     // LTS: each rank tracked the punctures on its own at the block cadence
     // (lts_track_bh_blk). take the rank that got furthest, then the one that

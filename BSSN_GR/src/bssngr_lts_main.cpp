@@ -1026,6 +1026,14 @@ int main(int argc, char** argv) {
                 // the checkpoint files hold per-rank SFC ranges, so a labelled
                 // mesh goes back to SFC for the write, as for a remesh
                 const bool wasLabelled = bssnCtx->is_labelled();
+                // the block-cadence puncture tracks are not in the checkpoint:
+                // fold them in now, so the stored positions are at this time
+                // (the call at the top of the next step, or the first one
+                // after a restore, then finds nothing left to cover)
+                if (useLTS) {
+                    bssnCtx->prepare_for_next_iter();
+                    bssnCtx->evolve_bh_loc();
+                }
                 if (wasLabelled) bssnCtx->to_sfc_partition();
                 // a step is a coarse step under LTS, so the step count does
                 // not alternate the two slots: use the interval index
