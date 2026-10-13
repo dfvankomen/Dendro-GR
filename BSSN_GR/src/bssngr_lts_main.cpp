@@ -562,6 +562,9 @@ int main(int argc, char** argv) {
             // containment only: the splitter route assumes one SFC range per
             // rank and misses on a labelled mesh (same values, no misses)
             setenv("DENDRO_INTERP_DIRECT", "1", 0);
+            // a step is a coarse step here and the finder is gated on time,
+            // so its own step-count gate on the diagnostics files is wrong
+            setenv("DENDRO_AEH_WRITE_EVERY_FIND", "1", 0);
             // the work-weighted start-up partition: apply it after the initial
             // grid has converged (so weighted and unweighted runs start from one
             // mesh) and with the evolution vector's ghosts filled first
