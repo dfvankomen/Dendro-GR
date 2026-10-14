@@ -329,6 +329,10 @@ int main(int argc, char** argv) {
         setenv("DENDRO_ENUTS_OMP", "1", 0);
         // owner sync on the level-wise partition
         setenv("DENDRO_ENUTS_OWNER_SYNC_LABELLED", "1", 0);
+        // a rank with fewer than 16 blocks on its finest level splits them, so
+        // the finest-only sub-steps keep its threads busy (level-wise mesh only;
+        // 0 turns it off)
+        setenv("DENDRO_OCT2BLK_MIN_BLOCKS", "16", 0);
 #ifdef BSSN_WITH_GRAPH_PARTITIONING
         // a par file that does not name a partition method gets the level-wise
         // one under LTS; an explicit value (0 = SFC included) is kept
