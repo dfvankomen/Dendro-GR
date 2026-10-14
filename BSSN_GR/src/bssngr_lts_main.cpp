@@ -14,8 +14,10 @@
 #include <cstdlib>  // std::getenv for the OMP_SCHEDULE default guard
 #include <ctime>  // time_t / time() / ctime() — gcc 15 + <chrono> doesn't drag these in
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <vector>
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
@@ -315,6 +317,69 @@ int main(int argc, char** argv) {
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
 
+    if (ts_mode == 0) {
+        // LTS defaults that the stepper, the step rule and the block loop read
+        // on first use, so they are set before anything is built. each one
+        // stays as the environment gives it if set.
+        // ratio cap 64 and the eta step bound (without the bound the gauge
+        // damping term is unstable at large step ratios)
+        setenv("DENDRO_LTS_RATIO_CAP", "64", 0);
+        setenv("DENDRO_LTS_ETA_C", "2", 0);
+        // threads inside the stepper's own loops (one thread = serial)
+        setenv("DENDRO_ENUTS_OMP", "1", 0);
+        // owner sync on the level-wise partition
+        setenv("DENDRO_ENUTS_OWNER_SYNC_LABELLED", "1", 0);
+#ifdef BSSN_WITH_GRAPH_PARTITIONING
+        // a par file that does not name a partition method gets the level-wise
+        // one under LTS; an explicit value (0 = SFC included) is kept
+        {
+            int named = 0;
+            if (!rank) {
+                std::ifstream pf(argv[1]);
+                std::string line;
+                const std::regex key("^\\s*BSSN_PARTITIONING_METHOD\\s*=");
+                while (std::getline(pf, line))
+                    if (std::regex_search(line, key)) named = 1;
+            }
+            MPI_Bcast(&named, 1, MPI_INT, 0, comm);
+            if (!named && bssn::BSSN_PARTITIONING_METHOD == 0) {
+                bssn::BSSN_PARTITIONING_METHOD = 4;
+                if (!rank)
+                    std::cout << YLW
+                              << "[LTS] par file names no partition method: "
+                                 "using the level-wise partition "
+                                 "(BSSN_PARTITIONING_METHOD = 4)"
+                              << NRM << std::endl;
+            }
+        }
+#endif
+        // the production CAHD form (C dx^2 / dt_min) is unstable under LTS
+        // above a step ratio of 1-2. unless a form was chosen, LTS runs the
+        // other form (DENDRO_CAHD_ETIENNE) at its stable coefficient 0.96,
+        // which is not the uniform stepper's damping, so say so loudly
+        if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE") &&
+            !std::getenv("DENDRO_LTS_CAHD_DT") &&
+            !std::getenv("DENDRO_LTS_CAHD_RULE")) {
+            const double c_par = bssn::BSSN_CAHD_C;
+            bssn::BSSN_CAHD_C  = 0.96;
+            setenv("DENDRO_CAHD_ETIENNE", "1", 1);
+            if (!rank)
+                std::cout << RED << BLD
+                          << "[LTS] ************************************************\n"
+                          << "[LTS] CAHD DAMPING CHANGED: the par file asks for the "
+                             "production form with BSSN_CAHD_C = "
+                          << c_par
+                          << ",\n[LTS] which is unstable under LTS. Running the "
+                             "Etienne form (DENDRO_CAHD_ETIENNE=1)\n[LTS] with "
+                             "BSSN_CAHD_C = 0.96 instead. This is NOT the uniform "
+                             "stepper's damping.\n[LTS] To choose a form yourself "
+                             "set DENDRO_CAHD_ETIENNE, DENDRO_LTS_CAHD_DT or\n[LTS] "
+                             "DENDRO_LTS_CAHD_RULE.\n"
+                          << "[LTS] ************************************************"
+                          << NRM << std::endl;
+        }
+    }
+
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)
     // Resolve the RHS block-loop schedule now that the parfile is parsed:
     // BSSN_HYBRID_RHS_SCHEDULE (parfile) > OMP_SCHEDULE (env) > dynamic,1.
@@ -575,23 +640,6 @@ int main(int argc, char** argv) {
             // mesh) and with the evolution vector's ghosts filled first
             setenv("DENDRO_ENUTS_WPART_LATE", "1", 0);
             setenv("DENDRO_ENUTS_WPART_GHOST_SYNC", "1", 0);
-            // the production CAHD coefficient (C dx^2 / dt_min) is unstable
-            // under LTS on a fine mesh at any step ratio above 1-2 (q12 blows
-            // up at ratio 2). unless a form was chosen (DENDRO_CAHD_ETIENNE,
-            // DENDRO_LTS_CAHD_DT, DENDRO_LTS_CAHD_RULE) use the block's own
-            // step in the coefficient, which is stable but damps coarse
-            // blocks less than the uniform stepper does.
-            if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE") &&
-                !std::getenv("DENDRO_LTS_CAHD_DT") &&
-                !std::getenv("DENDRO_LTS_CAHD_RULE")) {
-                if (!rank)
-                    std::cout << YLW
-                              << "[LTS] CAHD is on: using the block's own step "
-                                 "in its coefficient (DENDRO_LTS_CAHD_DT=1); "
-                                 "this is not the uniform stepper's damping"
-                              << NRM << std::endl;
-                setenv("DENDRO_LTS_CAHD_DT", "1", 0);
-            }
             // same solution, about a third less memory (RK4 only)
             if (rkType == RKType::RK4) {
                 setenv("DENDRO_ENUTS_STAGE_SCRATCH", "1", 0);
