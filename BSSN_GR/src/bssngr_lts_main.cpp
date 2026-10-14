@@ -660,10 +660,11 @@ int main(int argc, char** argv) {
                                                                       useWpart);
             ets   = enuts;
             ets->set_evolve_vars(bssnCtx->get_evolution_vars());
-            if (rkType != RKType::RK3 && rkType != RKType::RK4 &&
-                rkType != RKType::RK5) {
+            // RK5 segfaults in the first LTS step (any partition, any switches;
+            // gate seq36, 2026-10-14), so it is refused until the stepper is fixed
+            if (rkType != RKType::RK3 && rkType != RKType::RK4) {
                 if (!rank)
-                    std::cerr << "LTS supports RK3 / RK4 / RK5, not BSSN_RK_TYPE="
+                    std::cerr << "LTS supports RK3 / RK4, not BSSN_RK_TYPE="
                               << bssn::BSSN_RK_TYPE << std::endl;
                 MPI_Abort(comm, 1);
             }
