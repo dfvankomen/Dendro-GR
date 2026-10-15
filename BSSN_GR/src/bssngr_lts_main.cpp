@@ -359,13 +359,16 @@ int main(int argc, char** argv) {
 #endif
         // the production CAHD form (C dx^2 / dt_min) is unstable under LTS
         // above a step ratio of 1-2. unless a form was chosen, LTS runs the
-        // other form (DENDRO_CAHD_ETIENNE) at its stable coefficient 0.96,
-        // which is not the uniform stepper's damping, so say so loudly
+        // other form (DENDRO_CAHD_ETIENNE), which is not the uniform stepper's
+        // damping, so say so loudly. its diffusion number per step is
+        // C_E CFL^2 2^-k r, so C_E = C / CFL^2 puts every full-ratio level at
+        // the finest level's production number C (0.96 for 0.06 at CFL 0.25)
         if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE") &&
             !std::getenv("DENDRO_LTS_CAHD_DT") &&
             !std::getenv("DENDRO_LTS_CAHD_RULE")) {
             const double c_par = bssn::BSSN_CAHD_C;
-            bssn::BSSN_CAHD_C  = 0.96;
+            bssn::BSSN_CAHD_C  = c_par / (bssn::BSSN_CFL_FACTOR *
+                                         bssn::BSSN_CFL_FACTOR);
             setenv("DENDRO_CAHD_ETIENNE", "1", 1);
             if (!rank)
                 std::cout << RED << BLD
@@ -375,7 +378,9 @@ int main(int argc, char** argv) {
                           << c_par
                           << ",\n[LTS] which is unstable under LTS. Running the "
                              "Etienne form (DENDRO_CAHD_ETIENNE=1)\n[LTS] with "
-                             "BSSN_CAHD_C = 0.96 instead. This is NOT the uniform "
+                             "BSSN_CAHD_C = "
+                          << bssn::BSSN_CAHD_C
+                          << " (= C / CFL^2) instead. This is NOT the uniform "
                              "stepper's damping.\n[LTS] To choose a form yourself "
                              "set DENDRO_CAHD_ETIENNE, DENDRO_LTS_CAHD_DT or\n[LTS] "
                              "DENDRO_LTS_CAHD_RULE.\n"
