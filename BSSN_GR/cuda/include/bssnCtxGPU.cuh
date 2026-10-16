@@ -167,8 +167,8 @@ class BSSNCtxGPU : public ts::Ctx<BSSNCtxGPU, DendroScalar, unsigned int> {
     /**@brief: function execute after each step*/
     bool is_remesh();
 
-    /**@brief: write to vtu. */
-    int write_vtu();
+    /**@brief: write to vtu; extract also writes constraints, psi4, BH coords*/
+    int write_vtu(bool extract = true);
 
     /**@brief run the BHaHAHA apparent-horizon solver. Host-side, on the CPU
      * copy of the evolution vars -- caller must have synced it from device. */

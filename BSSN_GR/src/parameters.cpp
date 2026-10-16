@@ -65,6 +65,8 @@ double BSSN_RK_TIME_END                                = 10;
 
 double BSSN_RK45_DESIRED_TOL                           = 1e-6;
 
+unsigned int BSSN_RK_ERR_CTRL                          = 0;
+
 unsigned int BSSN_RK_TYPE;
 
 unsigned int BSSN_CHECKPT_FREQ            = 10;
@@ -194,7 +196,7 @@ unsigned int BSSN_VTU_OUTPUT_EVOL_INDICES[BSSN_NUM_VARS] = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
     12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
 unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[BSSN_CONSTRAINT_NUM_VARS] = {
-    0, 1, 2, 3, 4, 5};
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 unsigned int BSSN_XI[3]                         = {0, 0, 0};
 
@@ -459,6 +461,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_RK_TYPE", bssn::BSSN_RK_TYPE},
         {"BSSN_RK45_TIME_STEP_SIZE", bssn::BSSN_RK45_TIME_STEP_SIZE},
         {"BSSN_RK45_DESIRED_TOL", bssn::BSSN_RK45_DESIRED_TOL},
+        {"BSSN_RK_ERR_CTRL", bssn::BSSN_RK_ERR_CTRL, UseInitialValue},
         {"BSSN_DIM", bssn::BSSN_DIM},
         {"BSSN_MAXDEPTH", bssn::BSSN_MAXDEPTH},
         {"BSSN_GRID_MIN_X", bssn::BSSN_GRID_MIN_X},
@@ -763,6 +766,10 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
                "should be less than number of BSSN_CONSTRAINT_NUM_VARS"
             << std::endl;
         MPI_Abort(comm, 1);
+    }
+    if (BSSN_RK_ERR_CTRL > 2) {
+        throw std::runtime_error(
+            "BSSN_RK_ERR_CTRL must be 0 (off), 1 (estimate) or 2 (adaptive)");
     }
     if (BSSN_NUM_REFINE_VARS == 0 || BSSN_NUM_EVOL_VARS_VTU_OUTPUT == 0 ||
         BSSN_NUM_CONST_VARS_VTU_OUTPUT == 0) {
@@ -1215,6 +1222,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_RK_TYPE", bssn::BSSN_RK_TYPE},
             {"BSSN_RK45_TIME_STEP_SIZE", bssn::BSSN_RK45_TIME_STEP_SIZE},
             {"BSSN_RK45_DESIRED_TOL", bssn::BSSN_RK45_DESIRED_TOL},
+            {"BSSN_RK_ERR_CTRL", bssn::BSSN_RK_ERR_CTRL},
             {"BSSN_DIM", bssn::BSSN_DIM},
             {"BSSN_MAXDEPTH", bssn::BSSN_MAXDEPTH},
             {"BSSN_GRID_MIN_X", bssn::BSSN_GRID_MIN_X},

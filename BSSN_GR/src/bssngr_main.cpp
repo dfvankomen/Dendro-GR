@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdlib>  // std::getenv for the OMP_SCHEDULE default guard
 #include <ctime>  // time_t / time() / ctime() — gcc 15 + <chrono> doesn't drag these in
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -28,6 +29,37 @@
 #include "octUtils.h"
 #include "parameters.h"
 #include "sdc.h"
+
+// CFL dt on the finest level of pMesh
+static double cfl_time_step(const ot::Mesh* pMesh) {
+    unsigned int lmin, lmax;
+    pMesh->computeMinMaxLevel(lmin, lmax);
+    return bssn::BSSN_CFL_FACTOR *
+           ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
+            ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
+            ((double)(1u << (m_uiMaxDepth))));
+}
+
+// one row per accepted step of the embedded RK error control
+static void write_rk_err_data(const ts::ETS<DendroScalar, bssn::BSSNCtx>* ets) {
+    if (ets->get_global_rank()) return;
+    static bool wrote_header  = false;
+    const ts::ETSErrStats& es = ets->get_err_stats();
+    std::ofstream f(bssn::BSSN_PROFILE_FILE_PREFIX + "_RKErr.dat",
+                    std::ofstream::app);
+    f.precision(12);
+    f << std::scientific;
+    if (!wrote_header) {
+        f << "timeStep,simTime,dtTaken,dtNext,dtCap,errNorm,tol,rejects,"
+             "totalRejects,forcedAccepts\n";
+        wrote_header = true;
+    }
+    f << ets->get_timestep_info()._m_uiStep << ","
+      << ets->get_timestep_info()._m_uiT << "," << es.dt_taken << ","
+      << es.dt_next << "," << bssn::BSSN_RK45_TIME_STEP_SIZE << "," << es.err
+      << "," << bssn::BSSN_RK45_DESIRED_TOL << "," << es.rejects << ","
+      << es.total_rejects << "," << es.forced_accepts << "\n";
+}
 
 int main(int argc, char** argv) {
     // 0- NUTS 1-UTS
@@ -461,6 +493,7 @@ int main(int argc, char** argv) {
         //   3=MSRK2_1, 4=MSRK2_2, 5=MSRK3 (multistep RK, arXiv:2603.05763)
         //   6=RALSTON, 7=CASH_KARP, 8=RKF45, 9=NYSTROM, 10=RK6 (single-step)
         //   11=RK6_TSRK (general multistep RK, order 6, depth 2)
+        //   12=RK45_DORMAND_PRINCE (single-step, 7 stages)
         // MSRK/TSRK methods reuse RHS evals from previous steps to cut ghost
         // exchanges (~20-40% speedup); TSRK stores 8 extra derivative clouds.
         const RKType rkType = (RKType)bssn::BSSN_RK_TYPE;
@@ -488,7 +521,7 @@ int main(int argc, char** argv) {
 
             // RKType is index-matched to ts::ETSType, so a direct cast covers
             // every single-step method (RK3/4/5 + RALSTON/CASH_KARP/RKF45/
-            // NYSTROM/RK6).
+            // NYSTROM/RK6/DORMAND_PRINCE).
             if (ets->set_ets_coefficients((ts::ETSType)rkType) != 0) {
                 if (!rank)
                     std::cerr << "Unknown BSSN_RK_TYPE=" << bssn::BSSN_RK_TYPE
@@ -499,6 +532,30 @@ int main(int argc, char** argv) {
 
         ets->set_evolve_vars(bssnCtx->get_evolution_vars());
         ets->init();
+
+        if (bssn::BSSN_RK_ERR_CTRL != 0) {
+            const ts::ETSErrCtrl mode = bssn::BSSN_RK_ERR_CTRL == 1
+                                            ? ts::ETSErrCtrl::ESTIMATE
+                                            : ts::ETSErrCtrl::ADAPTIVE;
+            if (ets->set_error_control(mode, bssn::BSSN_RK45_DESIRED_TOL,
+                                       bssn::BSSN_RK45_DESIRED_TOL,
+                                       bssn::BSSN_SAFETY_FAC) != 0) {
+                if (!rank)
+                    std::cerr << RED
+                              << "BSSN_RK_ERR_CTRL=" << bssn::BSSN_RK_ERR_CTRL
+                              << " needs BSSN_RK_TYPE RK45_CASH_KARP, RKF45 or "
+                                 "RK45_DORMAND_PRINCE (got "
+                              << rk_type_name(bssn::BSSN_RK_TYPE) << ")" << NRM
+                              << std::endl;
+                MPI_Abort(comm, 1);
+            }
+            if (mode == ts::ETSErrCtrl::ADAPTIVE) {
+                // the CFL dt is the cap (also after a restore)
+                bssn::BSSN_RK45_TIME_STEP_SIZE =
+                    cfl_time_step(bssnCtx->get_mesh());
+                ets->set_dt_max(bssn::BSSN_RK45_TIME_STEP_SIZE);
+            }
+        }
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -656,9 +713,14 @@ int main(int argc, char** argv) {
                          ((1u << (m_uiMaxDepth - lmax)) /
                           ((double)bssn::BSSN_ELE_ORDER)) /
                          ((double)(1u << (m_uiMaxDepth))));
-                    ts::TSInfo ts_in = bssnCtx->get_ts_info();
-                    ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
-                    bssnCtx->set_ts_info(ts_in);
+                    if (ets->error_control() == ts::ETSErrCtrl::ADAPTIVE) {
+                        // new cap; the current dt is clamped to it
+                        ets->set_dt_max(bssn::BSSN_RK45_TIME_STEP_SIZE);
+                    } else {
+                        ts::TSInfo ts_in = bssnCtx->get_ts_info();
+                        ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
+                        bssnCtx->set_ts_info(ts_in);
+                    }
 
                     // REMEMBER: true max depth of array = 2 - m_uiMaxDepth
                     if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
@@ -778,6 +840,8 @@ int main(int argc, char** argv) {
             if (!rank_global && step <= 1)
                 std::cout << "[trace step=" << step
                           << "] ets->evolve() returned" << std::endl;
+            if (ets->error_control() != ts::ETSErrCtrl::OFF)
+                write_rk_err_data(ets);
 
             // Write checkpoint  data
             if (bssn::BSSN_CHECKPT_FREQ > 0 && (step % bssn::BSSN_CHECKPT_FREQ) == 0) {

@@ -255,6 +255,14 @@ int main(int argc, char** argv) {
          ((double)(1u << (m_uiMaxDepth))));
     tmpNodes.clear();
 
+    if (bssn::BSSN_RK_ERR_CTRL != 0) {
+        if (!rank)
+            std::cerr << "BSSN_RK_ERR_CTRL is not supported by the GPU driver; "
+                         "set it to 0"
+                      << std::endl;
+        MPI_Abort(comm, 1);
+    }
+
     if (ts_mode == 1) {
         bssn::BSSNCtxGPU* bssnCtx = new bssn::BSSNCtxGPU(mesh);
         ts::ETS<DendroScalar, bssn::BSSNCtxGPU>* ets =
@@ -428,19 +436,23 @@ int main(int argc, char** argv) {
                 bssnCtx->set_ts_info(ts_gw_output);
                 bssnCtx->terminal_output();
                 bssnCtx->evolve_bh_loc();
+                bssnCtx->write_vtu();
                 bssnCtx->set_ts_info(ts_curr);
                 is_gw_written = true;
-                did_d2h_sync  = true;
+                did_d2h_sync  = (ts_gw_output._m_uiStep == step);
             }
 
             // own frequencies, like the CPU driver; D2H once per step
+            // GW steps write their VTU from the block above
             if (bssn::BSSN_IO_OUTPUT_FREQ > 0 &&
-                (step % bssn::BSSN_IO_OUTPUT_FREQ) == 0) {
+                (step % bssn::BSSN_IO_OUTPUT_FREQ) == 0 &&
+                !(bssn::BSSN_GW_EXTRACT_FREQ > 0 &&
+                  (step % bssn::BSSN_GW_EXTRACT_FREQ) == 0)) {
                 if (!did_d2h_sync) {
                     bssnCtx->device_to_host_sync();
                     did_d2h_sync = true;
                 }
-                bssnCtx->write_vtu();
+                bssnCtx->write_vtu(false);
             }
 
             if (AEH::AEH_SOLVER_FREQ > 0 &&
