@@ -660,15 +660,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         set_param(parFile, param);
     }
 
-    std::vector<ParameterInformation> chainedParsList = {
-        {"BSSN_TIME_STEP_OUTPUT_FREQ", bssn::BSSN_TIME_STEP_OUTPUT_FREQ,
-         bssn::BSSN_GW_EXTRACT_FREQ},
-    };
-
-    for (const auto& param : chainedParsList) {
-        set_param(parFile, param);
-    }
-
     // append .log and a time stamp to the log file
     const auto now       = std::chrono::system_clock::now();
     const auto in_time_t = std::chrono::system_clock::to_time_t(now);
