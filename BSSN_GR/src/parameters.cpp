@@ -778,6 +778,17 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
     BSSN_COMPD_MAX[1]  = bssn::BSSN_GRID_MAX_Y;
     BSSN_COMPD_MAX[2]  = bssn::BSSN_GRID_MAX_Z;
 
+    // dt and min dx are computed from the X width only
+    const double gridWidthX = BSSN_GRID_MAX_X - BSSN_GRID_MIN_X;
+    for (const double w : {BSSN_GRID_MAX_Y - BSSN_GRID_MIN_Y,
+                           BSSN_GRID_MAX_Z - BSSN_GRID_MIN_Z}) {
+        if (std::fabs(w - gridWidthX) > 1e-12 * std::fabs(gridWidthX)) {
+            throw std::runtime_error(
+                "BSSN_GRID_MIN/MAX must describe a cube: X, Y and Z widths "
+                "must be equal");
+        }
+    }
+
     for (const double r : {BSSN_BH1_CONSTRAINT_R, BSSN_BH2_CONSTRAINT_R}) {
         if (!(r >= 0.0) || std::isinf(r)) {
             throw std::runtime_error(
