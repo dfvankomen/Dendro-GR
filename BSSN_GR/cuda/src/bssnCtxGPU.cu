@@ -1430,8 +1430,10 @@ void BSSNCtxGPU::evolve_bh_loc() {
     //     std::cout<<"bh1 "<<bhLoc[1]<<std::endl;
 
     // }
-    m_uiBHLoc[0]         = bhLoc[0];
-    m_uiBHLoc[1]         = bhLoc[1];
+    // keep an inert (massless) BH pinned, like the CPU tracker
+    constexpr double BH_ACTIVE_MASS_TOL = 1.0e-6;
+    if (bssn::BSSN_BH1_MASS > BH_ACTIVE_MASS_TOL) m_uiBHLoc[0] = bhLoc[0];
+    if (bssn::BSSN_BH2_MASS > BH_ACTIVE_MASS_TOL) m_uiBHLoc[1] = bhLoc[1];
 
     bssn::BSSN_BH_LOC[0] = m_uiBHLoc[0];
     bssn::BSSN_BH_LOC[1] = m_uiBHLoc[1];
