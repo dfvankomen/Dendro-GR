@@ -1133,6 +1133,23 @@ int BSSNCtxGPU::restore_checkpt() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
 
+    // mirrors the CPU restore
+    const std::string aeh_chkpt_file =
+        bssn::BSSN_CHKPT_FILE_PREFIX + "_aeh_solver_checkpt-cp" +
+        std::to_string(restoreFileIndex) + ".json";
+    if (std::filesystem::exists(aeh_chkpt_file)) {
+        AEH::ah_bah->restore_checkpoint(m_uiMesh, aeh_chkpt_file);
+
+        if (m_bhHistory && m_uiMesh->isActive()) {
+            for (unsigned int h = 0; h < AEH::ah_bah->get_num_horizons(); ++h)
+                m_bhHistory->set_horizon_qoi(h,
+                                             AEH::ah_bah->get_horizon_qoi(h));
+        }
+    } else if (!rank) {
+        std::cout << YLW << "WARNING: " << NRM << aeh_chkpt_file
+                  << " not found; the AH solver starts fresh." << std::endl;
+    }
+
     unsigned int localSz    = m_uiMesh->getNumLocalMeshElements();
     unsigned int totalElems = 0;
     par::Mpi_Allreduce(&localSz, &totalElems, 1, MPI_SUM, comm);
