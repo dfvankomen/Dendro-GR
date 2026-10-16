@@ -444,6 +444,10 @@ int main(int argc, char** argv) {
                 }
                 bssnCtx->write_checkpt();
             }
+
+            // no GW block to track the BHs; do it whenever the host is synced
+            if (bssn::BSSN_GW_EXTRACT_FREQ == 0 && did_d2h_sync)
+                bssnCtx->evolve_bh_loc();
 #endif
 
             bssnCtx->prepare_for_next_iter();
