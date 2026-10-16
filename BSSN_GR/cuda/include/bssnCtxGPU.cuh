@@ -242,7 +242,15 @@ class BSSNCtxGPU : public ts::Ctx<BSSNCtxGPU, DendroScalar, unsigned int> {
 
     inline device::MeshGPU* get_meshgpu_host_handle() { return &m_mesh_cpu; }
 
+    /** @brief latch the merger; later calls keep the first merge time */
+    void set_is_merged(double_t time_merged, uint32_t step_merged) {
+        if (m_bIsBHMerged) return;
+        m_bIsBHMerged = true;
+        set_bh_merge_time(time_merged, step_merged);
+    }
+
     bool is_bh_merged(double tol) const {
+        if (m_bIsBHMerged) return true;
         return ((bssn::BSSN_BH_LOC[0] - bssn::BSSN_BH_LOC[1]).abs() < tol);
     };
 

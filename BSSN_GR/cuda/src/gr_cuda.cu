@@ -329,6 +329,7 @@ int main(int argc, char** argv) {
             const bool is_merged             = bssnCtx->is_bh_merged(0.1);
             if (is_merged && !is_merge_executed) {
                 // mirrors the CPU driver (bssngr_main.cpp)
+                bssnCtx->set_is_merged(time, step);
                 bssn::BSSN_REMESH_TEST_FREQ =
                     bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
                 bssn::BSSN_GW_EXTRACT_FREQ =

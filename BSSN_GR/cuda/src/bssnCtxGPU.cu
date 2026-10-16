@@ -1215,12 +1215,9 @@ int BSSNCtxGPU::post_timestep(DVec& sIn) {
 bool BSSNCtxGPU::is_remesh() {
     bool isRefine         = false;
     // mirrors BSSNCtx::is_remesh -- pre-merger use AMR_FAC, after the merger
-    // checkpoint is written switch to the post-merger value if one is set.
-    // without this the GPU path silently keeps the pre-merger coarsening
-    // factor for the whole post-merger evolution.
+    // switch to the post-merger value if one is set.
     double amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC;
-    if (bssn::BSSN_MERGED_CHKPT_WRITTEN &&
-        (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
+    if (m_bIsBHMerged && (bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER > 0)) {
         amr_coarse_fac = bssn::BSSN_DENDRO_AMR_FAC_POST_MERGER;
     }
 
