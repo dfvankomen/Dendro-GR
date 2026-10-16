@@ -211,47 +211,6 @@ void deriv644_yy_pw4(double *const Du, const double *const u, const double dy,
 void deriv644_zz_pw4(double *const Du, const double *const u, const double dz,
                      const unsigned int *sz, unsigned bflag);
 
-void deriv644adv_x(double *const Dxu, const double *const u, const double dx,
-                   const unsigned int *sz, const double *const betax,
-                   unsigned bflag);
-void deriv644adv_y(double *const Dyu, const double *const u, const double dy,
-                   const unsigned int *sz, const double *const betay,
-                   unsigned bflag);
-void deriv644adv_z(double *const Dzu, const double *const u, const double dz,
-                   const unsigned int *sz, const double *const betaz,
-                   unsigned bflag);
-
-void deriv642_x(double *const Dxu, const double *const u, const double dx,
-                const unsigned int *sz, unsigned bflag);
-void deriv642_y(double *const Dyu, const double *const u, const double dy,
-                const unsigned int *sz, unsigned bflag);
-void deriv642_z(double *const Dzu, const double *const u, const double dz,
-                const unsigned int *sz, unsigned bflag);
-
-void deriv642_xx(double *const DxDxu, const double *const u, const double dx,
-                 const unsigned int *sz, unsigned bflag);
-void deriv642_yy(double *const Du, const double *const u, const double dy,
-                 const unsigned int *sz, unsigned bflag);
-void deriv642_zz(double *const Du, const double *const u, const double dz,
-                 const unsigned int *sz, unsigned bflag);
-
-void deriv642adv_x(double *const Dxu, const double *const u, const double dx,
-                   const unsigned int *sz, const double *const betax,
-                   unsigned bflag);
-void deriv642adv_y(double *const Dyu, const double *const u, const double dy,
-                   const unsigned int *sz, const double *const betay,
-                   unsigned bflag);
-void deriv642adv_z(double *const Dzu, const double *const u, const double dz,
-                   const unsigned int *sz, const double *const betaz,
-                   unsigned bflag);
-
-void ko_deriv64_x(double *const Du, const double *const u, const double dx,
-                  const unsigned int *sz, unsigned bflag);
-void ko_deriv64_y(double *const Du, const double *const u, const double dy,
-                  const unsigned int *sz, unsigned bflag);
-void ko_deriv64_z(double *const Du, const double *const u, const double dz,
-                  const unsigned *sz, unsigned bflag);
-
 // 8th order derivatives.
 
 void deriv8642_x_wrapper(double *const Dxu, const double *const u,
@@ -277,64 +236,6 @@ void deriv8642_yy(double *const Du, const double *const u, const double dy,
                   const unsigned int *sz, unsigned bflag);
 void deriv8642_zz(double *const Du, const double *const u, const double dz,
                   const unsigned int *sz, unsigned bflag);
-
-void deriv8642adv_x(double *const Dxu, const double *const u, const double dx,
-                    const unsigned int *sz, const double *const betax,
-                    unsigned bflag);
-void deriv8642adv_y(double *const Dyu, const double *const u, const double dy,
-                    const unsigned int *sz, const double *const betay,
-                    unsigned bflag);
-void deriv8642adv_z(double *const Dzu, const double *const u, const double dz,
-                    const unsigned int *sz, const double *const betaz,
-                    unsigned bflag);
-
-void deriv8664_x(double *const Dxu, const double *const u, const double dx,
-                 const unsigned int *sz, unsigned bflag);
-void deriv8664_y(double *const Dyu, const double *const u, const double dy,
-                 const unsigned int *sz, unsigned bflag);
-void deriv8664_z(double *const Dzu, const double *const u, const double dz,
-                 const unsigned int *sz, unsigned bflag);
-
-void deriv8664_xx(double *const DxDxu, const double *const u, const double dx,
-                  const unsigned int *sz, unsigned bflag);
-void deriv8664_yy(double *const Du, const double *const u, const double dy,
-                  const unsigned int *sz, unsigned bflag);
-void deriv8664_zz(double *const Du, const double *const u, const double dz,
-                  const unsigned int *sz, unsigned bflag);
-
-void deriv8644adv_x(double *const Dxu, const double *const u, const double dx,
-                    const unsigned int *sz, const double *const betax,
-                    unsigned bflag);
-void deriv8644adv_y(double *const Dyu, const double *const u, const double dy,
-                    const unsigned int *sz, const double *const betay,
-                    unsigned bflag);
-void deriv8644adv_z(double *const Dzu, const double *const u, const double dz,
-                    const unsigned int *sz, const double *const betaz,
-                    unsigned bflag);
-
-void deriv8666_x(double *const Dxu, const double *const u, const double dx,
-                 const unsigned int *sz, unsigned bflag);
-void deriv8666_y(double *const Dyu, const double *const u, const double dy,
-                 const unsigned int *sz, unsigned bflag);
-void deriv8666_z(double *const Dzu, const double *const u, const double dz,
-                 const unsigned int *sz, unsigned bflag);
-
-void deriv8666_xx(double *const DxDxu, const double *const u, const double dx,
-                  const unsigned int *sz, unsigned bflag);
-void deriv8666_yy(double *const Du, const double *const u, const double dy,
-                  const unsigned int *sz, unsigned bflag);
-void deriv8666_zz(double *const Du, const double *const u, const double dz,
-                  const unsigned int *sz, unsigned bflag);
-
-void deriv8666adv_x(double *const Dxu, const double *const u, const double dx,
-                    const unsigned int *sz, const double *const betax,
-                    unsigned bflag);
-void deriv8666adv_y(double *const Dyu, const double *const u, const double dy,
-                    const unsigned int *sz, const double *const betay,
-                    unsigned bflag);
-void deriv8666adv_z(double *const Dzu, const double *const u, const double dz,
-                    const unsigned int *sz, const double *const betaz,
-                    unsigned bflag);
 
 // these are the derivs that will be used in the SOLVER CODE based on the FD
 // derivative order.
