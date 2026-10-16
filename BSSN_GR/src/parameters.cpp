@@ -173,7 +173,6 @@ std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST          = "auto";
 std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND         = "auto";
 #endif
 
-unsigned int RIT_ETA_FUNCTION                            = 1;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
 double RIT_ETA_WIDTH                                     = 40.0;
@@ -565,7 +564,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
          UseInitialValue},
         {"BSSN_GW_EXTRACT_FREQ_AFTER_MERGER",
          bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER, UseInitialValue},
-        {"RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION, UseInitialValue},
         {"RIT_ETA_OUTER", bssn::RIT_ETA_OUTER, UseInitialValue},
         {"RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL, UseInitialValue},
         {"RIT_ETA_WIDTH", bssn::RIT_ETA_WIDTH, UseInitialValue},
@@ -1101,6 +1099,16 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         all_params_in_parfile.insert(key);
     }
 
+    if (parFile.contains("RIT_ETA_FUNCTION")) {
+        used_params.insert("RIT_ETA_FUNCTION");
+        if (rank == 0) {
+            std::cout << YLW
+                      << "WARNING: RIT_ETA_FUNCTION is ignored; the eta "
+                         "damping function is selected at compile time."
+                      << NRM << std::endl;
+        }
+    }
+
     // find the unused ones
     std::vector<std::string> unused_params = unused_aeh_params;
     for (const auto& key : all_params_in_parfile) {
@@ -1288,7 +1296,6 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
              bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER},
             {"BSSN_GW_EXTRACT_FREQ_AFTER_MERGER",
              bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER},
-            {"RIT_ETA_FUNCTION", bssn::RIT_ETA_FUNCTION},
             {"RIT_ETA_OUTER", bssn::RIT_ETA_OUTER},
             {"RIT_ETA_CENTRAL", bssn::RIT_ETA_CENTRAL},
             {"RIT_ETA_WIDTH", bssn::RIT_ETA_WIDTH},

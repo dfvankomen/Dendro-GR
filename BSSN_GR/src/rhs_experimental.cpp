@@ -330,16 +330,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     bssn::timer::t_deriv.stop();
 
-    // loop dep. removed allowing compiler to optmize for vectorization.
-    // if (bssn::RIT_ETA_FUNCTION == 0) {
-    //     // HAD eta function
-    //     eta=ETA_CONST;
-    //     if (r_coord >= ETA_R0) {
-    //         eta *= pow( (ETA_R0/r_coord), ETA_DAMPING_EXP);
-    //     }
-    // }
-    // cout << "begin loop" << endl;
-
     // the SSL parameters
     const double h_ssl   = bssn::BSSN_SSL_H;
     const double sig_ssl = bssn::BSSN_SSL_SIGMA;

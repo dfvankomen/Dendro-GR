@@ -2134,20 +2134,11 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
         m_uiMesh->octCoordToDomainCoord(pt_oct, pt_domain);
         const double r_coord = pt_domain.abs();
 
-        double eta;
-        if (bssn::RIT_ETA_FUNCTION == 0) {
-            // HAD eta function
-            eta = ETA_CONST;
-            if (r_coord >= ETA_R0) {
-                eta *= pow((ETA_R0 / r_coord), ETA_DAMPING_EXP);
-            }
-        } else {
-            // RIT eta function
-            double w   = r_coord / bssn::RIT_ETA_WIDTH;
-            double arg = -w * w * w * w;
-            eta = (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
-                  bssn::RIT_ETA_OUTER;
-        }
+        const double w   = r_coord / bssn::RIT_ETA_WIDTH;
+        const double arg = -w * w * w * w;
+        const double eta =
+            (bssn::RIT_ETA_CENTRAL - bssn::RIT_ETA_OUTER) * exp(arg) +
+            bssn::RIT_ETA_OUTER;
 
         const double dt_eta      = dt_eta_fac * (1 / eta);
         const double dt_cfl      = (1u << (lmax - blev)) * dt_min;

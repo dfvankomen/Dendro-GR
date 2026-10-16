@@ -302,8 +302,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tBSSN_ETA_POWER : (" << bssn::BSSN_ETA_POWER[0] << " ,"
              << bssn::BSSN_ETA_POWER[1] << " )" << NRM << std::endl;
-        sout << YLW << "\tRIT_ETA_FUNCTION: " << bssn::RIT_ETA_FUNCTION << NRM
-             << std::endl;
         sout << YLW << "\tRIT_ETA_CENTRAL: " << bssn::RIT_ETA_CENTRAL << NRM
              << std::endl;
         sout << YLW << "\tRIT_ETA_WIDTH: " << bssn::RIT_ETA_WIDTH << NRM
