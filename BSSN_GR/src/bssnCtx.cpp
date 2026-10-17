@@ -1654,14 +1654,25 @@ int BSSNCtx::restore_checkpt() {
             m_bBHVelValid = meta.bhVelValid;
             if (meta.subcycled >= 0 && s_iSubcycled >= 0 &&
                 meta.subcycled != s_iSubcycled) {
+                // DENDRO_RESTORE_ANY_STEPPER=1: take the fields and the time
+                // anyway (timing windows restart every code from one run's
+                // checkpoints). the step count stays the writer's, so the
+                // uniform stepper's step-gated output is offset; LTS gates by time
+                const char* e  = std::getenv("DENDRO_RESTORE_ANY_STEPPER");
+                const bool any = e && std::atoi(e) != 0;
                 if (!rank)
-                    std::cout << " [BSSNCtx] : checkpoint written by the "
+                    std::cout << (any ? RED : "")
+                              << " [BSSNCtx] : checkpoint written by the "
                               << (meta.subcycled ? "LTS" : "uniform")
-                              << " stepper cannot be restored under the "
+                              << (any ? " stepper restored under the "
+                                      : " stepper cannot be restored under the ")
                               << (s_iSubcycled ? "LTS" : "uniform")
-                              << " stepper (the step counts differ)."
-                              << std::endl;
-                MPI_Abort(comm, 1);
+                              << " stepper (the step counts differ)"
+                              << (any ? "; DENDRO_RESTORE_ANY_STEPPER=1 keeps "
+                                        "the writer's step count."
+                                      : ".")
+                              << (any ? NRM : "") << std::endl;
+                if (!any) MPI_Abort(comm, 1);
             }
             m_uiBHVel[0]  = Point(meta.bhv1[0], meta.bhv1[1], meta.bhv1[2]);
             m_uiBHVel[1]  = Point(meta.bhv2[0], meta.bhv2[1], meta.bhv2[2]);
