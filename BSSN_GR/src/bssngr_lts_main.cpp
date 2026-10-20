@@ -120,8 +120,9 @@ static void dump_constraint_norms(bssn::BSSNCtx* ctx, DendroIntL step, double t,
 }
 
 int main(int argc, char** argv) {
-    // 0- NUTS 1-UTS
+    // 0 = LTS, 1 = global; from BSSN_TIME_STEPPER unless the command line names it
     unsigned int ts_mode = 1;
+    int ts_mode_arg      = -1;
 
     if (argc < 2) {
         std::cout << "usage: " << argv[0] << " PARAM_FILE [TS_MODE]"
@@ -130,14 +131,14 @@ int main(int argc, char** argv) {
         std::cout << "  PARAM_FILE" << std::endl
                   << "      Path to the parameter file (.toml)" << std::endl;
         std::cout << "  TS_MODE" << std::endl
-                  << "      Time stepper mode." << std::endl;
+                  << "      Time stepper; overrides BSSN_TIME_STEPPER (default "
+                     "\"global\")." << std::endl;
         std::cout << "        0 - local time stepping (LTS)" << std::endl;
-        std::cout << "        1 - global time stepping (" << GRN << "default"
-                  << NRM << ")" << std::endl;
+        std::cout << "        1 - global time stepping" << std::endl;
         return 0;
     }
 
-    if (argc > 2) ts_mode = std::atoi(argv[2]);
+    if (argc > 2) ts_mode_arg = std::atoi(argv[2]);
 
     // Hybrid OpenMP/MPI needs at least FUNNELED: only the master thread calls
     // MPI (threading happens inside compute regions, not around MPI calls).
@@ -204,17 +205,6 @@ int main(int argc, char** argv) {
         std::cout << "======================================" << std::endl;
         std::cout << GRN << ":::: Now initializing BSSN Solver ::::" << NRM
                   << std::endl;
-        if (ts_mode == 0) {
-            std::cout << YLW
-                      << "      - Running with the Non-Uniform/Spatially "
-                         "Adaptive Time Stepper (NUTS/SATS)"
-                      << NRM << std::endl;
-        } else {
-            std::cout << YLW
-                      << "      - Running with the Uniform Time Stepper (UTS)"
-                      << NRM << std::endl;
-        }
-
         std::cout << "======================================" << std::endl;
     }
 
@@ -310,6 +300,23 @@ int main(int argc, char** argv) {
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
+    if (ts_mode_arg >= 0) {
+        ts_mode = (unsigned int)ts_mode_arg;
+    } else if (bssn::BSSN_TIME_STEPPER == "lts") {
+        ts_mode = 0;
+    } else if (bssn::BSSN_TIME_STEPPER == "global") {
+        ts_mode = 1;
+    } else {
+        if (!rank)
+            std::cerr << "BSSN_TIME_STEPPER must be \"global\" or \"lts\", not \""
+                      << bssn::BSSN_TIME_STEPPER << "\"" << std::endl;
+        MPI_Abort(comm, 1);
+    }
+    if (!rank)
+        std::cout << YLW << "      - time stepper: "
+                  << (ts_mode == 0 ? "local (LTS)" : "global")
+                  << (ts_mode_arg >= 0 ? " (command line)" : " (BSSN_TIME_STEPPER)")
+                  << NRM << std::endl;
     bssn::resolve_cahd_form(ts_mode == 0, comm);
 
     if (ts_mode == 0) {

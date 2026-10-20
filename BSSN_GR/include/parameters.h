@@ -481,6 +481,10 @@ extern std::string BSSN_CAHD_FORM;
 /**@brief Etienne-form coefficient; < 0 = BSSN_CAHD_C / CFL^2*/
 extern double BSSN_CAHD_ETIENNE_C;
 
+/// Time stepper: "global" (Runge-Kutta, every block at the finest step) or
+/// "lts" (local time stepping). The command-line mode overrides it.
+extern std::string BSSN_TIME_STEPPER;
+
 /**@brief print the constraint L2 norms at the first step at or past every
  * multiple of this time; 0 = off*/
 extern double BSSN_CONSTRAINT_MONITOR_DT;

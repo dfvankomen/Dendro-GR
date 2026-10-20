@@ -223,6 +223,7 @@ double BSSN_LTS_ETA_C                           = 2.0;
 std::string BSSN_CAHD_FORM                      = "";
 double BSSN_CAHD_ETIENNE_C                      = -1.0;
 bool BSSN_CAHD_ETIENNE                          = false;
+std::string BSSN_TIME_STEPPER                   = "global";
 double BSSN_CONSTRAINT_MONITOR_DT               = 0.0;
 bool BSSN_RESTORE_ANY_STEPPER                   = false;
 
@@ -594,6 +595,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C, UseInitialValue},
         {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM, UseInitialValue},
         {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C, UseInitialValue},
+        {"BSSN_TIME_STEPPER", bssn::BSSN_TIME_STEPPER, UseInitialValue},
         {"BSSN_CONSTRAINT_MONITOR_DT", bssn::BSSN_CONSTRAINT_MONITOR_DT,
          UseInitialValue},
         {"BSSN_RESTORE_ANY_STEPPER", bssn::BSSN_RESTORE_ANY_STEPPER,
@@ -1273,6 +1275,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C},
             {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM},
             {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C},
+            {"BSSN_TIME_STEPPER", bssn::BSSN_TIME_STEPPER},
             {"BSSN_CONSTRAINT_MONITOR_DT", bssn::BSSN_CONSTRAINT_MONITOR_DT},
             {"BSSN_RESTORE_ANY_STEPPER", bssn::BSSN_RESTORE_ANY_STEPPER},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
