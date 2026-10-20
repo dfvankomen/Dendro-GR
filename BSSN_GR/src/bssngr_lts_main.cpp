@@ -562,7 +562,6 @@ int main(int argc, char** argv) {
             // unless the environment says otherwise.
             setenv("DENDRO_ENUTS_OWNER_SYNC", "1", 0);
             setenv("DENDRO_ENUTS_SYNC_FAST", "1", 0);
-            setenv("DENDRO_ENUTS_STAGE_TIME", "1", 0);
             // owner-sync cuts measured on q12 (loop 61.6 -> 54.7 s): no interior
             // self-copy, no per-sub-step element-time exchange, threaded pack /
             // unpack, and one shared parent-to-child store per pass
