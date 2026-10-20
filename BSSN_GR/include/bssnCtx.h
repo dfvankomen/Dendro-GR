@@ -120,9 +120,9 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 #endif
 
    public:
-    /**@brief LTS: the block hooks may run concurrently (enforcement and the
-     * min det(gt) record are per block or reduced under a critical section,
-     * the puncture tracker updates its state in its own critical section)*/
+    /// LTS: the block hooks may run concurrently. Enforcement is per block,
+    /// the min det(gt) record and the puncture tracker update shared state in
+    /// their own critical sections.
     static constexpr bool lts_thread_safe = true;
 
     /** @brief: rebuild the per-thread deriv pool + pre-build deriv state for the
@@ -240,18 +240,18 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     int post_timestep_blk(DendroScalar* in, unsigned int dof,
                           unsigned int local_blk_id, DendroScalar blk_time);
 
-    /**@brief rebuild the per-mesh data after the mesh object changed: the
-     * derivative workspace and pool and the grid size; after a remesh
-     * (remeshed) also the finest spacing, the step size, the output
-     * frequencies and the constraint variables*/
+    /// Rebuilds the per-mesh data after the mesh object changed: the
+    /// derivative workspace and pool and the grid size; after a remesh
+    /// (`remeshed`) also the finest spacing, the step size, the output
+    /// frequencies and the constraint variables. Collective: yes.
     void on_mesh_changed(bool remeshed);
 
-    /**@brief geometry of local block blk in the BSSN domain*/
+    /// Geometry of local block `blk` in the BSSN domain.
     ts::BlockView block_view(unsigned int blk) const;
 
-    /**@brief pointwise constraint enforcement on a block-local buffer (the
-     * whole padded block, the interior of a boundary block); records the
-     * smallest det(gt) of the interior seen before enforcement*/
+    /// Pointwise constraint enforcement on a block-local buffer (the whole
+    /// padded block, the interior of a boundary block); records the smallest
+    /// det(gt) of the interior seen before enforcement. Thread-safe: yes.
     void enforce_blk(DendroScalar* in, unsigned int dof, unsigned int blk);
 
     /**
