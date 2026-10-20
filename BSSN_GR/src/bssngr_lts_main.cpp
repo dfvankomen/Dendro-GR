@@ -579,11 +579,6 @@ int main(int argc, char** argv) {
             // a step is a coarse step here and the finder is gated on time,
             // so its own step-count gate on the diagnostics files is wrong
             if (AEH::ah_bah) AEH::ah_bah->set_write_every_find(true);
-            // the work-weighted start-up partition: apply it after the initial
-            // grid has converged (so weighted and unweighted runs start from one
-            // mesh) and with the evolution vector's ghosts filled first
-            setenv("DENDRO_ENUTS_WPART_LATE", "1", 0);
-            setenv("DENDRO_ENUTS_WPART_GHOST_SYNC", "1", 0);
             // the weighted repartition remeshes at init; DENDRO_NUTS_NO_WPART=1
             // keeps the LTS run on the grid the uniform run starts from
             const bool useWpart = !std::getenv("DENDRO_NUTS_NO_WPART");
