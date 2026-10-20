@@ -138,19 +138,10 @@ inline ot::Mesh* buildGraphTwin(ot::Mesh* srcMesh, unsigned int eleOrder,
     // keeps the full machinery).
 
     if (srcMesh->isActive() && graphMesh->isActive()) {
-        const auto& srcMask      = srcMesh->getOwnerMask();
         const unsigned int srcLB = srcMesh->getElementLocalBegin();
         const unsigned int srcLE = srcMesh->getElementLocalEnd();
         const unsigned int dstLB = graphMesh->getElementLocalBegin();
         const size_t totalElems  = graphMesh->getAllElements().size();
-        std::vector<uint32_t> dstMask(totalElems, 0u);
-        if (srcMask.size() >= srcLE) {
-            for (unsigned int i = 0;
-                 i < (srcLE - srcLB) && (dstLB + i) < totalElems; i++)
-                dstMask[dstLB + i] = srcMask[srcLB + i];
-        }
-        graphMesh->setOwnerMask(std::move(dstMask));
-
         const auto& srcBlkInfo = srcMesh->getBlockInfo();
         std::vector<ot::Mesh::CanonicalBlockInfo> dstBlkInfo(totalElems);
         if (srcBlkInfo.size() >= srcLE) {
