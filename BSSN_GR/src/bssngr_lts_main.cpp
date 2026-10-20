@@ -572,10 +572,6 @@ int main(int argc, char** argv) {
             // send a ghost slot only when a block that reads it steps (q12: 58 %
             // fewer doubles exchanged, loop 50.9 -> 46.8 s)
             setenv("DENDRO_ENUTS_XCH_SCOPED", "1", 0);
-            // point location for interpolation (tracker, wave extraction) by
-            // containment only: the splitter route assumes one SFC range per
-            // rank and misses on a labelled mesh (same values, no misses)
-            setenv("DENDRO_INTERP_DIRECT", "1", 0);
             // a step is a coarse step here and the finder is gated on time,
             // so its own step-count gate on the diagnostics files is wrong
             if (AEH::ah_bah) AEH::ah_bah->set_write_every_find(true);
