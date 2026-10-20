@@ -316,8 +316,6 @@ int main(int argc, char** argv) {
         // LTS defaults that the stepper, the step rule and the block loop read
         // on first use, so they are set before anything is built. each one
         // stays as the environment gives it if set.
-        // threads inside the stepper's own loops (one thread = serial)
-        setenv("DENDRO_ENUTS_OMP", "1", 0);
         // owner sync on the level-wise partition
         setenv("DENDRO_ENUTS_OWNER_SYNC_LABELLED", "1", 0);
         // a rank with fewer than 16 blocks on its finest level splits them, so

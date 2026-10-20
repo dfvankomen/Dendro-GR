@@ -120,6 +120,11 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 #endif
 
    public:
+    /**@brief LTS: the block hooks may run concurrently (enforcement and the
+     * min det(gt) record are per block or reduced under a critical section,
+     * the puncture tracker updates its state in its own critical section)*/
+    static constexpr bool lts_thread_safe = true;
+
     /** @brief: rebuild the per-thread deriv pool + pre-build deriv state for the
      * current mesh. Call after every remesh (the threaded RHS must not lazily
      * create deriv state -- races). No-op without DENDRO_USE_NEW_DERIVS. */
