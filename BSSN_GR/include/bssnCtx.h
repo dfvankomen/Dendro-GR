@@ -363,10 +363,6 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /** @brief computes the LTS TS offset based on the eta damping.*/
     unsigned int compute_lts_ts_offset();
 
-    /** @brief : blk time step factor. */
-    static unsigned int getBlkTimestepFac(unsigned int blev, unsigned int lmin,
-                                          unsigned int lmax);
-
     /** @biref: evolve bh locations. */
     void evolve_bh_loc();
 

@@ -462,6 +462,21 @@ extern bool BSSN_VTU_Y_SLICE;
 /**@brief TS off set for LTS in BSSN*/
 extern unsigned int BSSN_LTS_TS_OFFSET;
 
+/**@brief LTS interface stage conversion: 3 (third order) or 15 (fourth order)*/
+extern unsigned int BSSN_LTS_IFACE;
+
+/**@brief LTS with BSSN_LTS_IFACE 15: exchange the stored stage vector g, so
+ * the result does not depend on the rank count*/
+extern bool BSSN_LTS_G_EXCHANGE;
+
+/**@brief LTS: largest coarse-to-fine step ratio, snapped down to a power of
+ * two; 0 = no cap, 1 = every block takes the finest step*/
+extern unsigned int BSSN_LTS_RATIO_CAP;
+
+/**@brief LTS: block step bound dt * eta <= C from the Gamma-driver damping;
+ * 0 = the older bound dt_min * ETA_CONST / eta*/
+extern double BSSN_LTS_ETA_C;
+
 /**@brief to track if a merged checkpoint file is writte.*/
 extern bool BSSN_MERGED_CHKPT_WRITTEN;
 

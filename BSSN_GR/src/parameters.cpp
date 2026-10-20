@@ -216,6 +216,10 @@ bool BSSN_VTU_X_SLICE                           = false;
 bool BSSN_VTU_Y_SLICE                           = false;
 
 unsigned int BSSN_LTS_TS_OFFSET                 = 4;
+unsigned int BSSN_LTS_IFACE                     = 3;
+bool BSSN_LTS_G_EXCHANGE                        = false;
+unsigned int BSSN_LTS_RATIO_CAP                 = 64;
+double BSSN_LTS_ETA_C                           = 2.0;
 
 bool BSSN_MERGED_CHKPT_WRITTEN                  = false;
 
@@ -579,6 +583,10 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_CAHD_C", bssn::BSSN_CAHD_C, UseInitialValue},
         {"BSSN_PARTITIONING_METHOD", bssn::BSSN_PARTITIONING_METHOD,
          UseInitialValue},
+        {"BSSN_LTS_IFACE", bssn::BSSN_LTS_IFACE, UseInitialValue},
+        {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE, UseInitialValue},
+        {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP, UseInitialValue},
+        {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C, UseInitialValue},
         // lambda and xi are added later
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
         {"BSSN_HYBRID_RHS_SCHEDULE", bssn::BSSN_HYBRID_RHS_SCHEDULE,
@@ -1248,6 +1256,10 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER},
             {"BSSN_CAHD_C", bssn::BSSN_CAHD_C},
             {"BSSN_PARTITIONING_METHOD", bssn::BSSN_PARTITIONING_METHOD},
+            {"BSSN_LTS_IFACE", bssn::BSSN_LTS_IFACE},
+            {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE},
+            {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP},
+            {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},

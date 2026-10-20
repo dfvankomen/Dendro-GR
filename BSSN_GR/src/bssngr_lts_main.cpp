@@ -321,10 +321,6 @@ int main(int argc, char** argv) {
         // LTS defaults that the stepper, the step rule and the block loop read
         // on first use, so they are set before anything is built. each one
         // stays as the environment gives it if set.
-        // ratio cap 64 and the eta step bound (without the bound the gauge
-        // damping term is unstable at large step ratios)
-        setenv("DENDRO_LTS_RATIO_CAP", "64", 0);
-        setenv("DENDRO_LTS_ETA_C", "2", 0);
         // threads inside the stepper's own loops (one thread = serial)
         setenv("DENDRO_ENUTS_OMP", "1", 0);
         // owner sync on the level-wise partition
@@ -615,7 +611,6 @@ int main(int argc, char** argv) {
             // LTS equals the uniform stepper at step ratio 1 only with the
             // interface fixes and the per-stage time, so they are on here
             // unless the environment says otherwise.
-            setenv("DENDRO_ENUTS_IFACE_FIX", "3", 0);
             setenv("DENDRO_ENUTS_OWNER_SYNC", "1", 0);
             setenv("DENDRO_ENUTS_SYNC_FAST", "1", 0);
             setenv("DENDRO_ENUTS_STAGE_TIME", "1", 0);
@@ -658,8 +653,12 @@ int main(int argc, char** argv) {
             // the weighted repartition remeshes at init; DENDRO_NUTS_NO_WPART=1
             // keeps the LTS run on the grid the uniform run starts from
             const bool useWpart = !std::getenv("DENDRO_NUTS_NO_WPART");
-            enuts = new ts::ExplicitNUTS<DendroScalar, bssn::BSSNCtx>(bssnCtx,
-                                                                      useWpart);
+            ts::LtsOptions opts;
+            opts.iface      = bssn::BSSN_LTS_IFACE;
+            opts.g_exchange = bssn::BSSN_LTS_G_EXCHANGE;
+            opts.ratio_cap  = bssn::BSSN_LTS_RATIO_CAP;
+            enuts = new ts::ExplicitNUTS<DendroScalar, bssn::BSSNCtx>(
+                bssnCtx, useWpart, opts);
             ets   = enuts;
             ets->set_evolve_vars(bssnCtx->get_evolution_vars());
             // RK5 segfaults in the first LTS step (any partition, any switches;

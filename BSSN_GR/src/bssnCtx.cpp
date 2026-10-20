@@ -2245,13 +2245,7 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
     // CFL step of the level and dt * eta at that step (the full-ladder value
     // the Gamma-driver damping term sees; RK4 is stable to about 2.78).
     static const bool lvl_info = std::getenv("DENDRO_LTS_LEVEL_INFO") != nullptr;
-    // DENDRO_LTS_ETA_C=<C> (opt-in): bound the block step by dt * eta <= C, in
-    // place of the default dt_min * ETA_CONST / eta, which ties the bound to the
-    // finest step. <= 0 or unset keeps the default.
-    static const double eta_c = []() {
-        const char* e = std::getenv("DENDRO_LTS_ETA_C");
-        return e ? std::atof(e) : 0.0;
-    }();
+    const double eta_c = bssn::BSSN_LTS_ETA_C;
     const unsigned int nl = m_uiMaxDepth + 1;
     std::vector<double> lv_blk(nl, 0.0), lv_ele(nl, 0.0), lv_rmin(nl, 1e300),
         lv_rnear(nl, 1e300), lv_eta(nl, 0.0), lv_eta_near(nl, 0.0);
@@ -2368,7 +2362,9 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
             for (unsigned int l = lmin; l <= lmax; l++) {
                 if (g_blk[l] == 0.0) continue;
                 const double dt_cfl = (1u << (lmax - l)) * dt_min;
-                const unsigned int fac = getBlkTimestepFac(l, lmin, lmax);
+                const unsigned int fac = ts::step_ratio(
+                    l, lmax, BSSN_LTS_TS_OFFSET,
+                    ts::snap_ratio_cap(bssn::BSSN_LTS_RATIO_CAP));
                 printf("[lts-level-info] %u %.0f %.0f %.4g %.4g %.4g %.4g %.6g "
                        "%.4g %u %.4g\n",
                        l, g_blk[l], g_ele[l], g_rmin[l], g_rnear[l], g_eta[l],
@@ -2379,38 +2375,6 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
     }
 
     return BSSN_LTS_TS_OFFSET;
-}
-
-unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
-                                        unsigned int lmax) {
-    const unsigned int ldiff = BSSN_LTS_TS_OFFSET;
-    unsigned int fac;
-    if ((lmax - blev) <= ldiff)
-        fac = 1;
-    else
-        fac = 1u << (lmax - blev - ldiff);
-
-    // DENDRO_LTS_RATIO_CAP=<c> (opt-in): cap the coarse-to-fine step ratio to
-    // trade LTS speedup for accuracy. unset or 0 = no cap, 1 = every block on
-    // the finest step. This is the ONLY choke point for the ratio:
-    // update_ele_timestep, the pt%BLK_DT scheduler, coarset_t and the
-    // per-element m_uiEleDT the correction operator reads all derive from here,
-    // so a single clamp stays self-consistent. The cap is snapped DOWN to a
-    // power of two so the sub-cycle factor ladder {1,2,4,...} stays nested.
-    // Independent of BSSN_LTS_TS_OFFSET / eta (physical gauge damping) — clamps
-    // from the top, leaves the eta-driven floor untouched.
-    static const unsigned int ratio_cap = []() -> unsigned int {
-        const char* e = getenv("DENDRO_LTS_RATIO_CAP");
-        if (e == nullptr) return 0u;
-        const int c = atoi(e);
-        if (c <= 1) return (c == 1) ? 1u : 0u;  // <=0 disables; 1 => GTS-like
-        unsigned int p = 1u;
-        while ((p << 1) <= (unsigned int)c) p <<= 1;  // largest pow2 <= c
-        return p;
-    }();
-    if (ratio_cap != 0u && fac > ratio_cap) fac = ratio_cap;
-
-    return fac;
 }
 
 void BSSNCtx::lts_track_bh_blk(const DendroScalar* in,
