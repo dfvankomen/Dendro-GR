@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
         ts_mode = (unsigned int)ts_mode_arg;
     } else if (bssn::BSSN_TIME_STEPPER == "lts") {
         ts_mode = 0;
-    } else if (bssn::BSSN_TIME_STEPPER == "global") {
+    } else if (bssn::BSSN_TIME_STEPPER == "global" || bssn::BSSN_TIME_STEPPER.empty()) {
         ts_mode = 1;
     } else {
         if (!rank)
@@ -313,9 +313,10 @@ int main(int argc, char** argv) {
         MPI_Abort(comm, 1);
     }
     if (!rank)
-        std::cout << YLW << "      - time stepper: "
-                  << (ts_mode == 0 ? "local (LTS)" : "global")
-                  << (ts_mode_arg >= 0 ? " (command line)" : " (BSSN_TIME_STEPPER)")
+        std::cout << YLW << "time stepper: " << (ts_mode == 0 ? "lts" : "global")
+                  << (ts_mode_arg >= 0                    ? " (command line)"
+                      : bssn::BSSN_TIME_STEPPER.empty()   ? " (default)"
+                                                          : " (par key)")
                   << NRM << std::endl;
     bssn::resolve_cahd_form(ts_mode == 0, comm);
 

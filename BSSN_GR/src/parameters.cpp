@@ -223,7 +223,7 @@ double BSSN_LTS_ETA_C                           = 2.0;
 std::string BSSN_CAHD_FORM                      = "";
 double BSSN_CAHD_ETIENNE_C                      = -1.0;
 bool BSSN_CAHD_ETIENNE                          = false;
-std::string BSSN_TIME_STEPPER                   = "global";
+std::string BSSN_TIME_STEPPER                   = "";
 double BSSN_CONSTRAINT_MONITOR_DT               = 0.0;
 bool BSSN_RESTORE_ANY_STEPPER                   = false;
 

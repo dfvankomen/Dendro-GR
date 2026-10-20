@@ -482,7 +482,8 @@ extern std::string BSSN_CAHD_FORM;
 extern double BSSN_CAHD_ETIENNE_C;
 
 /// Time stepper: "global" (Runge-Kutta, every block at the finest step) or
-/// "lts" (local time stepping). The command-line mode overrides it.
+/// "lts" (local time stepping); empty = global. The command-line mode
+/// overrides it.
 extern std::string BSSN_TIME_STEPPER;
 
 /**@brief print the constraint L2 norms at the first step at or past every
