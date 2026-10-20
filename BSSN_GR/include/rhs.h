@@ -33,7 +33,7 @@ void bssnrhs(double **uzipVarsRHS, const double **uZipVars,
              const unsigned int &offset, const double *ptmin,
              const double *ptmax, const unsigned int *sz,
              const unsigned int &bflag, const double t,
-             const double **uZipConstVars, const double dt_blk = 0.0);
+             const double **uZipConstVars);
 
 // void bssnrhs_sep(double **uzipVarsRHS, const double **uZipVars,
 //              const unsigned int &offset,

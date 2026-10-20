@@ -146,8 +146,7 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
 void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
              const unsigned int &offset, const double *pmin, const double *pmax,
              const unsigned int *sz, const unsigned int &bflag, const double t,
-             const double **uZipConstVars,
-             const double dt_blk) {
+             const double **uZipConstVars) {
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];
     const double *const K     = &uZipVars[VAR::U_K][offset];
@@ -224,7 +223,6 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     // for CAHD we need also need dt, dx_i, and dx_min
     // the generated term is C chi dx^2 / (dt (1 + 10 dx^2)) H.
-    // dt_blk > 0: LTS hands in the step that coefficient should use.
     // DENDRO_CAHD_ETIENNE=1: the other form in CodeGen/bssn.py,
     // C chi (dt_min dx / dx_min) H, by handing the generated term the dt that
     // turns it into that. it depends on the level's spacing only, so the
@@ -235,7 +233,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         cahd_etienne
             ? hx * bssn::BSSN_CURRENT_MIN_DX /
                   (bssn::BSSN_RK45_TIME_STEP_SIZE * (1.0 + 10.0 * hx * hx))
-            : ((dt_blk > 0.0) ? dt_blk : bssn::BSSN_RK45_TIME_STEP_SIZE);
+            : bssn::BSSN_RK45_TIME_STEP_SIZE;
     // dx_i is the current dx (which is our hx)
     const double dx_i                    = hx;
     // dx_min is the minimum resolution of the entire grid

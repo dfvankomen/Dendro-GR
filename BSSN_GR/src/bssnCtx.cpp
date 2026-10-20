@@ -346,7 +346,6 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     const ts::BlockView b    = block_view(blk);
     const unsigned int NN    = b.nn;
     const unsigned int PW    = bssn::BSSN_PADDING_WIDTH;
-    const double dx          = b.dx[0];
     const DendroScalar* unzipIn[BSSN_NUM_VARS];
     DendroScalar* unzipOut[BSSN_NUM_VARS];
     b.split(in, unzipIn, dof);
@@ -363,58 +362,13 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
     for (unsigned int v = 0; v < bssn::BSSN_CONSTRAINT_NUM_VARS; v++)
         consBlk[v] = consFull[v] + cvOffset;
 
-    // CAHD is a diffusion term on chi with coefficient C dx^2 / dt: with the
-    // global step in it, a block with step ratio r integrates it at r times
-    // the uniform stepper's stability number (about 36 C chi r against RK4's
-    // 2.785), which is unstable for r >= 2 on any fine mesh at C = 0.06.
-    // DENDRO_LTS_CAHD_DT (opt-in) picks the step in the coefficient:
-    //   1: the block's own step, so every block sits at the uniform stepper's
-    //      stability number (identical to it on blocks at the finest step,
-    //      r times weaker damping on a block at ratio r);
-    //   2: max(dt_min, C dt_blk / CMAX) with DENDRO_LTS_CAHD_CMAX (default 2).
-    //   3: as 2 with the block's largest chi and the term's 1 / (1 + 10 dx^2)
-    //      in the bound, so chi times the diffusion number per block step is
-    //      at most CMAX on any mesh (default 0.07; RK4 fails near 0.077).
-    static const int cahd_mode = []() {
-        const char* e = std::getenv("DENDRO_LTS_CAHD_DT");
-        return e ? std::atoi(e) : 0;
-    }();
-    static const double cahd_cmax = []() {
-        const char* e = std::getenv("DENDRO_LTS_CAHD_CMAX");
-        return e ? std::atof(e) : 2.0;
-    }();
-    double dt_blk = 0.0;
-    if (cahd_mode == 1 || cahd_mode == 2) {
-        const unsigned int blev =
-            m_uiMesh->getAllElements()[blkList[blk].firstElementID()]
-                .getLevel();
-        const double dt_min = m_uiTinfo._m_uiTh;
-        dt_blk = dt_min * getBlkTimestepFac(blev, 0, m_uiLtsLmax);
-        if (cahd_mode == 2)
-            dt_blk = std::max(dt_min, bssn::BSSN_CAHD_C * dt_blk / cahd_cmax);
-    } else if (cahd_mode == 3) {
-        const unsigned int blev =
-            m_uiMesh->getAllElements()[blkList[blk].firstElementID()]
-                .getLevel();
-        const double dt_min   = m_uiTinfo._m_uiTh;
-        const DendroScalar* c = unzipIn[bssn::VAR::U_CHI];
-        double chi_max        = 0.0;
-        for (unsigned int n = 0; n < NN; n++)
-            chi_max = std::max(chi_max, (double)c[n]);
-        static const double b3 =
-            std::getenv("DENDRO_LTS_CAHD_CMAX") ? cahd_cmax : 0.07;
-        dt_blk = dt_min * getBlkTimestepFac(blev, 0, m_uiLtsLmax);
-        dt_blk = std::max(dt_min, bssn::BSSN_CAHD_C * chi_max * dt_blk /
-                                      (b3 * (1.0 + 10.0 * dx * dx)));
-    }
-
     const double rw_t0 = s_lts_rank_work ? MPI_Wtime() : 0.0;
 #ifdef BSSN_RHS_STAGED_COMP
     bssnrhs_sep(unzipOut, unzipIn, 0, b.ptmin, b.ptmax, b.sz, b.bflag, blk_time,
                 (const DendroScalar**)consBlk);
 #else
     bssnrhs(unzipOut, unzipIn, 0, b.ptmin, b.ptmax, b.sz, b.bflag, blk_time,
-            (const DendroScalar**)consBlk, dt_blk);
+            (const DendroScalar**)consBlk);
 #endif
     if (s_lts_rank_work) {
         const double rw_dt = MPI_Wtime() - rw_t0;
@@ -2268,20 +2222,6 @@ int BSSNCtx::grid_transfer(const ot::Mesh* m_new) {
     return 0;
 }
 
-// DENDRO_LTS_DT_MAX=<t>: largest block step allowed, as a power-of-two cap on
-// the step factor. recomputed with the offset because dt_min moves at remesh.
-static unsigned int s_lts_dtmax_cap = 0u;
-
-// DENDRO_LTS_CAHD_RULE=<b>: step bound from the CAHD term, so LTS can keep the
-// production coefficient. CAHD is a diffusion on chi with coefficient
-// C dx^2 / (dt_min (1 + 10 dx^2)); a block at step ratio r integrates it at r
-// times the uniform stepper's stability number, and the measured limit on the
-// thesis q1 mesh is C r / (1 + 10 dx^2) between 0.12 (stable) and 0.24. the
-// rule caps each level's factor at b (1 + 10 dx^2) / C, snapped down to a
-// power of two and kept within a factor two of the next finer level.
-// s_lts_cahd_fac[l] is that cap for level l (0 = rule off).
-static std::vector<unsigned int> s_lts_cahd_fac;
-
 unsigned int BSSNCtx::compute_lts_ts_offset() {
     const ot::Block* blkList     = m_uiMesh->getLocalBlockList().data();
     const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
@@ -2299,38 +2239,6 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
          ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
          ((double)(1u << (m_uiMaxDepth))));
     const double dt_eta_fac = dt_min * ETA_CONST;
-
-    static const double dt_max = []() {
-        const char* e = std::getenv("DENDRO_LTS_DT_MAX");
-        return e ? std::atof(e) : 0.0;
-    }();
-    s_lts_dtmax_cap = 0u;
-    if (dt_max > 0) {
-        unsigned int p = 1u;
-        while (2.0 * p * dt_min <= dt_max) p <<= 1;
-        s_lts_dtmax_cap = p;
-    }
-
-    static const double cahd_rule = []() {
-        const char* e = std::getenv("DENDRO_LTS_CAHD_RULE");
-        return e ? std::atof(e) : 0.0;
-    }();
-    s_lts_cahd_fac.clear();
-    if (cahd_rule > 0 && bssn::BSSN_CAHD_C > 0) {
-        s_lts_cahd_fac.assign(m_uiMaxDepth + 1, 0u);
-        const double dx_min = dt_min / bssn::BSSN_CFL_FACTOR;
-        unsigned int finer  = 1u;  // the finest level always takes the fine step
-        for (int l = (int)lmax; l >= (int)lmin; l--) {
-            const double dx   = dx_min * (double)(1u << (lmax - l));
-            const double rmax = cahd_rule * (1.0 + 10.0 * dx * dx) / bssn::BSSN_CAHD_C;
-            unsigned int p    = 1u;
-            while (2.0 * p <= rmax && p < (1u << 30)) p <<= 1;
-            if (l == (int)lmax) p = 1u;
-            p                 = std::min(p, 2u * finer);
-            s_lts_cahd_fac[l] = p;
-            finer             = p;
-        }
-    }
 
     // DENDRO_LTS_LEVEL_INFO=1 (opt-in print): per level, blocks, elements,
     // smallest block-centre and block-nearest radius, largest eta at both, the
@@ -2436,7 +2344,6 @@ unsigned int BSSNCtx::compute_lts_ts_offset() {
     par::Mpi_Allreduce(&BSSN_LTS_TS_OFFSET, &lts_offset_max, 1, MPI_MAX,
                        m_uiMesh->getMPIGlobalCommunicator());
     BSSN_LTS_TS_OFFSET = lts_offset_max;
-    m_uiLtsLmax        = lmax;
 
     if (m_uiMesh->isActive() && (!(m_uiMesh->getMPIRankGlobal())))
         std::cout << "LTS offset : " << BSSN_LTS_TS_OFFSET << std::endl;
@@ -2502,10 +2409,6 @@ unsigned int BSSNCtx::getBlkTimestepFac(unsigned int blev, unsigned int lmin,
         return p;
     }();
     if (ratio_cap != 0u && fac > ratio_cap) fac = ratio_cap;
-    if (s_lts_dtmax_cap != 0u && fac > s_lts_dtmax_cap) fac = s_lts_dtmax_cap;
-    if (blev < s_lts_cahd_fac.size() && s_lts_cahd_fac[blev] != 0u &&
-        fac > s_lts_cahd_fac[blev])
-        fac = s_lts_cahd_fac[blev];
 
     return fac;
 }

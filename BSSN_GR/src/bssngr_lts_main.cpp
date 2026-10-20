@@ -363,9 +363,7 @@ int main(int argc, char** argv) {
         // damping, so say so loudly. its diffusion number per step is
         // C_E CFL^2 2^-k r, so C_E = C / CFL^2 puts every full-ratio level at
         // the finest level's production number C (0.96 for 0.06 at CFL 0.25)
-        if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE") &&
-            !std::getenv("DENDRO_LTS_CAHD_DT") &&
-            !std::getenv("DENDRO_LTS_CAHD_RULE")) {
+        if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE")) {
             const double c_par = bssn::BSSN_CAHD_C;
             bssn::BSSN_CAHD_C  = c_par / (bssn::BSSN_CFL_FACTOR *
                                          bssn::BSSN_CFL_FACTOR);
@@ -381,9 +379,8 @@ int main(int argc, char** argv) {
                              "BSSN_CAHD_C = "
                           << bssn::BSSN_CAHD_C
                           << " (= C / CFL^2) instead. This is NOT the uniform "
-                             "stepper's damping.\n[LTS] To choose a form yourself "
-                             "set DENDRO_CAHD_ETIENNE, DENDRO_LTS_CAHD_DT or\n[LTS] "
-                             "DENDRO_LTS_CAHD_RULE.\n"
+                             "stepper's damping.\n[LTS] To choose the form yourself "
+                             "set DENDRO_CAHD_ETIENNE.\n"
                           << "[LTS] ************************************************"
                           << NRM << std::endl;
         }

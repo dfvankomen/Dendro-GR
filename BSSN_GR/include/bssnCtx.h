@@ -88,8 +88,6 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
         double bad = 0, pendBad = 0;
     };
     LtsBHTrack m_ltsBH[2];
-    /**@brief finest level of the mesh, cached by compute_lts_ts_offset.*/
-    unsigned int m_uiLtsLmax  = 0;
     void lts_track_bh_blk(const DendroScalar* in, unsigned int local_blk_id,
                           DendroScalar blk_time);
 
