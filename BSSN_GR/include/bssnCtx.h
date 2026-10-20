@@ -235,6 +235,12 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     int post_timestep_blk(DendroScalar* in, unsigned int dof,
                           unsigned int local_blk_id, DendroScalar blk_time);
 
+    /**@brief rebuild the per-mesh data after the mesh object changed: the
+     * derivative workspace and pool and the grid size; after a remesh
+     * (remeshed) also the finest spacing, the step size, the output
+     * frequencies and the constraint variables*/
+    void on_mesh_changed(bool remeshed);
+
     /**@brief geometry of local block blk in the BSSN domain*/
     ts::BlockView block_view(unsigned int blk) const;
 

@@ -420,6 +420,50 @@ int BSSNCtx::post_timestep_blk(DendroScalar* in, unsigned int dof,
     return 0;
 }
 
+void BSSNCtx::on_mesh_changed(bool remeshed) {
+    deallocate_bssn_deriv_workspace();
+    allocate_bssn_deriv_workspace(m_uiMesh, 1);
+    reinit_derivs_pool();
+    calculate_full_grid_size();
+    if (!remeshed) return;
+
+    const bool root = !m_uiMesh->getMPIRankGlobal();
+    unsigned int lmin, lmax;
+    m_uiMesh->computeMinMaxLevel(lmin, lmax);
+    if (root) printf("post merger grid level = (%d, %d)\n", lmin, lmax);
+
+    bssn::BSSN_CURRENT_MIN_DX =
+        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
+         ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
+         ((double)(1u << (m_uiMaxDepth))));
+    bssn::BSSN_RK45_TIME_STEP_SIZE =
+        bssn::BSSN_CFL_FACTOR *
+        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
+         ((1u << (m_uiMaxDepth - lmax)) / ((double)bssn::BSSN_ELE_ORDER)) /
+         ((double)(1u << (m_uiMaxDepth))));
+    m_uiTinfo._m_uiTh = bssn::BSSN_RK45_TIME_STEP_SIZE;
+
+    if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
+        // the true max depth of the array is m_uiMaxDepth - 2
+        const unsigned int levelShift = m_uiMaxDepth - 2 - lmax;
+        bssn::BSSN_IO_OUTPUT_FREQ_TRUE =
+            bssn::scaleOutputFreq(bssn::BSSN_IO_OUTPUT_FREQ, levelShift);
+        bssn::BSSN_GW_EXTRACT_FREQ_TRUE =
+            bssn::scaleOutputFreq(bssn::BSSN_GW_EXTRACT_FREQ, levelShift);
+        if (root)
+            std::cout << "    IO Output Freq updated to: "
+                      << bssn::BSSN_IO_OUTPUT_FREQ_TRUE
+                      << " | GW Output Freq updated to: "
+                      << bssn::BSSN_GW_EXTRACT_FREQ_TRUE << std::endl;
+    }
+    if (root)
+        std::cout << GRN << "[ETS] : Remesh sequence finished" << NRM
+                  << std::endl;
+
+    // the RHS reads the constraints (CAHD): refresh them on the new mesh
+    compute_constraint_variables();
+}
+
 ts::BlockView BSSNCtx::block_view(unsigned int blk) const {
     const Point oct_min(bssn::BSSN_OCTREE_MIN[0], bssn::BSSN_OCTREE_MIN[1],
                         bssn::BSSN_OCTREE_MIN[2]);

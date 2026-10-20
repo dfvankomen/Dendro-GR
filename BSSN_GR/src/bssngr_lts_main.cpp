@@ -709,17 +709,9 @@ int main(int argc, char** argv) {
             if (!rank)
                 std::cout << CYN << BLD << "Applying partitioning method "
                           << bssn::BSSN_PARTITIONING_METHOD << NRM << std::endl;
-            if (bssnCtx->maybe_apply_partitioning()) {
-                bssn::deallocate_bssn_deriv_workspace();
-                bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                bssnCtx->reinit_derivs_pool();
-                bssnCtx->calculate_full_grid_size();
-                if (useLTS) bssnCtx->compute_lts_ts_offset();
-                ets->sync_with_mesh();
-                if (!rank)
-                    std::cout << GRN << BLD << "...labelled partition active."
-                              << NRM << std::endl;
-            }
+            if (ts::apply_partitioning(*bssnCtx, *ets) && !rank)
+                std::cout << GRN << BLD << "...labelled partition active."
+                          << NRM << std::endl;
         }
 #else
         if (bssn::BSSN_PARTITIONING_METHOD != 0) {
@@ -729,15 +721,6 @@ int main(int argc, char** argv) {
             MPI_Abort(comm, 1);
         }
 #endif
-        if (enuts && !std::getenv("DENDRO_NUTS_NO_WPART")) {
-            // the LTS init repartitioned by work (weighted SFC), so the mesh
-            // object is new: redo what the remesh block does for one
-            bssn::deallocate_bssn_deriv_workspace();
-            bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-            bssnCtx->reinit_derivs_pool();
-            bssnCtx->calculate_full_grid_size();
-            bssnCtx->compute_lts_ts_offset();
-        }
 #if defined __PROFILE_CTX__ && defined __PROFILE_ETS__
         std::ofstream outfile;
         char fname[256];
@@ -769,24 +752,14 @@ int main(int argc, char** argv) {
         // capture the curr step
         const DendroIntL start_step = ets->curr_step();
 
-        // one gate for everything that fires every `freq` steps. uniform: the
-        // step count, as bssngr_main.cpp. LTS: a step is a coarse step, so fire
-        // at the first step at or past every multiple of the same interval in
-        // simulation time (freq fine steps).
-        auto due = [&](unsigned int freq, DendroIntL step, double time,
-                       double& next) {
-            if (freq == 0) return false;
-            if (!useLTS) return (step % freq) == 0;
-            if (time < next - 1e-9 * std::max(1.0, time)) return false;
-            const double dt = freq * bssn::BSSN_RK45_TIME_STEP_SIZE;
-            next            = (std::floor(time / dt + 1e-9) + 1.0) * dt;
-            return true;
-        };
+        ts::Cadence cRemesh, cOut, cGW, cIO, cAEH, cChk;
         // the remesh test skips step 0, so its first interval starts there
-        double tNextRemesh =
-            bssn::BSSN_REMESH_TEST_FREQ * bssn::BSSN_RK45_TIME_STEP_SIZE;
-        double tNextOut = 0, tNextGW = 0, tNextIO = 0, tNextAEH = 0,
-               tNextChk = 0;
+        cRemesh.next = bssn::BSSN_REMESH_TEST_FREQ * bssn::BSSN_RK45_TIME_STEP_SIZE;
+        auto due = [&](ts::Cadence& c, unsigned int freq, DendroIntL step,
+                       double time) {
+            return c.due(freq, step, time, bssn::BSSN_RK45_TIME_STEP_SIZE,
+                         useLTS);
+        };
         if (useLTS && start_step != 0) {
             // restart: an uninterrupted run fires at this step only for an
             // interval boundary inside the coarse step that just ended, so
@@ -800,16 +773,13 @@ int main(int argc, char** argv) {
                 bssn::BSSN_GW_EXTRACT_FREQ =
                     bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER;
             }
-            auto after         = [&](unsigned int freq) {
-                const double dt = freq * bssn::BSSN_RK45_TIME_STEP_SIZE;
-                return freq ? (std::floor(tPrev / dt + 1e-9) + 1.0) * dt : 0.0;
-            };
-            tNextRemesh = after(bssn::BSSN_REMESH_TEST_FREQ);
-            tNextOut    = after(bssn::BSSN_TIME_STEP_OUTPUT_FREQ);
-            tNextGW     = after(bssn::BSSN_GW_EXTRACT_FREQ_TRUE);
-            tNextIO     = after(bssn::BSSN_IO_OUTPUT_FREQ_TRUE);
-            tNextAEH    = after(AEH::AEH_SOLVER_FREQ);
-            tNextChk    = after(bssn::BSSN_CHECKPT_FREQ);
+            const double dtf = bssn::BSSN_RK45_TIME_STEP_SIZE;
+            cRemesh.resume(bssn::BSSN_REMESH_TEST_FREQ, tPrev, dtf);
+            cOut.resume(bssn::BSSN_TIME_STEP_OUTPUT_FREQ, tPrev, dtf);
+            cGW.resume(bssn::BSSN_GW_EXTRACT_FREQ_TRUE, tPrev, dtf);
+            cIO.resume(bssn::BSSN_IO_OUTPUT_FREQ_TRUE, tPrev, dtf);
+            cAEH.resume(AEH::AEH_SOLVER_FREQ, tPrev, dtf);
+            cChk.resume(bssn::BSSN_CHECKPT_FREQ, tPrev, dtf);
         }
 
         dendro::logger::info("Now beginning ETS time stepper");
@@ -892,113 +862,15 @@ int main(int argc, char** argv) {
             // bring them up to date first (the later call is then a no-op)
             if (useLTS) bssnCtx->evolve_bh_loc();
 
-            if (step != 0 && due(bssn::BSSN_REMESH_TEST_FREQ, step, time, tNextRemesh)) {
-                // a labelled mesh goes back to SFC for the refinement test
-                // and the remesh (both assume SFC element ranges), and is
-                // labelled again afterwards, remeshed or not
-                const bool wasLabelled = bssnCtx->is_labelled();
-                const double tLab0     = MPI_Wtime();
-                if (wasLabelled) {
-                    bssnCtx->to_sfc_partition();
-                    bssn::deallocate_bssn_deriv_workspace();
-                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    bssnCtx->reinit_derivs_pool();
-                }
-                const double tLab1 = MPI_Wtime();
-                bool isRemesh      = bssnCtx->is_remesh();
-                if (isRemesh) {
-                    if (!rank_global)
-                        std::cout << YLW << "[ETS] : Remesh is triggered."
-                                  << NRM << std::endl;
-                    bssnCtx->remesh_and_gridtransfer(bssn::BSSN_DENDRO_GRAIN_SZ,
-                                                     bssn::BSSN_LOAD_IMB_TOL,
-                                                     bssn::BSSN_SPLIT_FIX);
-                }
-                if (wasLabelled) {
-                    const double tLab2 = MPI_Wtime();
-                    bssnCtx->maybe_apply_partitioning();
-                    if (!rank_global)
-                        std::cout << "[labelled-remesh] to SFC "
-                                  << (tLab1 - tLab0) << " s, relabel "
-                                  << (MPI_Wtime() - tLab2) << " s, remesh "
-                                  << (isRemesh ? 1 : 0) << std::endl;
-                    if (!isRemesh) {
-                        // the mesh object is new even without a remesh
-                        bssn::deallocate_bssn_deriv_workspace();
-                        bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                        bssnCtx->reinit_derivs_pool();
-                        if (useLTS) bssnCtx->compute_lts_ts_offset();
-                        ets->sync_with_mesh();
-                        bssnCtx->calculate_full_grid_size();
-                    }
-                }
-                if (isRemesh) {
-                    bssn::deallocate_bssn_deriv_workspace();
-                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    // Rebuild deriv pool for the new mesh (avoid lazy JIT races).
-                    bssnCtx->reinit_derivs_pool();
-                    // ENUTS computes the LTS step offset at init only
-                    if (useLTS) bssnCtx->compute_lts_ts_offset();
-                    ets->sync_with_mesh();
-                    bssnCtx->calculate_full_grid_size();
-
-                    ot::Mesh* pmesh = bssnCtx->get_mesh();
-                    unsigned int lmin, lmax;
-                    pmesh->computeMinMaxLevel(lmin, lmax);
-                    if (!pmesh->getMPIRankGlobal())
-                        printf("post merger grid level = (%d, %d)\n", lmin,
-                               lmax);
-
-                    // calculate the minimum dx
-                    bssn::BSSN_CURRENT_MIN_DX =
-                        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
-                         ((1u << (m_uiMaxDepth - lmax)) /
-                          ((double)bssn::BSSN_ELE_ORDER)) /
-                         ((double)(1u << (m_uiMaxDepth))));
-
-                    // calculate time step size
-                    bssn::BSSN_RK45_TIME_STEP_SIZE =
-                        bssn::BSSN_CFL_FACTOR *
-                        ((bssn::BSSN_COMPD_MAX[0] - bssn::BSSN_COMPD_MIN[0]) *
-                         ((1u << (m_uiMaxDepth - lmax)) /
-                          ((double)bssn::BSSN_ELE_ORDER)) /
-                         ((double)(1u << (m_uiMaxDepth))));
-                    ts::TSInfo ts_in = bssnCtx->get_ts_info();
-                    ts_in._m_uiTh    = bssn::BSSN_RK45_TIME_STEP_SIZE;
-                    bssnCtx->set_ts_info(ts_in);
-
-                    // REMEMBER: true max depth of array = 2 - m_uiMaxDepth
-                    if (bssn::BSSN_SCALE_VTU_AND_GW_EXTRACTION) {
-                        const unsigned int levelShift =
-                            m_uiMaxDepth - 2 - lmax;
-                        bssn::BSSN_IO_OUTPUT_FREQ_TRUE = bssn::scaleOutputFreq(
-                            bssn::BSSN_IO_OUTPUT_FREQ, levelShift);
-                        bssn::BSSN_GW_EXTRACT_FREQ_TRUE = bssn::scaleOutputFreq(
-                            bssn::BSSN_GW_EXTRACT_FREQ, levelShift);
-                        if (!rank_global)
-                            std::cout << "    IO Output Freq updated to: "
-                                      << bssn::BSSN_IO_OUTPUT_FREQ_TRUE
-                                      << " | GW Output Freq updated to: "
-                                      << bssn::BSSN_GW_EXTRACT_FREQ_TRUE
-                                      << std::endl;
-                    }
-
-                    if (!rank_global) {
-                        std::cout << GRN << "[ETS] : Remesh sequence finished"
-                                  << NRM << std::endl;
-                    }
-
-                    // compute the constraint variables to "refresh"
-                    // them on the grid for potential RHS updates
-                    bssnCtx->compute_constraint_variables();
-                }
-
+            if (step != 0 && due(cRemesh, bssn::BSSN_REMESH_TEST_FREQ, step, time)) {
+                ts::remesh_if_needed(*bssnCtx, *ets, bssn::BSSN_DENDRO_GRAIN_SZ,
+                                     bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX);
                 // grid summary .dat always written, even after a remesh
                 bssnCtx->write_grid_summary_data();
             }
 
             // print terminal output
-            if (due(bssn::BSSN_TIME_STEP_OUTPUT_FREQ, step, time, tNextOut)) {
+            if (due(cOut, bssn::BSSN_TIME_STEP_OUTPUT_FREQ, step, time)) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
                               << NRM << "\tCurrent Step: " << ets->curr_step()
@@ -1045,7 +917,7 @@ int main(int argc, char** argv) {
             // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
 
-            if (due(bssn::BSSN_GW_EXTRACT_FREQ_TRUE, step, time, tNextGW)) {
+            if (due(cGW, bssn::BSSN_GW_EXTRACT_FREQ_TRUE, step, time)) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
                               << std::endl;
@@ -1069,7 +941,7 @@ int main(int argc, char** argv) {
             }
 
             // Write VTU and BHLocation files
-            if (due(bssn::BSSN_IO_OUTPUT_FREQ_TRUE, step, time, tNextIO)) {
+            if (due(cIO, bssn::BSSN_IO_OUTPUT_FREQ_TRUE, step, time)) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
 
@@ -1078,7 +950,7 @@ int main(int argc, char** argv) {
             }
 
             // Run AH solver
-            if (due(AEH::AEH_SOLVER_FREQ, step, time, tNextAEH)) {
+            if (due(cAEH, AEH::AEH_SOLVER_FREQ, step, time)) {
                 // bssnaeh::perform_aeh_step(bssnCtx, rank);
 
                 bssnCtx->findAH();
@@ -1093,10 +965,7 @@ int main(int argc, char** argv) {
                           << "] ets->evolve() returned" << std::endl;
 
             // Write checkpoint  data
-            if (due(bssn::BSSN_CHECKPT_FREQ, step, time, tNextChk)) {
-                // the checkpoint files hold per-rank SFC ranges, so a labelled
-                // mesh goes back to SFC for the write, as for a remesh
-                const bool wasLabelled = bssnCtx->is_labelled();
+            if (due(cChk, bssn::BSSN_CHECKPT_FREQ, step, time)) {
                 // the block-cadence puncture tracks are not in the checkpoint:
                 // fold them in now, so the stored positions are at this time
                 // (the call at the top of the next step, or the first one
@@ -1105,7 +974,6 @@ int main(int argc, char** argv) {
                     bssnCtx->prepare_for_next_iter();
                     bssnCtx->evolve_bh_loc();
                 }
-                if (wasLabelled) bssnCtx->to_sfc_partition();
                 // a step is a coarse step under LTS, so the step count does
                 // not alternate the two slots: use the interval index
                 int slot = -1;
@@ -1115,16 +983,8 @@ int main(int argc, char** argv) {
                                              bssn::BSSN_RK45_TIME_STEP_SIZE) +
                                      1e-9) %
                                  2);
-                bssnCtx->write_checkpt(slot);
-                if (wasLabelled) {
-                    bssnCtx->maybe_apply_partitioning();
-                    bssn::deallocate_bssn_deriv_workspace();
-                    bssn::allocate_bssn_deriv_workspace(bssnCtx->get_mesh(), 1);
-                    bssnCtx->reinit_derivs_pool();
-                    if (useLTS) bssnCtx->compute_lts_ts_offset();
-                    ets->sync_with_mesh();
-                    bssnCtx->calculate_full_grid_size();
-                }
+                ts::checkpoint(*bssnCtx, *ets,
+                               [&] { bssnCtx->write_checkpt(slot); });
             }
 
             bssnCtx->prepare_for_next_iter();
