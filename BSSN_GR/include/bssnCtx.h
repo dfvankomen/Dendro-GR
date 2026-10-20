@@ -24,6 +24,7 @@
 #include "bssn_constraints.h"
 #include "checkPoint.h"
 #include "ctx.h"
+#include "lts.h"
 #include "dataUtils.h"
 #include "grDef.h"
 #include "grUtils.h"
@@ -235,6 +236,14 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
 
     int post_timestep_blk(DendroScalar* in, unsigned int dof,
                           unsigned int local_blk_id, DendroScalar blk_time);
+
+    /**@brief geometry of local block blk in the BSSN domain*/
+    ts::BlockView block_view(unsigned int blk) const;
+
+    /**@brief pointwise constraint enforcement on a block-local buffer (the
+     * whole padded block, the interior of a boundary block); records the
+     * smallest det(gt) of the interior seen before enforcement*/
+    void enforce_blk(DendroScalar* in, unsigned int dof, unsigned int blk);
 
     /**
      * @brief: function execute before each stage

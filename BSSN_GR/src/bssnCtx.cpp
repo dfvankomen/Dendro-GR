@@ -341,49 +341,16 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 #ifdef __PROFILE_CTX__
     this->m_uiCtxpt[ts::CTXPROFILE::RHS_BLK].start();
 #endif
-
-    DendroScalar* unzipIn[dof];
-    DendroScalar* unzipOut[dof];
-
     const unsigned int blk = local_blk_id;
-
     const ot::Block* blkList = m_uiMesh->getLocalBlockList().data();
-    const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
-    double ptmin[3], ptmax[3];
-    unsigned int sz[3];
-    unsigned int bflag;
-    double dx, dy, dz;
-    const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
-                       bssn::BSSN_COMPD_MIN[2]);
-    const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
-                       bssn::BSSN_COMPD_MAX[2]);
-    const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
-
-    sz[0] = blkList[blk].getAllocationSzX();
-    sz[1] = blkList[blk].getAllocationSzY();
-    sz[2] = blkList[blk].getAllocationSzZ();
-
-    const unsigned int NN = sz[0] * sz[1] * sz[2];
-
-    for (unsigned int v = 0; v < dof; v++) {
-        unzipIn[v] = (DendroScalar*)(in + v * NN);
-        unzipOut[v] = (DendroScalar*)(out + v * NN);
-    }
-
-    bflag = blkList[blk].getBlkNodeFlag();
-    const unsigned int pw = blkList[blk].get1DPadWidth();
-
-    dx = blkList[blk].computeDx(pt_min, pt_max);
-    dy = blkList[blk].computeDy(pt_min, pt_max);
-    dz = blkList[blk].computeDz(pt_min, pt_max);
-
-    ptmin[0] = GRIDX_TO_X(blkList[blk].getBlockNode().minX()) - PW * dx;
-    ptmin[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().minY()) - PW * dy;
-    ptmin[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().minZ()) - PW * dz;
-
-    ptmax[0] = GRIDX_TO_X(blkList[blk].getBlockNode().maxX()) + PW * dx;
-    ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
-    ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
+    const ts::BlockView b    = block_view(blk);
+    const unsigned int NN    = b.nn;
+    const unsigned int PW    = bssn::BSSN_PADDING_WIDTH;
+    const double dx          = b.dx[0];
+    const DendroScalar* unzipIn[BSSN_NUM_VARS];
+    DendroScalar* unzipOut[BSSN_NUM_VARS];
+    b.split(in, unzipIn, dof);
+    b.split(out, unzipOut, dof);
 
     // bssnrhs takes (blk_time, uZipConstVars) and forms &uZipConstVars[v][offset],
     // so hand it a block-aligned slice of the ctx's constraint unzip and offset 0
@@ -443,11 +410,11 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 
     const double rw_t0 = s_lts_rank_work ? MPI_Wtime() : 0.0;
 #ifdef BSSN_RHS_STAGED_COMP
-    bssnrhs_sep(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-                bflag, blk_time, (const DendroScalar**)consBlk);
+    bssnrhs_sep(unzipOut, unzipIn, 0, b.ptmin, b.ptmax, b.sz, b.bflag, blk_time,
+                (const DendroScalar**)consBlk);
 #else
-    bssnrhs(unzipOut, (const DendroScalar**)unzipIn, 0, ptmin, ptmax, sz,
-            bflag, blk_time, (const DendroScalar**)consBlk, dt_blk);
+    bssnrhs(unzipOut, unzipIn, 0, b.ptmin, b.ptmax, b.sz, b.bflag, blk_time,
+            (const DendroScalar**)consBlk, dt_blk);
 #endif
     if (s_lts_rank_work) {
         const double rw_dt = MPI_Wtime() - rw_t0;
@@ -458,7 +425,7 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 #pragma omp atomic
         s_lts_rw_secs += rw_dt;
 #pragma omp atomic
-        s_lts_rw_own += (double)(sz[0] - 2 * PW) * (sz[1] - 2 * PW) * (sz[2] - 2 * PW);
+        s_lts_rw_own += (double)(b.sz[0] - 2 * PW) * (b.sz[1] - 2 * PW) * (b.sz[2] - 2 * PW);
     }
 
 #ifdef __PROFILE_CTX__
@@ -471,65 +438,7 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 int BSSNCtx::pre_stage_blk(DendroScalar* in, unsigned int dof,
                            unsigned int local_blk_id, DendroScalar blk_time) {
     const double rw_t0 = s_lts_rank_work ? MPI_Wtime() : 0.0;
-    DendroScalar** unzipIn = new DendroScalar*[dof];
-    const unsigned int blk = local_blk_id;
-
-    const ot::Block* blkList = m_uiMesh->getLocalBlockList().data();
-    const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
-    double ptmin[3], ptmax[3];
-    unsigned int sz[3];
-    unsigned int bflag;
-    double dx, dy, dz;
-    const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
-                       bssn::BSSN_COMPD_MIN[2]);
-    const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
-                       bssn::BSSN_COMPD_MAX[2]);
-
-    sz[0] = blkList[blk].getAllocationSzX();
-    sz[1] = blkList[blk].getAllocationSzY();
-    sz[2] = blkList[blk].getAllocationSzZ();
-
-    const unsigned int NN = sz[0] * sz[1] * sz[2];
-
-    for (unsigned int v = 0; v < dof; v++) {
-        unzipIn[v] = (DendroScalar*)(in + v * NN);
-    }
-
-    bflag = blkList[blk].getBlkNodeFlag();
-    const unsigned int pw = blkList[blk].get1DPadWidth();
-
-    // pre-enforcement det(gt) of the interior, as post_timestep records it on
-    // every stage of the uniform stepper
-    double minDet = std::numeric_limits<double>::max();
-    if (!bflag) {
-        for (unsigned int k = 0; k < sz[2]; k++)
-            for (unsigned int j = 0; j < sz[1]; j++)
-                for (unsigned int i = 0; i < sz[0]; i++) {
-                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    const double det   = enforce_bssn_constraints(unzipIn, nid);
-                    if (i >= pw && i < sz[0] - pw && j >= pw &&
-                        j < sz[1] - pw && k >= pw && k < sz[2] - pw)
-                        minDet = std::min(minDet, det);
-                }
-
-    } else {
-        // note that we can apply enforce bssn constraints in the right padd, at
-        // the left boundary block, currently we only apply internal parts of
-        // the boundary blocks.
-        for (unsigned int k = pw; k < sz[2] - pw; k++)
-            for (unsigned int j = pw; j < sz[1] - pw; j++)
-                for (unsigned int i = pw; i < sz[0] - pw; i++) {
-                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    minDet = std::min(minDet,
-                                      enforce_bssn_constraints(unzipIn, nid));
-                }
-    }
-#ifdef DENDRO_HYBRID_OMP
-#pragma omp critical(bssn_lts_min_det)
-#endif
-    m_dMinDetGt = std::min(m_dMinDetGt, minDet);
-
-    delete[] unzipIn;
+    enforce_blk(in, dof, local_blk_id);
     if (s_lts_rank_work) {
         const double rw_dt = MPI_Wtime() - rw_t0;
 #pragma omp atomic
@@ -553,73 +462,39 @@ int BSSNCtx::pre_timestep_blk(DendroScalar* in, unsigned int dof,
 int BSSNCtx::post_timestep_blk(DendroScalar* in, unsigned int dof,
                                unsigned int local_blk_id,
                                DendroScalar blk_time) {
-    DendroScalar** unzipIn = new DendroScalar*[dof];
-    const unsigned int blk = local_blk_id;
+    enforce_blk(in, dof, local_blk_id);
+    return 0;
+}
 
-    const ot::Block* blkList = m_uiMesh->getLocalBlockList().data();
-    const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
-    double ptmin[3], ptmax[3];
-    unsigned int sz[3];
-    unsigned int bflag;
-    double dx, dy, dz;
-    const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
-                       bssn::BSSN_COMPD_MIN[2]);
-    const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
-                       bssn::BSSN_COMPD_MAX[2]);
+ts::BlockView BSSNCtx::block_view(unsigned int blk) const {
+    const Point oct_min(bssn::BSSN_OCTREE_MIN[0], bssn::BSSN_OCTREE_MIN[1],
+                        bssn::BSSN_OCTREE_MIN[2]);
+    const Point oct_max(bssn::BSSN_OCTREE_MAX[0], bssn::BSSN_OCTREE_MAX[1],
+                        bssn::BSSN_OCTREE_MAX[2]);
+    const Point dom_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
+                        bssn::BSSN_COMPD_MIN[2]);
+    const Point dom_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
+                        bssn::BSSN_COMPD_MAX[2]);
+    return ts::BlockView(m_uiMesh->getLocalBlockList()[blk], oct_min, oct_max,
+                         dom_min, dom_max, bssn::BSSN_PADDING_WIDTH);
+}
 
-    sz[0] = blkList[blk].getAllocationSzX();
-    sz[1] = blkList[blk].getAllocationSzY();
-    sz[2] = blkList[blk].getAllocationSzZ();
-
-    const unsigned int NN = sz[0] * sz[1] * sz[2];
-
-    for (unsigned int v = 0; v < dof; v++) {
-        unzipIn[v] = (DendroScalar*)(in + v * NN);
-    }
-
-    bflag = blkList[blk].getBlkNodeFlag();
-    const unsigned int pw = blkList[blk].get1DPadWidth();
-
-    // the interior is what gets zipped back, so its pre-enforcement det(gt)
-    // is the one post_timestep records for the uniform stepper
+void BSSNCtx::enforce_blk(DendroScalar* in, unsigned int dof,
+                          unsigned int blk) {
+    const ts::BlockView b = block_view(blk);
+    DendroScalar* u[BSSN_NUM_VARS];
+    b.split(in, u, dof);
+    // det(gt) before enforcement over the interior, as post_timestep records
+    // it on every stage of the uniform stepper
     double minDet = std::numeric_limits<double>::max();
-    if (!bflag) {
-        for (unsigned int k = 0; k < sz[2]; k++)
-            for (unsigned int j = 0; j < sz[1]; j++)
-                for (unsigned int i = 0; i < sz[0]; i++) {
-                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    const double det   = enforce_bssn_constraints(unzipIn, nid);
-                    if (i >= pw && i < sz[0] - pw && j >= pw &&
-                        j < sz[1] - pw && k >= pw && k < sz[2] - pw)
-                        minDet = std::min(minDet, det);
-                }
-        // for(unsigned int k=pw; k < sz[2]-pw; k++)
-        // for(unsigned int j=pw; j < sz[1]-pw; j++)
-        // for(unsigned int i=pw; i < sz[0]-pw; i++)
-        // {
-        //     const unsigned nid = k*sz[1]*sz[0] + j*sz[0] + i;
-        //     enforce_bssn_constraints(unzipIn,nid);
-        // }
-
-    } else {
-        // note that we can apply enforce bssn constraints in the right padd, at
-        // the left boundary block, currently we only apply internal parts of
-        // the boundary blocks.
-        for (unsigned int k = pw; k < sz[2] - pw; k++)
-            for (unsigned int j = pw; j < sz[1] - pw; j++)
-                for (unsigned int i = pw; i < sz[0] - pw; i++) {
-                    const unsigned nid = k * sz[1] * sz[0] + j * sz[0] + i;
-                    minDet = std::min(minDet,
-                                      enforce_bssn_constraints(unzipIn, nid));
-                }
-    }
+    ts::for_each_enforced_node(b, [&](unsigned int n, bool interior) {
+        const double det = enforce_bssn_constraints(u, n);
+        if (interior) minDet = std::min(minDet, det);
+    });
 #ifdef DENDRO_HYBRID_OMP
 #pragma omp critical(bssn_lts_min_det)
 #endif
     m_dMinDetGt = std::min(m_dMinDetGt, minDet);
-
-    delete[] unzipIn;
-    return 0;
 }
 
 int BSSNCtx::initialize() {
