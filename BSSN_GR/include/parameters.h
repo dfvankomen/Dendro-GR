@@ -473,6 +473,22 @@ extern bool BSSN_LTS_G_EXCHANGE;
  * two; 0 = no cap, 1 = every block takes the finest step*/
 extern unsigned int BSSN_LTS_RATIO_CAP;
 
+/**@brief CAHD form: "production" (C dx^2 / dt_min) or "etienne"
+ * (C dt_min dx / dx_min, no stepper step in it); empty = etienne under LTS,
+ * production under the global stepper*/
+extern std::string BSSN_CAHD_FORM;
+
+/**@brief Etienne-form coefficient; < 0 = BSSN_CAHD_C / CFL^2*/
+extern double BSSN_CAHD_ETIENNE_C;
+
+/**@brief the resolved CAHD form (set by resolve_cahd_form)*/
+extern bool BSSN_CAHD_ETIENNE;
+
+/**@brief resolves BSSN_CAHD_FORM and the coefficient for the stepper in use
+ * (lts); aborts on an unknown form or an Etienne-scale BSSN_CAHD_C without
+ * BSSN_CAHD_ETIENNE_C*/
+void resolve_cahd_form(bool lts, MPI_Comm comm);
+
 /**@brief LTS: block step bound dt * eta <= C from the Gamma-driver damping;
  * 0 = the older bound dt_min * ETA_CONST / eta*/
 extern double BSSN_LTS_ETA_C;

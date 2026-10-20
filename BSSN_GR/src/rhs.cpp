@@ -223,14 +223,13 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     // for CAHD we need also need dt, dx_i, and dx_min
     // the generated term is C chi dx^2 / (dt (1 + 10 dx^2)) H.
-    // DENDRO_CAHD_ETIENNE=1: the other form in CodeGen/bssn.py,
+    // BSSN_CAHD_ETIENNE: the other form in CodeGen/bssn.py,
     // C chi (dt_min dx / dx_min) H, by handing the generated term the dt that
     // turns it into that. it depends on the level's spacing only, so the
     // uniform stepper and LTS apply the same damping, and a block stepping at
     // its own level's dt stays at the stability number of the finest level.
-    static const bool cahd_etienne = std::getenv("DENDRO_CAHD_ETIENNE") != nullptr;
     const double dt =
-        cahd_etienne
+        bssn::BSSN_CAHD_ETIENNE
             ? hx * bssn::BSSN_CURRENT_MIN_DX /
                   (bssn::BSSN_RK45_TIME_STEP_SIZE * (1.0 + 10.0 * hx * hx))
             : bssn::BSSN_RK45_TIME_STEP_SIZE;

@@ -316,6 +316,7 @@ int main(int argc, char** argv) {
     // 1 . read the parameter file.
     if (!rank) std::cout << " reading parameter file :" << argv[1] << std::endl;
     bssn::readParamFile(argv[1], comm);
+    bssn::resolve_cahd_form(ts_mode == 0, comm);
 
     if (ts_mode == 0) {
         // LTS defaults that the stepper, the step rule and the block loop read
@@ -353,33 +354,6 @@ int main(int argc, char** argv) {
             }
         }
 #endif
-        // the production CAHD form (C dx^2 / dt_min) is unstable under LTS
-        // above a step ratio of 1-2. unless a form was chosen, LTS runs the
-        // other form (DENDRO_CAHD_ETIENNE), which is not the uniform stepper's
-        // damping, so say so loudly. its diffusion number per step is
-        // C_E CFL^2 2^-k r, so C_E = C / CFL^2 puts every full-ratio level at
-        // the finest level's production number C (0.96 for 0.06 at CFL 0.25)
-        if (bssn::BSSN_CAHD_C > 0 && !std::getenv("DENDRO_CAHD_ETIENNE")) {
-            const double c_par = bssn::BSSN_CAHD_C;
-            bssn::BSSN_CAHD_C  = c_par / (bssn::BSSN_CFL_FACTOR *
-                                         bssn::BSSN_CFL_FACTOR);
-            setenv("DENDRO_CAHD_ETIENNE", "1", 1);
-            if (!rank)
-                std::cout << RED << BLD
-                          << "[LTS] ************************************************\n"
-                          << "[LTS] CAHD DAMPING CHANGED: the par file asks for the "
-                             "production form with BSSN_CAHD_C = "
-                          << c_par
-                          << ",\n[LTS] which is unstable under LTS. Running the "
-                             "Etienne form (DENDRO_CAHD_ETIENNE=1)\n[LTS] with "
-                             "BSSN_CAHD_C = "
-                          << bssn::BSSN_CAHD_C
-                          << " (= C / CFL^2) instead. This is NOT the uniform "
-                             "stepper's damping.\n[LTS] To choose the form yourself "
-                             "set DENDRO_CAHD_ETIENNE.\n"
-                          << "[LTS] ************************************************"
-                          << NRM << std::endl;
-        }
     }
 
 #if defined(DENDRO_HYBRID_OMP) && defined(_OPENMP)

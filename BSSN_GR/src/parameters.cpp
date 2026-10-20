@@ -220,6 +220,9 @@ unsigned int BSSN_LTS_IFACE                     = 3;
 bool BSSN_LTS_G_EXCHANGE                        = false;
 unsigned int BSSN_LTS_RATIO_CAP                 = 64;
 double BSSN_LTS_ETA_C                           = 2.0;
+std::string BSSN_CAHD_FORM                      = "";
+double BSSN_CAHD_ETIENNE_C                      = -1.0;
+bool BSSN_CAHD_ETIENNE                          = false;
 
 bool BSSN_MERGED_CHKPT_WRITTEN                  = false;
 
@@ -587,6 +590,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE, UseInitialValue},
         {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP, UseInitialValue},
         {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C, UseInitialValue},
+        {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM, UseInitialValue},
+        {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C, UseInitialValue},
         // lambda and xi are added later
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
         {"BSSN_HYBRID_RHS_SCHEDULE", bssn::BSSN_HYBRID_RHS_SCHEDULE,
@@ -1260,6 +1265,8 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE},
             {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP},
             {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C},
+            {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM},
+            {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
             {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
@@ -1419,6 +1426,58 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
     }
 
     MPI_Barrier(comm);
+}
+
+void resolve_cahd_form(bool lts, MPI_Comm comm) {
+    int rank = 0;
+    MPI_Comm_rank(comm, &rank);
+    const std::string form =
+        BSSN_CAHD_FORM.empty() ? (lts ? "etienne" : "production") : BSSN_CAHD_FORM;
+    if (form != "etienne" && form != "production") {
+        if (!rank)
+            std::cerr << "BSSN_CAHD_FORM must be \"etienne\" or \"production\", not \""
+                      << BSSN_CAHD_FORM << "\"" << std::endl;
+        MPI_Abort(comm, 1);
+    }
+    if (form == "production") {
+        if (lts && BSSN_CAHD_C > 0 && !rank)
+            std::cout << RED << "[LTS] production CAHD (BSSN_CAHD_C = "
+                      << BSSN_CAHD_C << ") is unstable under LTS above C ~ 0.008"
+                      << NRM << std::endl;
+        return;
+    }
+    if (BSSN_CAHD_ETIENNE_C >= 0) {
+        BSSN_CAHD_C       = BSSN_CAHD_ETIENNE_C;
+        BSSN_CAHD_ETIENNE = BSSN_CAHD_C > 0;
+        return;
+    }
+    if (BSSN_CAHD_C <= 0) return;
+    // C is a production-form value: an Etienne-scale one (0.96 for 0.06 at CFL
+    // 0.25) in that key would be divided by CFL^2 again
+    if (BSSN_CAHD_C > 0.2) {
+        if (!rank)
+            std::cerr << "BSSN_CAHD_C = " << BSSN_CAHD_C
+                      << " looks like an Etienne-form coefficient; set "
+                         "BSSN_CAHD_ETIENNE_C for that form" << std::endl;
+        MPI_Abort(comm, 1);
+    }
+    // the Etienne diffusion number per step is C_E CFL^2 2^-k r, so
+    // C_E = C / CFL^2 puts every full-ratio level at the finest level's
+    // production number C
+    const double c_par = BSSN_CAHD_C;
+    BSSN_CAHD_C        = c_par / (BSSN_CFL_FACTOR * BSSN_CFL_FACTOR);
+    BSSN_CAHD_ETIENNE  = true;
+    if (lts && BSSN_CAHD_FORM.empty() && !rank)
+        std::cout << RED
+                  << "[LTS] ************************************************\n"
+                  << "[LTS] CAHD DAMPING CHANGED: the production form with "
+                     "BSSN_CAHD_C = " << c_par
+                  << " is unstable under LTS.\n[LTS] Running the Etienne form with "
+                     "C = " << BSSN_CAHD_C
+                  << " (= C / CFL^2) instead. This is NOT the uniform stepper's "
+                     "damping.\n[LTS] Set BSSN_CAHD_FORM to choose the form.\n"
+                  << "[LTS] ************************************************"
+                  << NRM << std::endl;
 }
 
 }  // namespace bssn
