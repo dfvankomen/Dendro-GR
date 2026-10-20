@@ -1527,12 +1527,11 @@ int BSSNCtx::restore_checkpt() {
             m_bBHVelValid = meta.bhVelValid;
             if (meta.subcycled >= 0 && s_iSubcycled >= 0 &&
                 meta.subcycled != s_iSubcycled) {
-                // DENDRO_RESTORE_ANY_STEPPER=1: take the fields and the time
-                // anyway (timing windows restart every code from one run's
+                // BSSN_RESTORE_ANY_STEPPER: take the fields and the time anyway
+                // (timing windows restart every code from one run's
                 // checkpoints). the step count stays the writer's, so the
                 // uniform stepper's step-gated output is offset; LTS gates by time
-                const char* e  = std::getenv("DENDRO_RESTORE_ANY_STEPPER");
-                const bool any = e && std::atoi(e) != 0;
+                const bool any = bssn::BSSN_RESTORE_ANY_STEPPER;
                 if (!rank)
                     std::cout << (any ? RED : "")
                               << " [BSSNCtx] : checkpoint written by the "
@@ -1541,7 +1540,7 @@ int BSSNCtx::restore_checkpt() {
                                       : " stepper cannot be restored under the ")
                               << (s_iSubcycled ? "LTS" : "uniform")
                               << " stepper (the step counts differ)"
-                              << (any ? "; DENDRO_RESTORE_ANY_STEPPER=1 keeps "
+                              << (any ? "; BSSN_RESTORE_ANY_STEPPER keeps "
                                         "the writer's step count."
                                       : ".")
                               << (any ? NRM : "") << std::endl;

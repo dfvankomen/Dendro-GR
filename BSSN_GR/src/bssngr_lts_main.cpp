@@ -91,15 +91,12 @@ static void dump_evar_bin(const ot::Mesh* mesh, bssn::DVec& evar) {
     fclose(f);
 }
 
-// DENDRO_CONSTRAINT_MONITOR_DT=<t>: print the constraint L2 norms at the first
-// step at or past every multiple of t. Off unless the env is set.
+// BSSN_CONSTRAINT_MONITOR_DT = t: print the constraint L2 norms at the first
+// step at or past every multiple of t (0 = off).
 static void dump_constraint_norms(bssn::BSSNCtx* ctx, DendroIntL step, double t,
                                   const char* tag) {
-    static double dt = -1, next = 0;
-    if (dt < 0) {
-        const char* e = std::getenv("DENDRO_CONSTRAINT_MONITOR_DT");
-        dt            = e ? std::atof(e) : 0.0;
-    }
+    static double next = 0;
+    const double dt    = bssn::BSSN_CONSTRAINT_MONITOR_DT;
     if (dt <= 0 || t < next - 1e-9 * std::max(1.0, t)) return;
     next        = (std::floor(t / dt + 1e-9) + 1.0) * dt;
 
@@ -131,15 +128,12 @@ int main(int argc, char** argv) {
                   << std::endl;
         std::cout << std::endl << "options:" << std::endl;
         std::cout << "  PARAM_FILE" << std::endl
-                  << "      Path to the parameter file (.json file)"
-                  << std::endl;
+                  << "      Path to the parameter file (.toml)" << std::endl;
         std::cout << "  TS_MODE" << std::endl
                   << "      Time stepper mode." << std::endl;
-        std::cout << "        0 - Spatially Adaptive Time Stepping (SATS, "
-                     "Currently **NOT AVAILABLE**)"
-                  << std::endl;
-        std::cout << "        1 - Uniform Time Stepping (UTS, " << GRN
-                  << "default" << NRM << ")" << std::endl;
+        std::cout << "        0 - local time stepping (LTS)" << std::endl;
+        std::cout << "        1 - global time stepping (" << GRN << "default"
+                  << NRM << ")" << std::endl;
         return 0;
     }
 
@@ -446,12 +440,6 @@ int main(int argc, char** argv) {
             bssn::initialDataFunctionWrapper(x, y, z, var);
             return var[0];
         };
-    // std::function<void(double,double,double,double*)> f_init=[](double
-    // x,double y,double z,double*var){bssn::KerrSchildData(x,y,z,var);};
-    std::function<void(double, double, double, double*)> f_init_flat =
-        [](double x, double y, double z, double* var) {
-            bssn::minkowskiInitialData(x, y, z, var);
-        };
 
     const unsigned int interpVars = bssn::BSSN_NUM_VARS;
     unsigned int varIndex[interpVars];
@@ -490,18 +478,7 @@ int main(int argc, char** argv) {
             MPI_Abort(comm, 1);
         }
 
-        std::function<void(double, double, double, double*)>* f_init_use;
-
-        // TODO: Need to add some custom logic here to determine if
-        // function2Octree should use flat initialization or
-        //
-        if (true) {
-            f_init_use = &f_init;
-        } else {
-            f_init_use = &f_init_flat;
-        }
-
-        function2Octree(*f_init_use, bssn::BSSN_NUM_VARS, varIndex, interpVars,
+        function2Octree(f_init, bssn::BSSN_NUM_VARS, varIndex, interpVars,
                         tmpNodes, (f2olmin - MAXDEAPTH_LEVEL_DIFF - 2),
                         bssn::BSSN_WAVELET_TOL, bssn::BSSN_ELE_ORDER, comm);
     }
@@ -603,13 +580,8 @@ int main(int argc, char** argv) {
             // rank and misses on a labelled mesh (same values, no misses)
             setenv("DENDRO_INTERP_DIRECT", "1", 0);
             // a step is a coarse step here and the finder is gated on time,
-            // so its own step-count gate on the diagnostics files is wrong.
-            // the finder exists since the parameters were read, so the
-            // variable alone would come too late
-            if (AEH::ah_bah) {
-                const char* e = std::getenv("DENDRO_AEH_WRITE_EVERY_FIND");
-                AEH::ah_bah->set_write_every_find(!e || std::atoi(e) != 0);
-            }
+            // so its own step-count gate on the diagnostics files is wrong
+            if (AEH::ah_bah) AEH::ah_bah->set_write_every_find(true);
             // the work-weighted start-up partition: apply it after the initial
             // grid has converged (so weighted and unweighted runs start from one
             // mesh) and with the evolution vector's ghosts filled first
@@ -718,7 +690,6 @@ int main(int argc, char** argv) {
         ets->dump_pt(outfile);
         // bssnCtx->dump_pt(outfile);
 #endif
-        bool is_merge_executed = false;
         double t1              = MPI_Wtime();
 
         bssnaeh::initialize_aeh();
@@ -899,19 +870,9 @@ int main(int argc, char** argv) {
                 // evolving the black holes always stores the updated
                 // information
                 bssnCtx->extract_constraints();
-                if (!rank_global && step <= 1)
-                    std::cout << "[trace step=" << step
-                              << "] extract_constraints done" << std::endl;
                 bssnCtx->extract_gravitational_waves();
-                if (!rank_global && step <= 1)
-                    std::cout << "[trace step=" << step
-                              << "] extract_gravitational_waves done"
-                              << std::endl;
                 // write bh coordinates at GW extraction time
                 bssnCtx->write_bh_coords();
-                if (!rank_global && step <= 1)
-                    std::cout << "[trace step=" << step
-                              << "] write_bh_coords done" << std::endl;
             }
 
             // Write VTU and BHLocation files
@@ -930,13 +891,7 @@ int main(int argc, char** argv) {
                 bssnCtx->findAH();
             }
 
-            if (!rank_global && step <= 1)
-                std::cout << "[trace step=" << step
-                          << "] entering ets->evolve()" << std::endl;
             ets->evolve();
-            if (!rank_global && step <= 1)
-                std::cout << "[trace step=" << step
-                          << "] ets->evolve() returned" << std::endl;
 
             // Write checkpoint  data
             if (due(cChk, bssn::BSSN_CHECKPT_FREQ, step, time)) {

@@ -481,6 +481,14 @@ extern std::string BSSN_CAHD_FORM;
 /**@brief Etienne-form coefficient; < 0 = BSSN_CAHD_C / CFL^2*/
 extern double BSSN_CAHD_ETIENNE_C;
 
+/**@brief print the constraint L2 norms at the first step at or past every
+ * multiple of this time; 0 = off*/
+extern double BSSN_CONSTRAINT_MONITOR_DT;
+
+/**@brief restore a checkpoint written by the other stepper (LTS / global),
+ * keeping the writer's step count*/
+extern bool BSSN_RESTORE_ANY_STEPPER;
+
 /**@brief the resolved CAHD form (set by resolve_cahd_form)*/
 extern bool BSSN_CAHD_ETIENNE;
 
