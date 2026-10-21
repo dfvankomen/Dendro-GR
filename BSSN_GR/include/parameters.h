@@ -473,6 +473,11 @@ extern bool BSSN_LTS_G_EXCHANGE;
  * two; 0 = no cap, 1 = every block takes the finest step*/
 extern unsigned int BSSN_LTS_RATIO_CAP;
 
+/**@brief LTS on a labelled (level-wise) mesh: a rank with fewer blocks than
+ * this on its finest level splits them (down to two elements per side), so
+ * the finest-only sub-steps keep its threads busy; 0 = off*/
+extern unsigned int BSSN_LTS_MIN_FINE_BLOCKS;
+
 /**@brief CAHD form: "production" (C dx^2 / dt_min) or "etienne"
  * (C dt_min dx / dx_min, no stepper step in it); empty = etienne under LTS,
  * production under the global stepper*/

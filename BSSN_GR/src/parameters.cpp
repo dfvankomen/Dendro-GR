@@ -219,6 +219,7 @@ unsigned int BSSN_LTS_TS_OFFSET                 = 4;
 unsigned int BSSN_LTS_IFACE                     = 3;
 bool BSSN_LTS_G_EXCHANGE                        = false;
 unsigned int BSSN_LTS_RATIO_CAP                 = 64;
+unsigned int BSSN_LTS_MIN_FINE_BLOCKS           = 16;
 double BSSN_LTS_ETA_C                           = 2.0;
 std::string BSSN_CAHD_FORM                      = "";
 double BSSN_CAHD_ETIENNE_C                      = -1.0;
@@ -592,6 +593,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_LTS_IFACE", bssn::BSSN_LTS_IFACE, UseInitialValue},
         {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE, UseInitialValue},
         {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP, UseInitialValue},
+        {"BSSN_LTS_MIN_FINE_BLOCKS", bssn::BSSN_LTS_MIN_FINE_BLOCKS, UseInitialValue},
         {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C, UseInitialValue},
         {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM, UseInitialValue},
         {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C, UseInitialValue},
@@ -1272,6 +1274,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_LTS_IFACE", bssn::BSSN_LTS_IFACE},
             {"BSSN_LTS_G_EXCHANGE", bssn::BSSN_LTS_G_EXCHANGE},
             {"BSSN_LTS_RATIO_CAP", bssn::BSSN_LTS_RATIO_CAP},
+            {"BSSN_LTS_MIN_FINE_BLOCKS", bssn::BSSN_LTS_MIN_FINE_BLOCKS},
             {"BSSN_LTS_ETA_C", bssn::BSSN_LTS_ETA_C},
             {"BSSN_CAHD_FORM", bssn::BSSN_CAHD_FORM},
             {"BSSN_CAHD_ETIENNE_C", bssn::BSSN_CAHD_ETIENNE_C},
