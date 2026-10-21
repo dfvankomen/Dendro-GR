@@ -321,11 +321,8 @@ int main(int argc, char** argv) {
     bssn::resolve_cahd_form(ts_mode == 0, comm);
 
     if (ts_mode == 0) {
-        // LTS defaults that the stepper, the step rule and the block loop read
-        // on first use, so they are set before anything is built. each one
-        // stays as the environment gives it if set.
-        // owner sync on the level-wise partition
-        setenv("DENDRO_ENUTS_OWNER_SYNC_LABELLED", "1", 0);
+        // LTS settings read when the mesh and the stepper are built, so they
+        // are set before anything is built.
         // a rank with fewer than BSSN_LTS_MIN_FINE_BLOCKS blocks on its finest
         // level splits them (level-wise mesh only)
         ot::Mesh::setMinFineBlocks(bssn::BSSN_LTS_MIN_FINE_BLOCKS);
@@ -564,21 +561,6 @@ int main(int argc, char** argv) {
             setenv("DENDRO_NUTS_NO_WPART", "1", 1);
         }
         if (useLTS) {
-            // LTS equals the uniform stepper at step ratio 1 only with the
-            // interface fixes and the per-stage time, so they are on here
-            // unless the environment says otherwise.
-            setenv("DENDRO_ENUTS_OWNER_SYNC", "1", 0);
-            setenv("DENDRO_ENUTS_SYNC_FAST", "1", 0);
-            // owner-sync cuts measured on q12 (loop 61.6 -> 54.7 s): no interior
-            // self-copy, no per-sub-step element-time exchange, threaded pack /
-            // unpack, and one shared parent-to-child store per pass
-            setenv("DENDRO_ENUTS_OWN_NO_SELFCOPY", "1", 0);
-            setenv("DENDRO_ENUTS_OWN_NO_ETIME_XCH", "1", 0);
-            setenv("DENDRO_ENUTS_OWN_XCH_OMP", "1", 0);
-            setenv("DENDRO_ENUTS_OWN_P2C_SHARED", "2", 0);
-            // send a ghost slot only when a block that reads it steps (q12: 58 %
-            // fewer doubles exchanged, loop 50.9 -> 46.8 s)
-            setenv("DENDRO_ENUTS_XCH_SCOPED", "1", 0);
             // a step is a coarse step here and the finder is gated on time,
             // so its own step-count gate on the diagnostics files is wrong
             if (AEH::ah_bah) AEH::ah_bah->set_write_every_find(true);
