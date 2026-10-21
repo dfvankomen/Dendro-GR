@@ -666,13 +666,10 @@ int main(int argc, char** argv) {
         const DendroIntL start_step = ets->curr_step();
 
         ts::Cadence cRemesh, cOut, cGW, cIO, cAEH, cChk;
-        // the remesh test skips step 0, so its first interval starts there
-        cRemesh.next = bssn::BSSN_REMESH_TEST_FREQ * bssn::BSSN_RK45_TIME_STEP_SIZE;
-        auto due = [&](ts::Cadence& c, unsigned int freq, DendroIntL step,
-                       double time) {
-            return c.due(freq, step, time, bssn::BSSN_RK45_TIME_STEP_SIZE,
-                         useLTS);
-        };
+        ts::Clock clk;
+        clk.dt_fine = [] { return bssn::BSSN_RK45_TIME_STEP_SIZE; };
+        clk.lts     = useLTS;
+        clk.seed_remesh(cRemesh, bssn::BSSN_REMESH_TEST_FREQ);
         if (useLTS && start_step != 0) {
             // restart: an uninterrupted run fires at this step only for an
             // interval boundary inside the coarse step that just ended, so
@@ -686,13 +683,12 @@ int main(int argc, char** argv) {
                 bssn::BSSN_GW_EXTRACT_FREQ =
                     bssn::BSSN_GW_EXTRACT_FREQ_AFTER_MERGER;
             }
-            const double dtf = bssn::BSSN_RK45_TIME_STEP_SIZE;
-            cRemesh.resume(bssn::BSSN_REMESH_TEST_FREQ, tPrev, dtf);
-            cOut.resume(bssn::BSSN_TIME_STEP_OUTPUT_FREQ, tPrev, dtf);
-            cGW.resume(bssn::BSSN_GW_EXTRACT_FREQ_TRUE, tPrev, dtf);
-            cIO.resume(bssn::BSSN_IO_OUTPUT_FREQ_TRUE, tPrev, dtf);
-            cAEH.resume(AEH::AEH_SOLVER_FREQ, tPrev, dtf);
-            cChk.resume(bssn::BSSN_CHECKPT_FREQ, tPrev, dtf);
+            clk.resume(cRemesh, bssn::BSSN_REMESH_TEST_FREQ, tPrev);
+            clk.resume(cOut, bssn::BSSN_TIME_STEP_OUTPUT_FREQ, tPrev);
+            clk.resume(cGW, bssn::BSSN_GW_EXTRACT_FREQ_TRUE, tPrev);
+            clk.resume(cIO, bssn::BSSN_IO_OUTPUT_FREQ_TRUE, tPrev);
+            clk.resume(cAEH, AEH::AEH_SOLVER_FREQ, tPrev);
+            clk.resume(cChk, bssn::BSSN_CHECKPT_FREQ, tPrev);
         }
 
         dendro::logger::info("Now beginning ETS time stepper");
@@ -775,7 +771,7 @@ int main(int argc, char** argv) {
             // bring them up to date first (the later call is then a no-op)
             if (useLTS) bssnCtx->evolve_bh_loc();
 
-            if (step != 0 && due(cRemesh, bssn::BSSN_REMESH_TEST_FREQ, step, time)) {
+            if (step != 0 && clk.due(cRemesh, bssn::BSSN_REMESH_TEST_FREQ, step, time)) {
                 ts::remesh_if_needed(*bssnCtx, *ets, bssn::BSSN_DENDRO_GRAIN_SZ,
                                      bssn::BSSN_LOAD_IMB_TOL, bssn::BSSN_SPLIT_FIX);
                 // grid summary .dat always written, even after a remesh
@@ -783,7 +779,7 @@ int main(int argc, char** argv) {
             }
 
             // print terminal output
-            if (due(cOut, bssn::BSSN_TIME_STEP_OUTPUT_FREQ, step, time)) {
+            if (clk.due(cOut, bssn::BSSN_TIME_STEP_OUTPUT_FREQ, step, time)) {
                 if (!rank_global)
                     std::cout << BLD << GRN << "[ETS - BSSN] : SOLVER UPDATE\n"
                               << NRM << "\tCurrent Step: " << ets->curr_step()
@@ -830,7 +826,7 @@ int main(int argc, char** argv) {
             // wkb: update BH locations always
             bssnCtx->evolve_bh_loc();
 
-            if (due(cGW, bssn::BSSN_GW_EXTRACT_FREQ_TRUE, step, time)) {
+            if (clk.due(cGW, bssn::BSSN_GW_EXTRACT_FREQ_TRUE, step, time)) {
                 if (!rank_global)
                     std::cout << "    Now extracting constraints and GW."
                               << std::endl;
@@ -844,7 +840,7 @@ int main(int argc, char** argv) {
             }
 
             // Write VTU and BHLocation files
-            if (due(cIO, bssn::BSSN_IO_OUTPUT_FREQ_TRUE, step, time)) {
+            if (clk.due(cIO, bssn::BSSN_IO_OUTPUT_FREQ_TRUE, step, time)) {
                 // this is all IO output, except for extracting the GW waves,
                 // which are "independent"
 
@@ -853,7 +849,7 @@ int main(int argc, char** argv) {
             }
 
             // Run AH solver
-            if (due(cAEH, AEH::AEH_SOLVER_FREQ, step, time)) {
+            if (clk.due(cAEH, AEH::AEH_SOLVER_FREQ, step, time)) {
                 // bssnaeh::perform_aeh_step(bssnCtx, rank);
 
                 bssnCtx->findAH();
@@ -862,7 +858,7 @@ int main(int argc, char** argv) {
             ets->evolve();
 
             // Write checkpoint  data
-            if (due(cChk, bssn::BSSN_CHECKPT_FREQ, step, time)) {
+            if (clk.due(cChk, bssn::BSSN_CHECKPT_FREQ, step, time)) {
                 // the block-cadence puncture tracks are not in the checkpoint:
                 // fold them in now, so the stored positions are at this time
                 // (the call at the top of the next step, or the first one
@@ -871,15 +867,7 @@ int main(int argc, char** argv) {
                     bssnCtx->prepare_for_next_iter();
                     bssnCtx->evolve_bh_loc();
                 }
-                // a step is a coarse step under LTS, so the step count does
-                // not alternate the two slots: use the interval index
-                int slot = -1;
-                if (useLTS)
-                    slot = (int)((long long)std::floor(
-                                     time / (bssn::BSSN_CHECKPT_FREQ *
-                                             bssn::BSSN_RK45_TIME_STEP_SIZE) +
-                                     1e-9) %
-                                 2);
+                const int slot = clk.checkpoint_slot(bssn::BSSN_CHECKPT_FREQ, time);
                 ts::checkpoint(*bssnCtx, *ets,
                                [&] { bssnCtx->write_checkpt(slot); });
             }
