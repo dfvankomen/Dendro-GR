@@ -212,19 +212,6 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     int aeh_expansion(const Point& origin, aeh::AEH_VARS* m_aeh_vars,
                       DVec& aeh_f, DVec& aeh_h, const DendroScalar* const rlim);
 
-    /**
-     * @brief block wise RHS.
-     *
-     * @param in : input vector (unzip version)
-     * @param out : output vector (unzip version)
-     * @param blkIDs : local block ids where the rhs is computed.
-     * @param sz : size of the block ids
-     * @param blk_time : block time  corresponding to the block ids.
-     * @return int
-     */
-    int rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
-                    unsigned int numIds, DendroScalar* blk_time);
-
     int rhs_blk(const DendroScalar* in, DendroScalar* out, unsigned int dof,
                 unsigned int local_blk_id, DendroScalar blk_time);
 

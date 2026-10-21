@@ -231,65 +231,6 @@ int BSSNCtx::rhs(DVec* in, DVec* out, unsigned int sz, DendroScalar time) {
     return 0;
 }
 
-#if 0
-int BSSNCtx::rhs_blkwise(DVec in, DVec out, const unsigned int* const blkIDs,
-                         unsigned int numIds, DendroScalar* blk_time) {
-    DendroScalar* unzipIn[BSSN_NUM_VARS];
-    DendroScalar* unzipOut[BSSN_NUM_VARS];
-
-    in.to_2d(unzipIn);
-    out.to_2d(unzipOut);
-
-    const ot::Block* blkList = m_uiMesh->getLocalBlockList().data();
-    const unsigned int numBlocks = m_uiMesh->getLocalBlockList().size();
-
-    unsigned int offset;
-    double ptmin[3], ptmax[3];
-    unsigned int sz[3];
-    unsigned int bflag;
-    double dx, dy, dz;
-    const Point pt_min(bssn::BSSN_COMPD_MIN[0], bssn::BSSN_COMPD_MIN[1],
-                       bssn::BSSN_COMPD_MIN[2]);
-    const Point pt_max(bssn::BSSN_COMPD_MAX[0], bssn::BSSN_COMPD_MAX[1],
-                       bssn::BSSN_COMPD_MAX[2]);
-    const unsigned int PW = bssn::BSSN_PADDING_WIDTH;
-
-    for (unsigned int i = 0; i < numIds; i++) {
-        const unsigned int blk = blkIDs[i];
-        assert(blk < numBlocks);
-
-        offset = blkList[blk].getOffset();
-        sz[0] = blkList[blk].getAllocationSzX();
-        sz[1] = blkList[blk].getAllocationSzY();
-        sz[2] = blkList[blk].getAllocationSzZ();
-
-        bflag = blkList[blk].getBlkNodeFlag();
-
-        dx = blkList[blk].computeDx(pt_min, pt_max);
-        dy = blkList[blk].computeDy(pt_min, pt_max);
-        dz = blkList[blk].computeDz(pt_min, pt_max);
-
-        ptmin[0] = GRIDX_TO_X(blkList[blk].getBlockNode().minX()) - PW * dx;
-        ptmin[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().minY()) - PW * dy;
-        ptmin[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().minZ()) - PW * dz;
-
-        ptmax[0] = GRIDX_TO_X(blkList[blk].getBlockNode().maxX()) + PW * dx;
-        ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
-        ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
-
-#ifdef BSSN_RHS_STAGED_COMP
-        bssnrhs_sep(unzipOut, (const double**)unzipIn, offset, ptmin, ptmax, sz,
-                    bflag);
-#else
-        bssnrhs(unzipOut, (const double**)unzipIn, offset, ptmin, ptmax, sz,
-                bflag);
-#endif
-    }
-
-    return 0;
-}
-#endif
-
 // DENDRO_LTS_RANK_WORK=1 (opt-in): per-rank totals of the block right-hand
 // sides (calls, padded points, seconds summed over threads), printed by
 // lts_rank_work_report() at the end of the run.
