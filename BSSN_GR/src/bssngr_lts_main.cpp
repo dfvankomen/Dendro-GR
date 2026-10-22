@@ -669,7 +669,10 @@ int main(int argc, char** argv) {
         ts::Clock clk;
         clk.dt_fine = [] { return bssn::BSSN_RK45_TIME_STEP_SIZE; };
         clk.lts     = useLTS;
-        clk.seed_remesh(cRemesh, bssn::BSSN_REMESH_TEST_FREQ);
+        // the remesh test and the checkpoint come first after their interval,
+        // not at the first coarse step; the output events fire at step 0
+        clk.seed(cRemesh, bssn::BSSN_REMESH_TEST_FREQ);
+        clk.seed(cChk, bssn::BSSN_CHECKPT_FREQ);
         if (useLTS && start_step != 0) {
             // restart: an uninterrupted run fires at this step only for an
             // interval boundary inside the coarse step that just ended, so
