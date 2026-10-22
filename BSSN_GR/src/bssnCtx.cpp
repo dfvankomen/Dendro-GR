@@ -1398,6 +1398,7 @@ int BSSNCtx::restore_checkpt() {
 
     restoreStatus = 0;
     octree.clear();
+    m_iRestoredSlot = (int)restoreFileIndex;
     if (!rank)
         std::cout << "[BSSNCtx] :  Trying to restore from checkpoint index : "
                   << restoreFileIndex << std::endl;

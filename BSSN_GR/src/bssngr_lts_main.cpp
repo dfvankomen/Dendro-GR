@@ -665,6 +665,15 @@ int main(int argc, char** argv) {
         // capture the curr step
         const DendroIntL start_step = ets->curr_step();
 
+        // iface 15: ENUTS's g history next to each checkpoint slot's files
+        auto enuts_g_base = [](int s) {
+            return bssn::BSSN_CHKPT_FILE_PREFIX + "_" + std::to_string(s) + "_enuts_g";
+        };
+        // a restart reads the restored slot's history (a cold start, with a
+        // message, when the checkpoint has none)
+        if (enuts && start_step != 0)
+            enuts->read_carried_g(enuts_g_base(bssnCtx->restored_checkpt_slot()));
+
         ts::Cadence cRemesh, cOut, cGW, cIO, cAEH, cChk;
         ts::Clock clk;
         clk.dt_fine = [] { return bssn::BSSN_RK45_TIME_STEP_SIZE; };
@@ -871,8 +880,16 @@ int main(int argc, char** argv) {
                     bssnCtx->evolve_bh_loc();
                 }
                 const int slot = clk.checkpoint_slot(bssn::BSSN_CHECKPT_FREQ, time);
-                ts::checkpoint(*bssnCtx, *ets,
-                               [&] { bssnCtx->write_checkpt(slot); });
+                ts::checkpoint(*bssnCtx, *ets, [&] {
+                    const bool merged0 = bssn::BSSN_MERGED_CHKPT_WRITTEN;
+                    bssnCtx->write_checkpt(slot);
+                    if (enuts) {
+                        enuts->write_carried_g(enuts_g_base(slot % 2));
+                        // the permanent post-merger slot, when this call wrote it
+                        if (!merged0 && bssn::BSSN_MERGED_CHKPT_WRITTEN)
+                            enuts->write_carried_g(enuts_g_base(3));
+                    }
+                });
             }
 
             bssnCtx->prepare_for_next_iter();

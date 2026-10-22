@@ -297,12 +297,16 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
      * under LTS, so a checkpoint only restores under the stepper that wrote it)*/
     static void set_subcycled(bool lts) { s_iSubcycled = lts ? 1 : 0; }
     static int s_iSubcycled;
+    int m_iRestoredSlot = -1;
 
     /**@brief write a full checkpoint to a specific slot index. */
     int write_checkpt_to_slot(unsigned int cpIndex);
 
     /** @brief: restore from check point*/
     int restore_checkpt();
+
+    /** @brief: the slot restore_checkpt restored (-1 before any restore) */
+    int restored_checkpt_slot() const { return m_iRestoredSlot; }
 
     /** @brief: should be called for free up the contex memory. */
     int finalize();
