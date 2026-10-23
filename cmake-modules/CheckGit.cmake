@@ -68,22 +68,28 @@ function(CheckGitDirtyRead dirty_status)
 endfunction()
 
 function(CheckGitVersion)
+    # the source tree the git commands run in: from the configure (CMAKE_SOURCE_DIR)
+    # or, in the -P script the AlwaysCheckGit target runs from the build dir, from
+    # the -DGIT_SOURCE_DIR it is given (CMAKE_SOURCE_DIR is the build dir there)
+    if (NOT DEFINED GIT_SOURCE_DIR)
+        set(GIT_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    endif ()
     # Get the latest abbreviated commit hash of the working branch
     execute_process(
         COMMAND git log -1 --format=%h
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${GIT_SOURCE_DIR}
         OUTPUT_VARIABLE GIT_HASH
         OUTPUT_STRIP_TRAILING_WHITESPACE
         )
 
     execute_process(
         COMMAND "git" "diff" "--quiet"
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${GIT_SOURCE_DIR}
         RESULT_VARIABLE GIT_DIRTY_STAT_1
         )
     execute_process(
         COMMAND "git" "diff" "--cached" "--quiet"
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${GIT_SOURCE_DIR}
         RESULT_VARIABLE GIT_DIRTY_STAT_2
         )
 
@@ -95,7 +101,7 @@ function(CheckGitVersion)
 
     execute_process(
         COMMAND date
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${GIT_SOURCE_DIR}
         OUTPUT_VARIABLE COMPILE_DATE_TIME
         OUTPUT_STRIP_TRAILING_WHITESPACE
         )
@@ -160,6 +166,7 @@ function(CheckGitSetup)
         -Dpre_configure_dir=${pre_configure_dir}
         -Dpost_configure_file=${post_configure_dir}
         -DGIT_HASH_CACHE=${GIT_HASH_CACHE}
+        -DGIT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
         -P ${CURRENT_LIST_DIR}/CheckGit.cmake
         BYPRODUCTS ${post_configure_file}
         )
