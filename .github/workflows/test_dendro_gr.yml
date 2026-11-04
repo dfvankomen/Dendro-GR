@@ -11,6 +11,8 @@ on:
 env:
   # CMake build type set to release by default
   BUILD_TYPE: Release
+  # Single-node runs: skip the runner's flaky Azure MANA verbs device (UCX init_worker EIO)
+  UCX_TLS: self,sm
 
 jobs:
   build-test-mpich:
