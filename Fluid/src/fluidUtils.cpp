@@ -823,9 +823,9 @@ void resetSnapshot() {
 }
 
 void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
-    int activeRank, activeNpes, globalRank, globalNpes;
+    int activeRank = -1, activeNpes = 0, globalRank, globalNpes;
 
-    MPI_Comm commActive;
+    MPI_Comm commActive = MPI_COMM_NULL;
     MPI_Comm commGlobal;
 
     if (pMesh->isActive()) {
@@ -1185,9 +1185,9 @@ void profileInfo(const char* filePrefix, const ot::Mesh* pMesh) {
 
 void profileInfoIntermediate(const char* filePrefix, const ot::Mesh* pMesh,
                              const unsigned int currentStep) {
-    int activeRank, activeNpes, globalRank, globalNpes;
+    int activeRank = -1, activeNpes = 0, globalRank, globalNpes;
 
-    MPI_Comm commActive;
+    MPI_Comm commActive = MPI_COMM_NULL;
     MPI_Comm commGlobal;
 
     if (pMesh->isActive()) {

@@ -2,6 +2,7 @@
 #define _HAVE_GEOM_H
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "fluidUtils.h"
 #include "mpi.h"
@@ -108,6 +109,7 @@ inline void metric_vars(double gu[3][3], double *detg, double gd[3][3],
     } else {
         printf(" Alternative coordinate system not supported.\n");
         MPI_Abort(MPI_COMM_WORLD, 0);
+        abort();  // MPI_Abort is not noreturn
     }
 }
 // }}}
@@ -144,6 +146,7 @@ inline void metric(double gd[3][3], double *detg, const double *pos) {
     } else {
         printf(" Alternative coordinate system not supported\n");
         MPI_Abort(MPI_COMM_WORLD, 0);
+        abort();  // MPI_Abort is not noreturn
     }
 }
 // }}}

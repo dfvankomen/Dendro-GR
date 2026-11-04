@@ -648,6 +648,9 @@ int recon::cal_wv(double* wv[], double* v[], const int dir,
             pos[1] = pos_in[1];
             n      = sz[2];
             break;
+        default:
+            fprintf(stderr, "cal_wv: unknown direction %d.\n", dir);
+            exit(2);
     }
 
     for (int i = 0; i < n; i++) {
