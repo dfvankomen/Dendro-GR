@@ -258,7 +258,7 @@ void hlle::cal_nflux(double *dtu[], const double *u[], const double *v[],
                 "cal_nflux: dir=%d does not correspond to a valid direction.\n",
                 dir);
             MPI_Abort(MPI_COMM_WORLD, 0);
-            break;
+            abort();  // MPI_Abort is not noreturn
     }
     // }}}
 
@@ -399,6 +399,9 @@ void hlle::lf_flux(double *F[], double *ul1[], double *ur1[], double *vl1[],
             xm   = pos_in[2];
             flux = &flux_z;
             break;
+        default:
+            fprintf(stderr, "hlle: unknown direction %d.\n", dir);
+            abort();
     }
 
     pos[0] = pos_in[0];
@@ -466,6 +469,9 @@ void hlle::hlle_flux(double *F[], double *ul1[], double *ur1[], double *vl1[],
             xm   = pos_in[2];
             flux = &flux_z;
             break;
+        default:
+            fprintf(stderr, "hlle: unknown direction %d.\n", dir);
+            abort();
     }
 
     pos[0] = pos_in[0];
