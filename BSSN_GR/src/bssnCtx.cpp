@@ -41,6 +41,23 @@
 #include "derivatives/derivs_utils.h"  // prewarm_kernel_cache, BlockShape
 
 namespace {
+// "default" KO filter: dendrolib's order match (KO2/4/6/8 for eO 4/6/8/10),
+// but its span-vectorized Simd variant; same result to round-off, ~2x faster.
+std::string bssn_postrhs_filter() {
+    const std::string& f = bssn::BSSN_DERIV_POSTRHS_FILTER;
+    if (f != "default") return f;
+    switch (bssn::BSSN_ELE_ORDER) {
+        case 4:
+            return "KO2Simd";
+        case 8:
+            return "KO6Simd";
+        case 10:
+            return "KO8Simd";
+        default:
+            return "KO4Simd";
+    }
+}
+
 /**
  * @brief Build (once) a per-thread pool of DendroDerivatives clones from the
  * BSSN_DERIV_* parameters, publish their raw pointers through
@@ -71,7 +88,7 @@ void bssn_setup_new_derivs(
             bssn::BSSN_DERIV_INMATFILT_SECOND,
             bssn::BSSN_DERIV_INMATFILT_FIRST_COEFFS,
             bssn::BSSN_DERIV_INMATFILT_SECOND_COEFFS,
-            bssn::BSSN_DERIV_POSTRHS_FILTER,
+            bssn_postrhs_filter(),
             bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST,
             bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND));
         for (unsigned int t = 1; t < n_threads; t++)
@@ -669,7 +686,7 @@ int BSSNCtx::initialize() {
 #ifdef DENDRO_USE_NEW_DERIVS
         std::cout << "Derivatives: first " << bssn::BSSN_DERIVTYPE_FIRST
                   << ", second " << bssn::BSSN_DERIVTYPE_SECOND
-                  << ", post-RHS filter " << bssn::BSSN_DERIV_POSTRHS_FILTER
+                  << ", post-RHS filter " << bssn_postrhs_filter()
                   << ", puncture fallback "
                   << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST << "/"
                   << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND << std::endl;
