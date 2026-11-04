@@ -323,6 +323,37 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         parFile["BSSN_RK_TYPE"] = static_cast<std::int64_t>(id);
     }
 
+#ifndef DENDRO_USE_NEW_DERIVS
+    // Without the new-derivs engine the BSSN_DERIV* keys are never read and
+    // the run silently uses the built-in stencils; refuse a parfile that asks
+    // for anything else.
+    {
+#if defined(BSSN_USE_4TH_ORDER_DERIVS)
+        const std::string ord = "4", ko = "KO2";
+#elif defined(BSSN_USE_8TH_ORDER_DERIVS)
+        const std::string ord = "8", ko = "KO6";
+#else
+        const std::string ord = "6", ko = "KO4";
+#endif
+        auto require = [&](const char* key,
+                           std::initializer_list<std::string> builtin) {
+            if (!parFile.contains(key) || !parFile[key].is_string()) return;
+            const std::string v = parFile[key].as_string();
+            for (const auto& b : builtin)
+                if (v == b) return;
+            throw std::runtime_error(
+                std::string(key) + " = \"" + v +
+                "\" needs a build with -DDENDRO_USE_NEW_DERIVS=ON; this "
+                "build always uses E" + ord + " + " + ko);
+        };
+        require("BSSN_DERIVTYPE_FIRST", {"E" + ord});
+        require("BSSN_DERIVTYPE_SECOND", {"E" + ord});
+        require("BSSN_DERIV_POSTRHS_FILTER", {"default", ko, ko + "Simd"});
+        require("BSSN_DERIV_INMATFILT_FIRST", {"none", ""});
+        require("BSSN_DERIV_INMATFILT_SECOND", {"none", ""});
+    }
+#endif
+
     auto set_param = [&](auto& pardata, const ParameterInformation& param) {
         // so, if it has the key then we set it, if not we print a warning
         if (pardata.contains(param.key)) {

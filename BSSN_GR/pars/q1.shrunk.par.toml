@@ -361,7 +361,7 @@ DENDRO_LOG_FORCE_FILE_FLUSH = false
 
 ########################################################################
 # New derivatives
-# only read when built with cmake flag DENDRO_USE_NEW_DERIVS=ON
+# needs cmake flag DENDRO_USE_NEW_DERIVS=ON; other builds refuse non-E6 values
 
 # BSSN_DERIVTYPE_FIRST  = "A4_10"   # 1st-derivative scheme  (default "E6")
 BSSN_DERIVTYPE_FIRST  = "BYU_A6_1ST_R070_OP15"

@@ -665,6 +665,19 @@ int BSSNCtx::initialize() {
                   << bssn_compiled_deriv_order() << ", element order "
                   << bssn::BSSN_ELE_ORDER << ", padding width "
                   << bssn::BSSN_PADDING_WIDTH << std::endl;
+    if (!rank_global) {
+#ifdef DENDRO_USE_NEW_DERIVS
+        std::cout << "Derivatives: first " << bssn::BSSN_DERIVTYPE_FIRST
+                  << ", second " << bssn::BSSN_DERIVTYPE_SECOND
+                  << ", post-RHS filter " << bssn::BSSN_DERIV_POSTRHS_FILTER
+                  << ", puncture fallback "
+                  << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST << "/"
+                  << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND << std::endl;
+#else
+        std::cout << "Derivatives: built-in stencils (no DENDRO_USE_NEW_DERIVS)"
+                  << std::endl;
+#endif
+    }
 
     return 0;
 }
