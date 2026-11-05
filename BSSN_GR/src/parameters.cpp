@@ -170,6 +170,8 @@ std::vector<dendroderivs::DendroDerivatives*> BSSN_DERIVS_POOL;
 unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS       = 1;
 std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST          = "auto";
 std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND         = "auto";
+// Explicit 2nd derivs on physical-boundary (bflag != 0) blocks (default off).
+bool BSSN_DERIV_BDY_EXPLICIT_SECOND                     = false;
 #endif
 
 double RIT_ETA_OUTER                                     = 0.25;
@@ -534,6 +536,8 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
          bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST, UseInitialValue},
         {"BSSN_DERIV_PUNCTURE_FALLBACK_SECOND",
          bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND, UseInitialValue},
+        {"BSSN_DERIV_BDY_EXPLICIT_SECOND",
+         bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND, UseInitialValue},
 #endif
         {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
         // eta power 0 is added later

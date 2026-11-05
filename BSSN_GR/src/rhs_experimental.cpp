@@ -267,6 +267,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // Route this block's derivs through the explicit fallback if a puncture
     // lies in it. Shared with physcon.cpp so the two cannot disagree.
     const bool puncture_block = is_puncture_block(pmin, pmax, sz, PW);
+    const bool bdy_second     = is_bdy_second_block(bflag);
+#else
+    const bool bdy_second     = false;
 #endif
 
     bssn::timer::t_deriv.start();
@@ -283,6 +286,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     #include "bssnrhs_evar_derivs.h"
 #ifdef DENDRO_USE_NEW_DERIVS
     if (puncture_block) set_block_explicit_derivs(true);
+    if (bdy_second) set_block_explicit_second(true);
 #endif
 #if defined(BSSN_USE_CASCADE_AVX512_FUSED) ||      \
     defined(BSSN_USE_CASCADE_IR_AVX512_FUSED) ||   \
@@ -312,7 +316,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     }
 #else
 #ifdef BSSN_USE_GRAD_SET
-    if (puncture_block) {
+    if (puncture_block || bdy_second) {
         #include "bssnrhs_derivs.h"
     } else {
         #include "bssnrhs_derivs_gradset.h"
@@ -325,6 +329,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #ifdef DENDRO_USE_NEW_DERIVS
     // restore configured operators before KO/algebra (KO uses BSSN_DERIVS directly)
     if (puncture_block) set_block_explicit_derivs(false);
+    if (bdy_second) set_block_explicit_second(false);
 #endif
     // clang-format on
 

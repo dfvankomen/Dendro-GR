@@ -55,6 +55,9 @@ extern std::vector<double> BSSN_DERIV_INMATFILT_SECOND_COEFFS;
 extern unsigned int BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
 extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_FIRST;
 extern std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND;
+// Outer-boundary blocks (bflag != 0) use the explicit 2nd-deriv fallback:
+// compact 2nd-deriv wall closures are unstable there.
+extern bool BSSN_DERIV_BDY_EXPLICIT_SECOND;
 
 /**
  * @brief Non-owning bridge to the BSSNCtx-owned DendroDerivatives instances:

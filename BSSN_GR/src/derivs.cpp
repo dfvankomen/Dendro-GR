@@ -20,6 +20,8 @@ namespace {
 // loop (DENDRO_HYBRID_OMP) never races on a shared deriv pointer. Each wrapper
 // branches on it instead of swapping the shared global deriv_* pointers.
 thread_local bool s_block_explicit_derivs = false;
+// pure 2nd derivs only (physical-boundary blocks)
+thread_local bool s_block_explicit_second = false;
 
 void new_deriv_x(double *const du, const double *const u, const double dx,
                  const unsigned int *sz, unsigned bflag) {
@@ -44,21 +46,21 @@ void new_deriv_z(double *const du, const double *const u, const double dz,
 }
 void new_deriv_xx(double *const du, const double *const u, const double dx,
                   const unsigned int *sz, unsigned bflag) {
-    if (s_block_explicit_derivs)
+    if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_xx_explicit(du, u, dx, sz, bflag);
     else
         bssn::active_derivs()->grad_xx(du, u, dx, sz, bflag);
 }
 void new_deriv_yy(double *const du, const double *const u, const double dy,
                   const unsigned int *sz, unsigned bflag) {
-    if (s_block_explicit_derivs)
+    if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_yy_explicit(du, u, dy, sz, bflag);
     else
         bssn::active_derivs()->grad_yy(du, u, dy, sz, bflag);
 }
 void new_deriv_zz(double *const du, const double *const u, const double dz,
                   const unsigned int *sz, unsigned bflag) {
-    if (s_block_explicit_derivs)
+    if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_zz_explicit(du, u, dz, sz, bflag);
     else
         bssn::active_derivs()->grad_zz(du, u, dz, sz, bflag);
@@ -277,6 +279,12 @@ void set_block_explicit_derivs(bool on) {
     // deriv_* pointers, so concurrent blocks never race. The new_deriv_*
     // wrappers branch on this flag to pick grad_*_explicit vs grad_*.
     s_block_explicit_derivs = on;
+}
+
+void set_block_explicit_second(bool on) { s_block_explicit_second = on; }
+
+bool is_bdy_second_block(unsigned bflag) {
+    return bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND && bflag != 0;
 }
 
 #ifdef BSSN_DERIV_TRIM

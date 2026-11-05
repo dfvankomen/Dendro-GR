@@ -689,7 +689,10 @@ int BSSNCtx::initialize() {
                   << ", post-RHS filter " << bssn_postrhs_filter()
                   << ", puncture fallback "
                   << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_FIRST << "/"
-                  << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND << std::endl;
+                  << bssn::BSSN_DERIV_PUNCTURE_FALLBACK_SECOND
+                  << ", boundary-block explicit 2nd "
+                  << (bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND ? "on" : "off")
+                  << std::endl;
 #else
         std::cout << "Derivatives: built-in stencils (no DENDRO_USE_NEW_DERIVS)"
                   << std::endl;

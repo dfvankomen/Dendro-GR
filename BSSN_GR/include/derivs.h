@@ -49,6 +49,15 @@ unsigned bssn_compiled_deriv_order();
  */
 void set_block_explicit_derivs(bool on);
 
+/**
+ * @brief Like set_block_explicit_derivs, but swaps only the pure 2nd-derivative
+ * pointers. Used on physical-boundary blocks (BSSN_DERIV_BDY_EXPLICIT_SECOND).
+ */
+void set_block_explicit_second(bool on);
+
+// should this block take the explicit 2nd-deriv fallback for the outer wall?
+bool is_bdy_second_block(unsigned bflag);
+
 #ifdef BSSN_DERIV_TRIM
 // xy/xz/yz of u plus the grad_x/grad_y feeders, trimmed to what the chains read
 void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,

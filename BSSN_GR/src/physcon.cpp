@@ -127,6 +127,8 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
     // The toggle is thread-local, so this is safe inside the threaded loop.
     const bool puncture_block = is_puncture_block(pmin, pmax, sz, PW);
     if (puncture_block) set_block_explicit_derivs(true);
+    const bool bdy_second = is_bdy_second_block(bflag);
+    if (bdy_second) set_block_explicit_second(true);
 #endif
 #if defined(BSSN_DERIV_TRIM) && defined(DENDRO_USE_NEW_DERIVS)
 #include "constraint_derivs_trim.h"
@@ -135,6 +137,7 @@ void physical_constraints(double **uZipConVars, const double **uZipVars,
 #endif
 #ifdef DENDRO_USE_NEW_DERIVS
     if (puncture_block) set_block_explicit_derivs(false);
+    if (bdy_second) set_block_explicit_second(false);
 #endif
     bssn::timer::t_cons_deriv.stop();
     // clang-format on
