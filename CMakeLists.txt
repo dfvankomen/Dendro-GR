@@ -165,8 +165,9 @@ set(DENDRO_dendrolib_DIR "" CACHE PATH "Path to the local dendrolib source direc
 # (BHHistory tracker) and the compact-FD work this branch requires. Upstream
 # paralab/Dendro-5.01 master lacks these and fails to build. Override either
 # cache var, or set DENDRO_dendrolib_DIR, to use a different dendrolib.
+# This branch needs the matching dendrolib feat/pad4-ko6 (DENDRO_WIDE_PADDING).
 set(DENDRO_dendrolib_GIT_REPOSITORY "https://github.com/dfvankomen/Dendro-5.01" CACHE STRING "Git repository URL for dendrolib")
-set(DENDRO_dendrolib_GIT_TAG "experimental" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
+set(DENDRO_dendrolib_GIT_TAG "feat/pad4-ko6" CACHE STRING "The Git tag, branch, or commit hash for dendrolib")
 
 
 # now include the dendro repository for compiling the library
