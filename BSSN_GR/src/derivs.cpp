@@ -1,5 +1,6 @@
 #include "derivs.h"
 #include "dendro_padding.h"
+#include "profile_params.h"
 
 #include <cmath>
 #include <iostream>
@@ -15,6 +16,20 @@
  * pointer bssn::BSSN_DERIVS. Their signatures match the function-pointer type,
  * so every existing deriv_x(...)/deriv_xx(...) call site is reused unchanged.
  */
+#ifdef DENDRO_PROFILE_UNZIP_DETAIL
+// RAII timer; wrappers do not nest, so family times add up.
+namespace {
+struct UdDerivScope {
+    profiler_t& t;
+    explicit UdDerivScope(profiler_t& x) : t(x) { t.start(); }
+    ~UdDerivScope() { t.stop(); }
+};
+}  // namespace
+#define UD_DERIV_TIMER(n) UdDerivScope ud_scope_(bssn::timer::n)
+#else
+#define UD_DERIV_TIMER(n) ((void)0)
+#endif
+
 namespace {
 // Per-thread selector for the puncture-block explicit fallback. Toggled per
 // block by set_block_explicit_derivs(); thread_local so the threaded RHS block
@@ -26,6 +41,7 @@ thread_local bool s_block_explicit_second = false;
 
 void new_deriv_x(double *const du, const double *const u, const double dx,
                  const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_first);
     if (s_block_explicit_derivs)
         bssn::active_derivs()->grad_x_explicit(du, u, dx, sz, bflag);
     else
@@ -33,6 +49,7 @@ void new_deriv_x(double *const du, const double *const u, const double dx,
 }
 void new_deriv_y(double *const du, const double *const u, const double dy,
                  const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_first);
     if (s_block_explicit_derivs)
         bssn::active_derivs()->grad_y_explicit(du, u, dy, sz, bflag);
     else
@@ -40,6 +57,7 @@ void new_deriv_y(double *const du, const double *const u, const double dy,
 }
 void new_deriv_z(double *const du, const double *const u, const double dz,
                  const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_first);
     if (s_block_explicit_derivs)
         bssn::active_derivs()->grad_z_explicit(du, u, dz, sz, bflag);
     else
@@ -47,6 +65,7 @@ void new_deriv_z(double *const du, const double *const u, const double dz,
 }
 void new_deriv_xx(double *const du, const double *const u, const double dx,
                   const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_second);
     if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_xx_explicit(du, u, dx, sz, bflag);
     else
@@ -54,6 +73,7 @@ void new_deriv_xx(double *const du, const double *const u, const double dx,
 }
 void new_deriv_yy(double *const du, const double *const u, const double dy,
                   const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_second);
     if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_yy_explicit(du, u, dy, sz, bflag);
     else
@@ -61,6 +81,7 @@ void new_deriv_yy(double *const du, const double *const u, const double dy,
 }
 void new_deriv_zz(double *const du, const double *const u, const double dz,
                   const unsigned int *sz, unsigned bflag) {
+    UD_DERIV_TIMER(t_deriv_second);
     if (s_block_explicit_derivs || s_block_explicit_second)
         bssn::active_derivs()->grad_zz_explicit(du, u, dz, sz, bflag);
     else

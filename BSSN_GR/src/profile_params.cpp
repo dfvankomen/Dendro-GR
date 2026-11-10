@@ -8,6 +8,7 @@
 //
 
 #include "profile_params.h"
+#include "dendroProfileParams.h"
 
 namespace bssn {
 namespace timer {
@@ -35,6 +36,30 @@ profiler_t t_unzip_async;
 profiler_t t_deriv;
 profiler_t t_rhs;
 profiler_t t_rhs_ko;
+#ifdef DENDRO_PROFILE_UNZIP_DETAIL
+profiler_t t_deriv_first;
+profiler_t t_deriv_second;
+long double t_ud_acc[UD_N];
+static long double s_ud_before[UD_N];
+static profiler_t* const* ud_timers() {
+    namespace dt = dendro::timer;
+    static profiler_t* const t[UD_N] = {
+        &dt::t_ghost_pack,       &dt::t_ghost_wait,    &dt::t_ghost_unpack,
+        &dt::t_ud_scatter_total, &dt::t_ud_nodal,      &dt::t_ud_same,
+        &dt::t_ud_f2c,           &dt::t_ud_c2f_interp, &dt::t_ud_c2f_scat,
+        &dt::t_ud_ring};
+    return t;
+}
+void ud_snap_begin() {
+    profiler_t* const* t = ud_timers();
+    for (unsigned i = 0; i < UD_N; i++) s_ud_before[i] = t[i]->seconds;
+}
+void ud_snap_end() {
+    profiler_t* const* t = ud_timers();
+    for (unsigned i = 0; i < UD_N; i++)
+        t_ud_acc[i] += t[i]->seconds - s_ud_before[i];
+}
+#endif
 
 profiler_t t_rhs_a;
 profiler_t t_rhs_b;

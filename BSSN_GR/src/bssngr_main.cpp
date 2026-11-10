@@ -888,6 +888,39 @@ int main(int argc, char** argv) {
                 std::cout << "   zip          : " << t_zip_g << std::endl;
                 std::cout << "   ioVtu        : " << t_ioVtu_g << std::endl;
             }
+#ifdef DENDRO_PROFILE_UNZIP_DETAIL
+            {
+                // accumulated over BSSNCtx::rhs's unzip only (see profile_params.h)
+                const char* UD_NAMES[bssn::timer::UD_N] = {
+                    "ghost_pack",   "ghost_wait",   "ghost_unpack",
+                    "scatter_total", "nodal_values", "scatter_same",
+                    "scatter_f2c",  "c2f_interp",   "c2f_scatter",
+                    "ring_fill"};
+                double v[bssn::timer::UD_N];
+                for (unsigned i = 0; i < bssn::timer::UD_N; i++)
+                    v[i] = max_over_ranks((double)bssn::timer::t_ud_acc[i]);
+                const double dfirst =
+                    max_over_ranks(bssn::timer::t_deriv_first.seconds);
+                const double dsecond =
+                    max_over_ranks(bssn::timer::t_deriv_second.seconds);
+                const double dko =
+                    max_over_ranks(bssn::timer::t_rhs_ko.seconds);
+                if (!(ets->get_global_rank())) {
+                    std::cout << " ---- UD detail (max over ranks, s) ----"
+                              << std::endl;
+                    std::cout << "   UD unzip_sync : " << t_unzip_sync_g
+                              << std::endl;
+                    for (unsigned int i = 0; i < bssn::timer::UD_N; i++)
+                        std::cout << "   UD " << UD_NAMES[i] << " : " << v[i]
+                                  << std::endl;
+                    std::cout << "   UD deriv : " << t_deriv_g << std::endl;
+                    std::cout << "   UD deriv_first : " << dfirst << std::endl;
+                    std::cout << "   UD deriv_second : " << dsecond
+                              << std::endl;
+                    std::cout << "   UD rhs_ko : " << dko << std::endl;
+                }
+            }
+#endif
         }
 
         // BSSNCtx::~BSSNCtx() dereferences m_uiMesh, so mesh must outlive it.

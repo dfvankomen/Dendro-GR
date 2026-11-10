@@ -38,6 +38,16 @@ extern profiler_t t_unzip_async;
 extern profiler_t t_deriv;
 extern profiler_t t_rhs;
 extern profiler_t t_rhs_ko;  // KO pass; subset of t_rhs.
+#ifdef DENDRO_PROFILE_UNZIP_DETAIL
+extern profiler_t t_deriv_first;   // grad_x/y/z calls (incl. mixed chains)
+extern profiler_t t_deriv_second;  // grad_xx/yy/zz calls
+// Lib unzip timers also tick in non-RK unzips (init, remesh); these bracket
+// BSSNCtx::rhs's unzip only. Order: see UD_NAMES in bssngr_main.cpp.
+constexpr unsigned UD_N = 10;
+extern long double t_ud_acc[UD_N];
+void ud_snap_begin();
+void ud_snap_end();
+#endif
 
 // BC-only per-variable; interior RHS is fused per-gridpoint.
 extern profiler_t t_rhs_a;
