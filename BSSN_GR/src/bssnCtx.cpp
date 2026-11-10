@@ -348,7 +348,7 @@ int BSSNCtx::rhs_blk(const DendroScalar* in, DendroScalar* out,
 
     bflag = blkList[blk].getBlkNodeFlag();
 #ifdef DENDRO_WIDE_PADDING
-        bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
+    bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
 #endif
     const unsigned int pw = blkList[blk].get1DPadWidth();
 

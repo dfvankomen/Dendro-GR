@@ -4,6 +4,7 @@
 // BSSN_RHS_SRC). Keep src/rhs.cpp pristine prod.
 
 #include "rhs.h"
+#include "dendro_padding.h"
 
 #include "gr.h"
 #include "hadrhs.h"
@@ -139,6 +140,9 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
         sz[2]    = blkList[blk].getAllocationSzZ();
 
         bflag    = blkList[blk].getBlkNodeFlag();
+#ifdef DENDRO_WIDE_PADDING
+        bflag |= blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT;
+#endif
 
         dx       = blkList[blk].computeDx(pt_min, pt_max);
         dy       = blkList[blk].computeDy(pt_min, pt_max);
@@ -261,6 +265,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     const double bh2z                    = bssn::BSSN_BH_LOC[1].z();
 
     const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
+    // trim bits (>= DENDRO_FINE_FACE_SHIFT) are for the derivative dispatch
+    // only; BCs, KO and the interior fast paths take the physical faces
+    const unsigned int bflag_phys        = bflag & DENDRO_BFLAG_PHYS_MASK;
     const unsigned int n                 = sz[0] * sz[1] * sz[2];
 
 #ifdef DENDRO_USE_NEW_DERIVS
@@ -295,7 +302,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // mixed-only precompute — wide and narrow fused kernels both work from
     // mixed-only arrays. Only bflag!=0 (boundary) blocks need the full
     // 138-array workspace (their non-fused fallback reads it).
-    if (bflag == 0) {
+    if (bflag_phys == 0) {
 #if defined(BSSN_DERIV_TRIM) && defined(DENDRO_USE_NEW_DERIVS) && \
     !defined(BSSN_USE_CASCADE_AVX512_FUSED) && !defined(BSSN_USE_CASCADE_AVX_FUSED)
         #include "bssnrhs_derivs_mixed_trim.h"
@@ -308,7 +315,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     }
 #elif defined(BSSN_USE_CASCADE_AVX_FUSED)
     // AVX2 fused: bflag==0 → mixed-only precompute; else full precompute
-    if (bflag == 0) {
+    if (bflag_phys == 0) {
         #include "bssnrhs_derivs_mixed_only.h"
     } else {
         #include "bssnrhs_derivs.h"
@@ -342,10 +349,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     bssn::timer::t_rhs.start();
 #ifdef BSSN_USE_CASCADE_AVX512_FUSED
 #pragma message("BSSN: using AVX-512 fused cascade (8-wide)")
-    if (bflag == 0 && (nx - 2 * PW) >= 8) {
+    if (bflag_phys == 0 && (nx - 2 * PW) >= 8) {
 // Wide interior: 8-wide AVX-512 fused
 #include "bssn_cascade_avx512_fused_interior.inc.cpp"
-    } else if (bflag == 0) {
+    } else if (bflag_phys == 0) {
 // Narrow interior (width < 8): 4-wide AVX2 fused (reads mixed-only)
 #include "bssn_cascade_avx_fused_interior.inc.cpp"
     } else {
@@ -356,7 +363,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #elif defined(BSSN_USE_CASCADE_AVX_FUSED)
 #pragma message( \
     "BSSN: using AVX2-batched cascade with inline deriv stencils (fused)")
-    if (bflag == 0) {
+    if (bflag_phys == 0) {
 #include "bssn_cascade_avx_fused_interior.inc.cpp"
     } else {
 // Boundary block: fused centered stencils are wrong at the 3 outer
@@ -373,9 +380,9 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
     // Fused IR body: inline 6th-order stencils for 1st/pure-2nd derivs,
     // mixed 2nds from the mixed-only pre-pass above. Boundary blocks
     // (bflag != 0) got the full pre-pass and use the non-fused IR path.
-    if (bflag == 0 && (nx - 2 * PW) >= 8) {
+    if (bflag_phys == 0 && (nx - 2 * PW) >= 8) {
 #include "bssn_cascade_ir_avx512_fused_interior.inc.cpp"
-    } else if (bflag == 0) {
+    } else if (bflag_phys == 0) {
 #include "bssn_cascade_ir_avx2_fused_interior.inc.cpp"
     } else if ((nx - 2 * PW) >= 8) {
 #include "bssn_cascade_ir_avx512_interior.inc.cpp"
@@ -385,7 +392,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #elif defined(BSSN_USE_CASCADE_IR_AVX_FUSED)
 #pragma message( \
     "BSSN: using IR-generated polynomial-cascade RHS (AVX2, 4-wide, fused stencils)")
-    if (bflag == 0) {
+    if (bflag_phys == 0) {
 #include "bssn_cascade_ir_avx2_fused_interior.inc.cpp"
     } else {
 #include "bssn_cascade_ir_avx2_interior.inc.cpp"
@@ -512,79 +519,79 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
-    if (bflag != 0) {
+    if (bflag_phys != 0) {
         bssn::timer::t_bdyc.start();
 
         bssn::timer::t_rhs_a.start();
         bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, pmin,
-                 pmax, 1.0, 1.0, sz, bflag);
+                 pmax, 1.0, 1.0, sz, bflag_phys);
         bssn::timer::t_rhs_a.stop();
 
         bssn::timer::t_rhs_chi.start();
         bssn_bcs(chi_rhs, chi, grad_0_chi, grad_1_chi, grad_2_chi, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn::timer::t_rhs_chi.stop();
 
         bssn::timer::t_rhs_K.start();
         bssn_bcs(K_rhs, K, grad_0_K, grad_1_K, grad_2_K, pmin, pmax, 1.0, 0.0,
-                 sz, bflag);
+                 sz, bflag_phys);
         bssn::timer::t_rhs_K.stop();
 
         bssn::timer::t_rhs_b.start();
         bssn_bcs(b_rhs0, beta0, grad_0_beta0, grad_1_beta0, grad_2_beta0, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(b_rhs1, beta1, grad_0_beta1, grad_1_beta1, grad_2_beta1, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(b_rhs2, beta2, grad_0_beta2, grad_1_beta2, grad_2_beta2, pmin,
-                 pmax, 1.0, 0.0, sz, bflag);
+                 pmax, 1.0, 0.0, sz, bflag_phys);
         bssn::timer::t_rhs_b.stop();
 
         bssn::timer::t_rhs_Gt.start();
         bssn_bcs(Gt_rhs0, Gt0, grad_0_Gt0, grad_1_Gt0, grad_2_Gt0, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(Gt_rhs1, Gt1, grad_0_Gt1, grad_1_Gt1, grad_2_Gt1, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(Gt_rhs2, Gt2, grad_0_Gt2, grad_1_Gt2, grad_2_Gt2, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn::timer::t_rhs_Gt.stop();
 
         bssn::timer::t_rhs_B.start();
         bssn_bcs(B_rhs0, B0, grad_0_B0, grad_1_B0, grad_2_B0, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
         bssn_bcs(B_rhs1, B1, grad_0_B1, grad_1_B1, grad_2_B1, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
         bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin, pmax, 1.0,
-                 0.0, sz, bflag);
+                 0.0, sz, bflag_phys);
         bssn::timer::t_rhs_B.stop();
 
         bssn::timer::t_rhs_At.start();
         bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs01, At1, grad_0_At1, grad_1_At1, grad_2_At1, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs02, At2, grad_0_At2, grad_1_At2, grad_2_At2, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs11, At3, grad_0_At3, grad_1_At3, grad_2_At3, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs12, At4, grad_0_At4, grad_1_At4, grad_2_At4, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn_bcs(At_rhs22, At5, grad_0_At5, grad_1_At5, grad_2_At5, pmin, pmax,
-                 2.0, 0.0, sz, bflag);
+                 2.0, 0.0, sz, bflag_phys);
         bssn::timer::t_rhs_At.stop();
 
         bssn::timer::t_rhs_gt.start();
         bssn_bcs(gt_rhs00, gt0, grad_0_gt0, grad_1_gt0, grad_2_gt0, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(gt_rhs01, gt1, grad_0_gt1, grad_1_gt1, grad_2_gt1, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs02, gt2, grad_0_gt2, grad_1_gt2, grad_2_gt2, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs11, gt3, grad_0_gt3, grad_1_gt3, grad_2_gt3, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn_bcs(gt_rhs12, gt4, grad_0_gt4, grad_1_gt4, grad_2_gt4, pmin, pmax,
-                 1.0, 0.0, sz, bflag);
+                 1.0, 0.0, sz, bflag_phys);
         bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5, pmin, pmax,
-                 1.0, 1.0, sz, bflag);
+                 1.0, 1.0, sz, bflag_phys);
         bssn::timer::t_rhs_gt.stop();
 
         bssn::timer::t_bdyc.stop();
@@ -609,7 +616,10 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #ifndef DENDRO_USE_NEW_DERIVS
     // Old path: precompute per-direction KO derivatives into the grad_* slots.
     // With DENDRO_USE_NEW_DERIVS, filter_cako computes them internally instead.
+    {
+        const unsigned int bflag = bflag_phys;  // KO never reads the ring
 #include "bssnrhs_ko_derivs.h"
+    }
 #endif
 
     double sigma = KO_DISS_SIGMA;
@@ -630,7 +640,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         double* wz = grad_0_Gt0;
         auto ko_apply = [&](const double* const in, double* const rhs) {
             bssn::active_derivs()->filter_cako(in, rhs, wx, wy, wz, hx, hy, hz, kf,
-                                           sz, bflag);
+                                           sz, bflag_phys);
         };
 
         if (bssn::BSSN_CAKO_ENABLED) {

@@ -43,7 +43,7 @@ set_property(CACHE CPU_ARCH PROPERTY STRINGS ${CPU_ARCH_STRINGS})
 # DENDRO_WIDE_PADDING: one extra ghost ring per block face with trimmed compact
 # closures on faces that cannot use it (see dendrolib include/dendro_padding.h).
 # Shared with the dendrolib subdirectory through the CMake cache; the solver
-# needs the define too (rhs.cpp, bssnCtx.cpp).
+# needs the define too (rhs_experimental.cpp, bssnCtx.cpp).
 option(DENDRO_WIDE_PADDING
        "Block padding eleOrder/2+1 with trimmed-closure fallback (dendrolib + solver)" OFF)
 if (DENDRO_WIDE_PADDING)

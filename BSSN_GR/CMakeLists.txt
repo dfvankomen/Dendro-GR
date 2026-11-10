@@ -137,13 +137,15 @@ if(DENDRO_USE_NEW_DERIVS)
 endif()
 
 # Pick the RHS TU: pristine src/rhs.cpp for prod, src/rhs_experimental.cpp when
-# any cascade/naive flag is set OR the new dendrolib derivatives are enabled.
+# any cascade/naive flag is set, the new dendrolib derivatives are enabled, or
+# DENDRO_WIDE_PADDING is on (only the experimental RHS carries its plumbing).
 # Only one defines bssnRHS, so no collision.
 if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
    BSSN_USE_CASCADE_AVX_FUSED OR BSSN_USE_CASCADE_AVX512 OR
    BSSN_USE_CASCADE_AVX512_FUSED OR BSSN_USE_CASCADE_IR_AVX512 OR
    BSSN_USE_CASCADE_IR_AVX OR BSSN_USE_CASCADE_IR_AVX512_FUSED OR
-   BSSN_USE_CASCADE_IR_AVX_FUSED OR DENDRO_USE_NEW_DERIVS)
+   BSSN_USE_CASCADE_IR_AVX_FUSED OR DENDRO_USE_NEW_DERIVS OR
+   DENDRO_WIDE_PADDING)
   set(BSSN_RHS_SRC src/rhs_experimental.cpp)
   message(STATUS "BSSN RHS source: src/rhs_experimental.cpp (experimental flags set)")
 else()
