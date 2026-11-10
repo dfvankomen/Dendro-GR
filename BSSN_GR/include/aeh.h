@@ -637,7 +637,13 @@ SpectralAEHSolver<Ctx, T>::SpectralAEHSolver(
         const unsigned int sz[3]  = {blkList[blk].getAllocationSzX(),
                                      blkList[blk].getAllocationSzY(),
                                      blkList[blk].getAllocationSzZ()};
+#ifdef DENDRO_WIDE_PADDING
+        const unsigned int bflag =
+            blkList[blk].getBlkNodeFlag() |
+            (blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT);
+#else
         const unsigned int bflag  = blkList[blk].getBlkNodeFlag();
+#endif
 
         const DendroScalar dx     = blkList[blk].computeDx(pt_min, pt_max);
         const DendroScalar dy     = blkList[blk].computeDy(pt_min, pt_max);

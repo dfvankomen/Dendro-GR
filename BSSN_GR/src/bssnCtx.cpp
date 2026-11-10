@@ -2450,7 +2450,13 @@ int BSSNCtx::aeh_expansion(const Point& origin, aeh::AEH_VARS* m_aeh_vars,
         sz[1]                     = blkList[blk].getAllocationSzY();
         sz[2]                     = blkList[blk].getAllocationSzZ();
 
+#ifdef DENDRO_WIDE_PADDING
+        const unsigned int bflag =
+            blkList[blk].getBlkNodeFlag() |
+            (blkList[blk].getBlkTrimFaceFlag() << DENDRO_FINE_FACE_SHIFT);
+#else
         const unsigned int bflag  = blkList[blk].getBlkNodeFlag();
+#endif
 
         const DendroScalar dx     = blkList[blk].computeDx(pt_min, pt_max);
         const DendroScalar dy     = blkList[blk].computeDy(pt_min, pt_max);

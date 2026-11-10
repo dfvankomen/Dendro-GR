@@ -315,7 +315,9 @@ void set_block_explicit_derivs(bool on) {
 void set_block_explicit_second(bool on) { s_block_explicit_second = on; }
 
 bool is_bdy_second_block(unsigned bflag) {
-    return bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND && bflag != 0;
+    // physical faces only: trim bits ride above DENDRO_FINE_FACE_SHIFT
+    return bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND &&
+           (bflag & DENDRO_BFLAG_PHYS_MASK) != 0;
 }
 
 #ifdef BSSN_DERIV_TRIM
