@@ -1,4 +1,5 @@
 #include "derivs.h"
+#include "dendro_padding.h"
 
 #include <cmath>
 #include <iostream>
@@ -253,8 +254,38 @@ void set_appropriate_derivs(const unsigned pw) {
 }
 
 #ifdef DENDRO_USE_NEW_DERIVS
+#ifdef DENDRO_WIDE_PADDING
+namespace {
+thread_local double s_pn_min[3], s_pn_max[3];
+thread_local bool s_pn_set = false;
+}  // namespace
+
+void set_puncture_test_bounds(const double *pmin, const double *pmax) {
+    for (unsigned int d = 0; d < 3; d++) {
+        s_pn_min[d] = pmin[d];
+        s_pn_max[d] = pmax[d];
+    }
+    s_pn_set = true;
+}
+#endif
+
 bool is_puncture_block(const double *pmin, const double *pmax,
                        const unsigned int *sz, unsigned int pw) {
+#ifdef DENDRO_WIDE_PADDING
+    // test on the stock-pad block so ties at a face round as in stock
+    if (!s_pn_set)
+        throw std::logic_error(
+            "is_puncture_block: set_puncture_test_bounds was not called "
+            "(DENDRO_WIDE_PADDING)");
+    s_pn_set = false;
+    const unsigned int EX     = DENDRO_WIDE_PADDING_EXTRA;
+    const unsigned int szn[3] = {sz[0] - 2 * EX, sz[1] - 2 * EX,
+                                 sz[2] - 2 * EX};
+    pmin = s_pn_min;
+    pmax = s_pn_max;
+    sz   = szn;
+    pw -= EX;
+#endif
     if (bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS == 0) return false;
     const unsigned int Nb = bssn::BSSN_DERIV_PUNCTURE_EXPLICIT_NBLOCKS;
     for (unsigned int b = 0; b < 2; ++b) {

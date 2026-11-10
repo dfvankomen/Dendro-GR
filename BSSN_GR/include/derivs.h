@@ -73,6 +73,12 @@ void deriv_mixed_set(double *const dxy, double *const dxz, double *const dyz,
  */
 bool is_puncture_block(const double *pmin, const double *pmax,
                        const unsigned int *sz, unsigned int pw);
+#ifdef DENDRO_WIDE_PADDING
+// Stock-pad (eleOrder/2) bounds of the block for the next is_puncture_block on
+// this thread. Punctures often sit on a block face, so the test must round
+// exactly as a stock build does; is_puncture_block throws if these are unset.
+void set_puncture_test_bounds(const double *pmin, const double *pmax);
+#endif
 #endif
 
 void deriv42_x_wrapper(double *const Dxu, const double *const u,

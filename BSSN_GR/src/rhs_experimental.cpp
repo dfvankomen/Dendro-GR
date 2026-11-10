@@ -156,6 +156,19 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
         ptmax[1] = GRIDY_TO_Y(blkList[blk].getBlockNode().maxY()) + PW * dy;
         ptmax[2] = GRIDZ_TO_Z(blkList[blk].getBlockNode().maxZ()) + PW * dz;
 
+#if defined(DENDRO_WIDE_PADDING) && defined(DENDRO_USE_NEW_DERIVS)
+        {
+            const unsigned int pn = PW - DENDRO_WIDE_PADDING_EXTRA;
+            const ot::TreeNode bn = blkList[blk].getBlockNode();
+            const double pnmin[3] = {GRIDX_TO_X(bn.minX()) - pn * dx,
+                                     GRIDY_TO_Y(bn.minY()) - pn * dy,
+                                     GRIDZ_TO_Z(bn.minZ()) - pn * dz};
+            const double pnmax[3] = {GRIDX_TO_X(bn.maxX()) + pn * dx,
+                                     GRIDY_TO_Y(bn.maxY()) + pn * dy,
+                                     GRIDZ_TO_Z(bn.maxZ()) + pn * dz};
+            set_puncture_test_bounds(pnmin, pnmax);
+        }
+#endif
         bssnrhs(uzipVarsRHS, (const double **)uZipVars, offset, ptmin, ptmax,
                 sz, bflag, curr_time, (const double **)uZipConstVars);
     }
