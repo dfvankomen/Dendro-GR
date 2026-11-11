@@ -95,6 +95,7 @@ double BSSN_AMR_R_RATIO                   = 2.0;
 
 double BSSN_BH1_CONSTRAINT_R              = 5.0;
 double BSSN_BH2_CONSTRAINT_R              = 5.0;
+double BSSN_CONSTRAINT_FAR_R              = 0.0;
 
 double BSSN_BH1_MASS;
 double BSSN_BH2_MASS;
@@ -638,6 +639,7 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_MINDEPTH", bssn::BSSN_MINDEPTH, UseInitialValue},
         {"BSSN_BH1_CONSTRAINT_R", bssn::BSSN_BH1_CONSTRAINT_R, UseInitialValue},
         {"BSSN_BH2_CONSTRAINT_R", bssn::BSSN_BH2_CONSTRAINT_R, UseInitialValue},
+        {"BSSN_CONSTRAINT_FAR_R", bssn::BSSN_CONSTRAINT_FAR_R, UseInitialValue},
         {"BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE",
          bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE, UseInitialValue},
         {"BSSN_NYQUIST_M", bssn::BSSN_NYQUIST_M, UseInitialValue},
@@ -955,6 +957,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
                 "finite and nonnegative");
         }
     }
+    if (!(BSSN_CONSTRAINT_FAR_R >= 0.0) || std::isinf(BSSN_CONSTRAINT_FAR_R))
+        throw std::runtime_error(
+            "BSSN_CONSTRAINT_FAR_R must be finite and nonnegative");
 
 #ifdef DENDRO_WIDE_PADDING
     BSSN_PADDING_WIDTH = DENDRO_PAD_WIDTH_FOR_ORDER(BSSN_ELE_ORDER);
@@ -1358,6 +1363,7 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_MINDEPTH", bssn::BSSN_MINDEPTH},
             {"BSSN_BH1_CONSTRAINT_R", bssn::BSSN_BH1_CONSTRAINT_R},
             {"BSSN_BH2_CONSTRAINT_R", bssn::BSSN_BH2_CONSTRAINT_R},
+            {"BSSN_CONSTRAINT_FAR_R", bssn::BSSN_CONSTRAINT_FAR_R},
             {"BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE",
              bssn::BSSN_USE_SET_REF_MODE_FOR_INITIAL_CONVERGE},
             {"BSSN_NYQUIST_M", bssn::BSSN_NYQUIST_M},

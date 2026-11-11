@@ -252,6 +252,10 @@ class BSSNCtx : public ts::Ctx<BSSNCtx, DendroScalar, unsigned int> {
     /** @brief: extract the constraints, saves to file */
     int extract_constraints();
 
+    /** @brief: all constraint norms (whole mesh, outside the BH balls,
+     * outside BSSN_CONSTRAINT_FAR_R) to _ConstraintNorms.dat */
+    void write_constraint_norms(DendroScalar** consVar);
+
     /** @brief: extract the gravitational waves, saves to file */
     int extract_gravitational_waves();
 
