@@ -25,6 +25,8 @@
 #include "bssnChkptSchema.h"
 #include <string>
 
+#include <cstdio>
+#include <fstream>
 #include <iomanip>
 #include <limits>
 #include <vector>
@@ -963,8 +965,169 @@ int BSSNCtx::extract_constraints() {
                              BHLOC::EXTRACTION_TOL, m_uiTinfo._m_uiStep,
                              m_uiTinfo._m_uiT, minDetGt);
 
+    if (bssn::BSSN_CONSTRAINT_FAR_R > 0.0) write_constraint_norms(consVar);
+
     dendro::logger::info("Finished extracting constraints!");
     return 0;
+}
+
+void BSSNCtx::write_constraint_norms(DendroScalar** consVar) {
+    ot::Mesh* mesh = m_uiMesh;
+    if (!mesh->isActive()) return;
+
+    const MPI_Comm comm         = mesh->getMPICommunicator();
+    const int rank              = mesh->getMPIRank();
+    const size_t dof            = mesh->getDegOfFreedom();
+    const unsigned int nBeg     = mesh->getNodeLocalBegin();
+    const unsigned int nEnd     = mesh->getNodeLocalEnd();
+    const unsigned int nPe      = mesh->getNumNodesPerElement();
+    const unsigned int eo       = mesh->getElementOrder();
+    const unsigned int* e2n_cg  = &(*(mesh->getE2NMapping().begin()));
+    const unsigned int* e2n_dg  = &(*(mesh->getE2NMapping_DG().begin()));
+    const ot::TreeNode* pNodes  = mesh->getAllElements().data();
+    const double farR           = bssn::BSSN_CONSTRAINT_FAR_R;
+
+    // per local node: 1 = outside the BH{1,2}_CONSTRAINT_R balls (the
+    // _Constraints.dat mask), 2 = outside the far balls; same node visit
+    // order as computeConstraintL2Norm so rms_msk reproduces that file.
+    std::vector<uint8_t> seen(dof, 0), inMsk(dof, 0), inFar(dof, 0);
+    for (unsigned int e = mesh->getElementLocalBegin();
+         e < mesh->getElementLocalEnd(); e++)
+        for (unsigned int n = 0; n < nPe; n++) {
+            const unsigned int cg = e2n_cg[e * nPe + n];
+            if (cg < nBeg || cg >= nEnd || seen[cg]) continue;
+            seen[cg] = 1;
+            unsigned int owner, ix, jy, kz;
+            mesh->dg2eijk(e2n_dg[e * nPe + n], owner, ix, jy, kz);
+            const double len =
+                (double)(1u << (m_uiMaxDepth - pNodes[owner].getLevel()));
+            const Point p(GRIDX_TO_X(pNodes[owner].getX() + ix * len / eo),
+                          GRIDY_TO_Y(pNodes[owner].getY() + jy * len / eo),
+                          GRIDZ_TO_Z(pNodes[owner].getZ() + kz * len / eo));
+            const double d1 = (p - bssn::BSSN_BH_LOC[0]).abs();
+            const double d2 = (p - bssn::BSSN_BH_LOC[1]).abs();
+            inMsk[cg] = !(d1 < bssn::BSSN_BH1_CONSTRAINT_R ||
+                          d2 < bssn::BSSN_BH2_CONSTRAINT_R);
+            inFar[cg] = !(d1 < farR || d2 < farR);
+        }
+
+    // C_MOM_MAG is |C_MOM| per point; the rest are stored constraints
+    const unsigned int conIdx[] = {
+        bssn::VAR_CONSTRAINT::C_HAM,  bssn::VAR_CONSTRAINT::C_MOM0,
+        bssn::VAR_CONSTRAINT::C_MOM1, bssn::VAR_CONSTRAINT::C_MOM2,
+        UINT_MAX,                     bssn::VAR_CONSTRAINT::C_GT0,
+        bssn::VAR_CONSTRAINT::C_GT1,  bssn::VAR_CONSTRAINT::C_GT2,
+        bssn::VAR_CONSTRAINT::C_GT_MAG};
+    const unsigned int nVar = sizeof(conIdx) / sizeof(conIdx[0]);
+    std::vector<double> momMag(dof, 0.0);
+    for (size_t i = 0; i < dof; i++) {
+        const double a = consVar[bssn::VAR_CONSTRAINT::C_MOM0][i];
+        const double b = consVar[bssn::VAR_CONSTRAINT::C_MOM1][i];
+        const double c = consVar[bssn::VAR_CONSTRAINT::C_MOM2][i];
+        momMag[i]      = std::sqrt(a * a + b * b + c * c);
+    }
+
+    // volumes of the three regions (integrate a 0/1 field)
+    std::vector<double> w(dof, 0.0);
+    double vol[3];
+    for (int r = 0; r < 3; r++) {
+        for (size_t i = 0; i < dof; i++)
+            w[i] = (r == 0) ? 1.0 : (r == 1 ? inMsk[i] : inFar[i]);
+        vol[r] = integrateScalarFieldOnMesh(mesh, w.data());
+    }
+
+    // local sums: npts[3], then per var sumsq[3], min, max, maxabs[3]
+    double cnt[3] = {0, 0, 0};
+    for (unsigned int i = nBeg; i < nEnd; i++)
+        if (seen[i]) {
+            cnt[0] += 1;
+            cnt[1] += inMsk[i];
+            cnt[2] += inFar[i];
+        }
+    double cntG[3];
+    MPI_Allreduce(cnt, cntG, 3, MPI_DOUBLE, MPI_SUM, comm);
+
+    std::vector<double> row;  // per var: min max maxabs[3] rms[3] vol[3]
+    for (unsigned int v = 0; v < nVar; v++) {
+        const double* c =
+            (conIdx[v] == UINT_MAX) ? momMag.data() : consVar[conIdx[v]];
+        double ss[3] = {0, 0, 0}, mx[5];
+        mx[0] = std::numeric_limits<double>::max();   // min (negated below)
+        mx[1] = -std::numeric_limits<double>::max();  // max
+        mx[2] = mx[3] = mx[4] = 0.0;                  // maxabs per region
+        for (unsigned int i = nBeg; i < nEnd; i++) {
+            if (!seen[i]) continue;
+            const double x = c[i], x2 = x * x;
+            mx[0] = std::min(mx[0], x);
+            mx[1] = std::max(mx[1], x);
+            ss[0] += x2;
+            mx[2] = std::max(mx[2], std::fabs(x));
+            if (inMsk[i]) {
+                ss[1] += x2;
+                mx[3] = std::max(mx[3], std::fabs(x));
+            }
+            if (inFar[i]) {
+                ss[2] += x2;
+                mx[4] = std::max(mx[4], std::fabs(x));
+            }
+        }
+        mx[0] = -mx[0];  // one MAX reduction for min and max
+        double ssG[3], mxG[5];
+        MPI_Allreduce(ss, ssG, 3, MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(mx, mxG, 5, MPI_DOUBLE, MPI_MAX, comm);
+
+        double vv[3];
+        for (int r = 0; r < 3; r++) {
+            for (size_t i = 0; i < dof; i++) {
+                const double m = (r == 0) ? 1.0 : (r == 1 ? inMsk[i] : inFar[i]);
+                w[i]           = c[i] * c[i] * m;
+            }
+            const double I = integrateScalarFieldOnMesh(mesh, w.data());
+            vv[r] = (vol[r] > 0.0) ? std::sqrt(std::max(I, 0.0) / vol[r]) : 0.0;
+        }
+        row.push_back(-mxG[0]);
+        row.push_back(mxG[1]);
+        for (int r = 0; r < 3; r++) row.push_back(mxG[2 + r]);
+        for (int r = 0; r < 3; r++)
+            row.push_back(cntG[r] > 0 ? std::sqrt(ssG[r] / cntG[r]) : 0.0);
+        for (int r = 0; r < 3; r++) row.push_back(vv[r]);
+    }
+
+    if (rank) return;
+    char fName[256];
+    snprintf(fName, sizeof(fName), "%s_ConstraintNorms.dat",
+             bssn::BSSN_PROFILE_FILE_PREFIX.c_str());
+    bool needHeader;
+    {
+        std::ifstream probe(fName);
+        needHeader = !probe.good() || probe.peek() == EOF;
+    }
+    std::ofstream f(fName, std::ofstream::app);
+    if (needHeader) {
+        // all = whole mesh, msk = outside BH{1,2}_CONSTRAINT_R (as in
+        // _Constraints.dat), far = outside BSSN_CONSTRAINT_FAR_R of both BHs;
+        // rms = per-point RMS, vol = sqrt(int C^2 dV / V), maxabs = max |C|
+        f << "# BH1_R=" << bssn::BSSN_BH1_CONSTRAINT_R
+          << " BH2_R=" << bssn::BSSN_BH2_CONSTRAINT_R << " FAR_R=" << farR
+          << "\n";
+        f << "TimeStep\ttime\tnpts_all\tnpts_msk\tnpts_far\tV_all\tV_msk\tV_far";
+        const char* names[] = {"C_HAM",  "C_MOM0", "C_MOM1",
+                               "C_MOM2", "C_MOM_MAG", "C_GT0",
+                               "C_GT1",  "C_GT2",  "C_GT_MAG"};
+        const char* stats[] = {"min",        "max",        "maxabs_all",
+                               "maxabs_msk", "maxabs_far", "rms_all",
+                               "rms_msk",    "rms_far",    "vol_all",
+                               "vol_msk",    "vol_far"};
+        for (unsigned int v = 0; v < nVar; v++)
+            for (const char* s : stats) f << "\t" << names[v] << "_" << s;
+        f << "\n";
+    }
+    f << std::setprecision(std::numeric_limits<double>::max_digits10)
+      << m_uiTinfo._m_uiStep << "\t" << m_uiTinfo._m_uiT;
+    for (int r = 0; r < 3; r++) f << "\t" << cntG[r];
+    for (int r = 0; r < 3; r++) f << "\t" << vol[r];
+    for (const double x : row) f << "\t" << x;
+    f << std::endl;
 }
 
 int BSSNCtx::extract_gravitational_waves() {

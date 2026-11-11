@@ -379,6 +379,8 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << NRM << std::endl;
         sout << YLW << "\tBSSN_BH2_CONSTRAINT_R:" << bssn::BSSN_BH2_CONSTRAINT_R
              << NRM << std::endl;
+        sout << YLW << "\tBSSN_CONSTRAINT_FAR_R:" << bssn::BSSN_CONSTRAINT_FAR_R
+             << NRM << std::endl;
 
         sout << YLW << "\tBSSN_BH1_MAX_LEV:" << bssn::BSSN_BH1_MAX_LEV << NRM
              << std::endl;

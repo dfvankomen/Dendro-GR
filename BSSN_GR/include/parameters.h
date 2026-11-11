@@ -280,6 +280,11 @@ extern double BSSN_BH1_CONSTRAINT_R;
  * computing the constraint norms  for BH2*/
 extern double BSSN_BH2_CONSTRAINT_R;
 
+/**@brief: if > 0, also write _ConstraintNorms.dat: per-point and
+ * volume-weighted norms over the whole mesh, outside the BSSN_BH{1,2}
+ * balls, and outside balls of this radius around both BHs. 0 = off.*/
+extern double BSSN_CONSTRAINT_FAR_R;
+
 /**@brief: Maximum refinement level for BH1 */
 extern unsigned int BSSN_BH1_MAX_LEV;
 
