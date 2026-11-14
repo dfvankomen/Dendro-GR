@@ -39,10 +39,11 @@ matrix-free and dsolve.
   (restart 100, no preconditioner). Matvecs retain Dendro ghost exchange and
   zip/unzip. No global matrix is assembled.
 * PETSc is not installed in the validation environment, whose build has
-  `BUILD_WITH_PETSC=OFF`. That configuration uses the pre-existing experimental
-  BiCGStab, repaired for collective logging, initial zero residual, final true
-  residual verification, and collective positivity checks. The PETSc branch
-  has not been compiled or run here.
+  `BUILD_WITH_PETSC=OFF`. That configuration uses restarted GMRES(200) with
+  approximate Jacobi **left** preconditioning and two-pass Gram-Schmidt with
+  batched MPI reductions. Acceptance requires the original unscaled true
+  residual and positive finite psi. The PETSc branch has not been compiled or
+  run here.
 * `BSSN_GR/src/TPNewton.cpp` contains a private BiCGStab and Newton solver tied
   to TwoPunctures' spectral grid. It is not a Dendro nodal solver.
 * NLSigma is a nonlinear sigma-model **time-evolution** application.
@@ -131,7 +132,7 @@ the three initial-data types.
 | 97³ | 14 | 3.37572e-9 | 5.14159e-9 | 0 |
 
 All three momentum RMS values are zero for all rows. Type 14 converged in
-126 / 277 BiCGStab iterations on two ranks, with residual RMS
+126 / 277 BiCGStab iterations (before the GMRES update) on two ranks, with residual RMS
 9.43e-15 / 6.08e-15. Its full-domain Hamiltonian improves by 58.6× when spacing
 halves (observed order about 5.87). One-rank and two-rank 49³ results agree to
 roundoff; iteration counts can differ slightly with MPI reduction ordering.
@@ -148,7 +149,68 @@ not identical, and type 13's full-domain 49³ error is not interpolation error.
 Its chi RMS difference from type 14 is 1.68e-4 on 49³. Matching boundary closures
 would be necessary for strict pointwise Python/Dendro solution agreement.
 
-This is the CPU uniform-mesh milestone. The implementation uses normal AMR
-zip/unzip and physical-face flags, but full AMR accuracy, refinement-interface
-convergence, GPU execution, and PETSc execution are not validated here. No
-multigrid or preconditioner is supplied; large refined solves may need one.
+The original comparison above is the CPU uniform-mesh milestone. See the AMR
+solver validation below for the subsequent GMRES update. General AMR accuracy,
+refinement-interface convergence, GPU execution, and PETSc execution remain
+unvalidated.
+
+
+## GMRES and adaptive-mesh solver validation
+
+The non-PETSc solve uses GMRES(200). Its approximate Jacobi diagonal is
+
+```
+D = -(49/18) * (gt^xx/dx^2 + gt^yy/dy^2 + gt^zz/dz^2) - bar_R/8
+```
+
+This approximates the central E6 Laplacian diagonal; it does not assemble or
+change interface interpolation, boundary closures, or the equation. The physical
+Dirichlet rows use a unit diagonal. Left row scaling reduces the h^-2 spread
+across AMR levels. Two-pass batched Gram-Schmidt maintains the Arnoldi basis.
+A fresh **unscaled** residual controls acceptance after every restart cycle and
+again at exit. Intermediate scaled residuals are relative to the current cycle,
+not the original RHS. Failure diagnostics include the termination reason, true
+relative residual, target norm, and psi extrema.
+
+A reference-free regression runner checks the uniform solution, zero amplitude,
+inactive ranks, forced nonconvergence, and tolerance near roundoff:
+
+```sh
+python3 validation/teuk14/run_solver_validation.py --solver build/BSSN_GR/bssnSolver
+```
+
+The launcher inherits the environment, including MPI/library settings. Use
+`--output` for logs and JSON results, `--ranks` for the uniform tests, and
+`--timeout` for the per-case time limit. The existing `run_validation.py` retains
+the separate type-13 reference comparison.
+
+The large AMR test used [adaptive.toml](adaptive.toml), a copy of the
+original run input with identical parameter values, with amplitude 0.06,
+pulse radius 20, width 2, domain [-100,100]^3, element order 6, maximum depth 15,
+10 initialization passes, tolerance 5e-7 and maximum 15000 iterations. The final
+mesh had 17,124,817 nodes at levels 3-13 on 512 MPI ranks. BiCGStab diverged on
+this mesh. Left-scaled GMRES(200) passed:
+
+| Diagnostic | Result |
+|---|---:|
+| Iterations / restarts | 5200 / 25 |
+| True relative residual | 1.03553e-7 |
+| Elliptic residual RMS / max | 2.64419e-11 / 5.49376e-9 |
+| psi minimum / maximum | 1 / 1.010797702 |
+| Seed Hamiltonian RMS | 2.04278e-3 |
+| Solved Hamiltonian RMS / max | 5.20829e-8 / 5.02919e-6 |
+| Momentum and Gamma diagnostics | 0 |
+
+The validation job took 9m38s including initialization, checkpoint output, and
+25 evolution steps, then was intentionally cancelled. The input retained
+restore=1 (empty checkpoints initially) and t_end=75. This establishes
+initialization convergence, not long-term evolution stability: constraints
+increased after remeshing (Hamiltonian RMS 0.00753 at step 25). No multigrid is
+included. The Krylov basis stores 201 mesh vectors per active rank.
+
+The large input is not part of the small regression runner. Reproduce it inside
+an appropriate 512-rank allocation with the solver and input specified by
+absolute paths and a fresh working directory containing `cp`, `prof`, and `vtu`
+subdirectories. It retains t_end=75; initialization convergence can be inspected
+before completing the full evolution. Its restore flag requires initially empty
+checkpoint directories for a fresh Hamiltonian solve.

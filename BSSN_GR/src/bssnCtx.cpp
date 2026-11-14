@@ -610,6 +610,7 @@ int BSSNCtx::initialize() {
                     << "Type 14 failed true-residual/positivity checks after "
                     << solve.iterations << " iterations; residual L2/max "
                     << solve.residual_l2 << " " << solve.residual_max
+                    << "; psi min/max " << solve.psi_min << " " << solve.psi_max
                     << std::endl;
             MPI_Abort(m_uiMesh->getMPIGlobalCommunicator(), 1);
         }

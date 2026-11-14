@@ -26,7 +26,8 @@ struct TeukHamiltonianSolveResult {
  * vars and seed_ricci are zipped, ghosted nodal arrays.  The conformal metric
  * is retained. Call teukolskyConnectionOnMesh before constructing seed Ricci.
  * Only active mesh ranks participate; tolerance is relative to the initial
- * residual.
+ * residual. The non-PETSc path uses restarted GMRES with approximate
+ * Jacobi row scaling; acceptance always uses the unscaled true residual.
  */
 TeukHamiltonianSolveResult solveTeukolskyHamiltonianOnMesh(
     ot::Mesh& mesh, double** vars, const double* seed_ricci, double tolerance,

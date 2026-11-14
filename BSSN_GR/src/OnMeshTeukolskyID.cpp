@@ -108,14 +108,41 @@ class Operator {
             mesh_.unzip(coef_[s], coef_uz_[s]);
         }
         find_boundary();
+        inverse_diagonal_ = mesh_.createVector<double>(0.0);
+        std::fill(out_uz_, out_uz_ + mesh_.getDegOfFreedomUnZip(), 0.0);
+        const Point lo = mesh_.getDomainMinPt(), hi = mesh_.getDomainMaxPt();
+        for (const auto& block : mesh_.getLocalBlockList()) {
+            const unsigned off = block.getOffset();
+            const unsigned nx = block.getAllocationSzX(), ny = block.getAllocationSzY(), nz = block.getAllocationSzZ();
+            const double dx = block.computeDx(lo, hi), dy = block.computeDy(lo, hi), dz = block.computeDz(lo, hi);
+            const unsigned pw = BSSN_PADDING_WIDTH;
+            for (unsigned k = pw; k < nz-pw; ++k)
+                for (unsigned j = pw; j < ny-pw; ++j)
+                    for (unsigned i = pw; i < nx-pw; ++i) {
+                        const unsigned n = off + i + nx * (j + ny * k);
+                        // Central E6 Laplacian diagonal; boundary closures and
+                        // interpolation rows are approximated, not altered.
+                        const double d = -(49.0/18.0) *
+                            (coef_uz_[0][n]/(dx*dx) + coef_uz_[3][n]/(dy*dy) + coef_uz_[5][n]/(dz*dz))
+                            - 0.125 * coef_uz_[6][n];
+                        out_uz_[n] = (std::isfinite(d) && std::abs(d) > 1e-300) ? 1.0/d : 1.0;
+                    }
+        }
+        mesh_.zip(out_uz_, inverse_diagonal_);
+        for (auto n : boundary_) inverse_diagonal_[n] = 1.0;
     }
     ~Operator() {
         for (auto* p : coef_) delete[] p;
         for (auto* p : coef_uz_) delete[] p;
+        delete[] inverse_diagonal_;
         delete[] u_uz_;
         delete[] out_uz_;
     }
     const std::vector<unsigned int>& boundary() const { return boundary_; }
+    void precondition(const double* in, double* out) const {
+        for (unsigned n = mesh_.getNodeLocalBegin(); n < mesh_.getNodeLocalEnd(); ++n)
+            out[n] = inverse_diagonal_[n] * in[n];
+    }
     void apply(const double* u, double* out) {
         mesh_.readFromGhostBegin(const_cast<double*>(u), 1);
         mesh_.readFromGhostEnd(const_cast<double*>(u), 1);
@@ -180,7 +207,7 @@ class Operator {
    private:
     ot::Mesh& mesh_;
     std::array<double*, 10> coef_{}, coef_uz_{};
-    double *u_uz_ = nullptr, *out_uz_ = nullptr;
+    double *u_uz_ = nullptr, *out_uz_ = nullptr, *inverse_diagonal_ = nullptr;
     std::vector<unsigned int> boundary_;
     void find_boundary() {
         const auto& els      = mesh_.getAllElements();
@@ -344,17 +371,18 @@ TeukHamiltonianSolveResult solveTeukolskyHamiltonianOnMesh(
                        end   = mesh.getNodeLocalEnd();
     auto make                = [&]() { return mesh.createVector<double>(0.0); };
     double *u = make(), *rhs = make(), *ax = make(), *r = make(),
-           *shadow = make(), *p = make(), *v = make(), *s = make(), *t = make();
+           *p = make(), *v = make(), *s = make();
     for (unsigned int n = begin; n < end; ++n) rhs[n] = 0.125 * ricci[n];
     zero_boundary(op.boundary(), rhs);
     op.apply(u, ax);
     for (unsigned int n = begin; n < end; ++n) r[n] = rhs[n] - ax[n];
     zero_boundary(op.boundary(), r);
-    std::copy(r, r + size, shadow);
     const double base = std::sqrt(dot(mesh, r, r));
     TeukHamiltonianSolveResult result;
     result.converged = (base == 0.0);
-    double rho_old = 1, alpha = 1, omega = 1;
+    const char* exit_reason = base == 0.0 ? "zero initial residual" : "iteration limit";
+    unsigned restarts = 0;
+    double recursive_relative = base == 0.0 ? 0.0 : 1.0;
 #ifdef BUILD_WITH_PETSC
     PetscOperator shell{op, begin, end, std::vector<double>(size),
                         std::vector<double>(size)};
@@ -399,6 +427,9 @@ TeukHamiltonianSolveResult solveTeukolskyHamiltonianOnMesh(
     petscCheck(KSPSolve(ksp, b, x));
     PetscInt iterations = 0;
     petscCheck(KSPGetIterationNumber(ksp, &iterations));
+    KSPConvergedReason reason;
+    petscCheck(KSPGetConvergedReason(ksp, &reason));
+    exit_reason = reason > 0 ? "PETSc reported convergence" : "PETSc reported divergence";
     result.iterations           = iterations;
     const PetscScalar* solution = nullptr;
     petscCheck(VecGetArrayRead(x, &solution));
@@ -410,47 +441,103 @@ TeukHamiltonianSolveResult solveTeukolskyHamiltonianOnMesh(
     petscCheck(VecDestroy(&b));
     petscCheck(MatDestroy(&matrix));
 #else
-    for (unsigned int it = 1; it <= maximum_iterations && base > 0; ++it) {
-        const double rho = dot(mesh, shadow, r);
-        if (!std::isfinite(rho) || std::abs(rho) < 1e-300) break;
-        const double beta = (rho / rho_old) * (alpha / omega);
-        for (unsigned int n = begin; n < end; ++n)
-            p[n] = r[n] + beta * (p[n] - omega * v[n]);
-        zero_boundary(op.boundary(), p);
-        op.apply(p, v);
-        const double den = dot(mesh, shadow, v);
-        if (!std::isfinite(den) || std::abs(den) < 1e-300) break;
-        alpha = rho / den;
-        for (unsigned int n = begin; n < end; ++n) s[n] = r[n] - alpha * v[n];
-        zero_boundary(op.boundary(), s);
-        if (std::sqrt(dot(mesh, s, s)) <= tolerance * base) {
-            for (unsigned int n = begin; n < end; ++n) u[n] += alpha * p[n];
-            result.iterations = it;
-            result.converged  = true;
+    // Left row scaling removes the h^-2 spread on highly adaptive meshes.
+    // The true unscaled residual still controls final acceptance.
+    const unsigned restart_length = 200;
+    std::vector<std::vector<double>> basis(restart_length + 1);
+    for (auto& q : basis) q.assign(size, 0.0);
+    std::vector<double> h((restart_length + 1) * restart_length, 0.0);
+    std::vector<double> cosine(restart_length), sine(restart_length);
+    std::vector<double> g(restart_length + 1), y(restart_length);
+    auto H = [&](unsigned i, unsigned j) -> double& {
+        return h[j * (restart_length + 1) + i];
+    };
+    if (!mesh.getMPIRank())
+        std::cout << "TEUK_HAM solver GMRES(200), left approximate Jacobi" << std::endl;
+    while (result.iterations < maximum_iterations && base > 0.0) {
+        const double beta = std::sqrt(dot(mesh, r, r));
+        if (beta <= tolerance * base) { exit_reason = "verified convergence"; break; }
+        if (!std::isfinite(beta)) { exit_reason = "nonfinite residual"; break; }
+        op.precondition(r, s);
+        const double scaled_beta = std::sqrt(dot(mesh, s, s));
+        if (!(scaled_beta > 0.0) || !std::isfinite(scaled_beta)) {
+            exit_reason = "invalid preconditioned residual";
             break;
         }
-        op.apply(s, t);
-        const double tt = dot(mesh, t, t);
-        if (!std::isfinite(tt) || tt == 0) break;
-        omega = dot(mesh, t, s) / tt;
-        for (unsigned int n = begin; n < end; ++n) {
-            u[n] += alpha * p[n] + omega * s[n];
-            r[n] = s[n] - omega * t[n];
+        for (unsigned n = begin; n < end; ++n) basis[0][n] = s[n] / scaled_beta;
+        std::fill(h.begin(), h.end(), 0.0);
+        std::fill(g.begin(), g.end(), 0.0);
+        g[0] = scaled_beta;
+        unsigned used = 0;
+        bool breakdown = false;
+        for (unsigned j = 0; j < restart_length && result.iterations < maximum_iterations; ++j) {
+            op.apply(basis[j].data(), p);
+            op.precondition(p, v);
+            zero_boundary(op.boundary(), v);
+            // Two-pass classical Gram-Schmidt with batched reductions avoids
+            // hundreds of collective calls per Arnoldi step on 512 ranks.
+            std::vector<double> local(j + 1), global(j + 1);
+            for (unsigned pass = 0; pass < 2; ++pass) {
+                std::fill(local.begin(), local.end(), 0.0);
+                for (unsigned k = 0; k <= j; ++k)
+                    for (unsigned n = begin; n < end; ++n)
+                        local[k] += basis[k][n] * v[n];
+                MPI_Allreduce(local.data(), global.data(), j + 1, MPI_DOUBLE,
+                              MPI_SUM, mesh.getMPICommunicator());
+                for (unsigned k = 0; k <= j; ++k) {
+                    H(k,j) += global[k];
+                    for (unsigned n = begin; n < end; ++n)
+                        v[n] -= global[k] * basis[k][n];
+                }
+            }
+            const double next = std::sqrt(dot(mesh, v, v));
+            H(j+1,j) = next;
+            if (!std::isfinite(next)) { breakdown = true; exit_reason = "nonfinite Arnoldi norm"; break; }
+            if (next > 0.0)
+                for (unsigned n = begin; n < end; ++n) basis[j+1][n] = v[n] / next;
+            for (unsigned k = 0; k < j; ++k) {
+                const double a = H(k,j), b = H(k+1,j);
+                H(k,j) = cosine[k] * a + sine[k] * b;
+                H(k+1,j) = -sine[k] * a + cosine[k] * b;
+            }
+            const double magnitude = std::hypot(H(j,j), H(j+1,j));
+            if (!(magnitude > 0.0) || !std::isfinite(magnitude)) {
+                breakdown = true; exit_reason = "Arnoldi breakdown"; break;
+            }
+            cosine[j] = H(j,j) / magnitude;
+            sine[j] = H(j+1,j) / magnitude;
+            H(j,j) = magnitude;
+            H(j+1,j) = 0.0;
+            g[j+1] = -sine[j] * g[j];
+            g[j] *= cosine[j];
+            ++result.iterations;
+            used = j + 1;
+            recursive_relative = std::abs(g[j+1]) / scaled_beta;
+            if (verbose && (result.iterations == 1 || result.iterations % 25 == 0) && !mesh.getMPIRank())
+                std::cout << "TEUK_HAM iteration " << result.iterations
+                          << " scaled cycle relative residual " << recursive_relative << '\n';
+            if (recursive_relative <= tolerance * 0.1 || next == 0.0) break;
         }
+        if (!used) break;
+        for (int j = static_cast<int>(used) - 1; j >= 0; --j) {
+            double value = g[j];
+            for (unsigned k = j + 1; k < used; ++k) value -= H(j,k) * y[k];
+            y[j] = value / H(j,j);
+        }
+        std::fill(p, p + size, 0.0);
+        for (unsigned k = 0; k < used; ++k)
+            for (unsigned n = begin; n < end; ++n) p[n] += basis[k][n] * y[k];
+        for (unsigned n = begin; n < end; ++n) u[n] += p[n];
+        op.apply(u, ax);
+        for (unsigned n = begin; n < end; ++n) r[n] = rhs[n] - ax[n];
         zero_boundary(op.boundary(), r);
-        result.iterations = it;
-        if (std::sqrt(dot(mesh, r, r)) <= tolerance * base) {
-            result.converged = true;
-            break;
-        }
-        if (!std::isfinite(omega) || std::abs(omega) < 1e-300) break;
-        rho_old = rho;
-        if (verbose && (it == 1 || it % 25 == 0)) {
-            const double relative = std::sqrt(dot(mesh, r, r)) / base;
-            if (!mesh.getMPIRank())
-                std::cout << "TEUK_HAM iteration " << it
-                          << " relative residual " << relative << '\n';
-        }
+        const double actual = std::sqrt(dot(mesh, r, r));
+        if (verbose && !mesh.getMPIRank())
+            std::cout << "TEUK_HAM GMRES cycle " << restarts
+                      << " true relative residual " << actual / base << std::endl;
+        if (actual <= tolerance * base) { exit_reason = "verified convergence"; break; }
+        if (breakdown) break;
+        ++restarts;
     }
 #endif
     op.apply(u, ax);
@@ -477,10 +564,23 @@ TeukHamiltonianSolveResult solveTeukolskyHamiltonianOnMesh(
                   mesh.getMPICommunicator());
     if (!(result.psi_min > 0.0) || !std::isfinite(result.psi_max))
         result.converged = false;
+    if (verbose || !result.converged) {
+        const double true_norm = std::sqrt(dot(mesh, r, r));
+        if (!mesh.getMPIRank())
+            std::cout << "TEUK_HAM final reason: " << exit_reason
+                      << "; iterations " << result.iterations
+                      << "; restarts " << restarts
+                      << "; last scaled cycle relative residual " << recursive_relative
+                      << "; true relative residual " << (base > 0 ? true_norm / base : true_norm)
+                      << "; rhs norm " << base
+                      << "; target norm " << tolerance * base
+                      << "; psi min/max " << result.psi_min << " " << result.psi_max
+                      << "; accepted " << result.converged << std::endl;
+    }
     if (result.converged)
         for (unsigned n = begin; n < end; ++n)
             vars[VAR::U_CHI][n] = std::pow(1.0 + u[n], -4.0);
-    for (double* q : {u, rhs, ax, r, shadow, p, v, s, t}) delete[] q;
+    for (double* q : {u, rhs, ax, r, p, v, s}) delete[] q;
     return result;
 }
 
