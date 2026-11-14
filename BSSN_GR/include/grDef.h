@@ -95,9 +95,10 @@ static const char* BSSN_CONSTRAINT_VAR_NAMES[] = {
  * EH_WAMR : both even horizon as well as WAMR based refinement.
  * BH_LOC : BH location based refinement, if turned on track the bh locations.
  * BH_WAMR : mixing WAMR + BH_LOC
+ * GEOMETRIC_WAMR: Scale inverse-length wavelet errors by local grid spacing.
  * PURE_WAMR: Only do refinement based on WAMR
  */
- enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC, BH_WAMR, PURE_WAMR};
+ enum RefinementMode { WAMR = 0, EH, EH_WAMR, BH_LOC, BH_WAMR, PURE_WAMR, GEOMETRIC_WAMR};
 
 }  // end of namespace bssn
 

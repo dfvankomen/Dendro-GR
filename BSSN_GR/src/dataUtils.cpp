@@ -744,11 +744,11 @@ bool isRemeshEH(ot::Mesh* pMesh, const double** unzipVec, unsigned int vIndex,
     return isOctChanged_g;
 }
 
-bool isReMeshWAMR(
+static bool isReMeshWAMRImpl(
     ot::Mesh* pMesh, const double** unzippedVec, const unsigned int* varIds,
     const unsigned int numVars,
     std::function<double(double, double, double, double*)> wavelet_tol,
-    double amr_coarse_fac) {
+    double amr_coarse_fac, bool geometric_scaling) {
     // if(!(pMesh->isReMeshUnzip((const double
     // **)unzippedVec,varIds,numVars,wavelet_tol,bssn::BSSN_DENDRO_AMR_FAC)))
     //     return false;
@@ -757,6 +757,7 @@ bool isReMeshWAMR(
     // bssn::BSSN_CURRENT_RK_COORD_TIME < 80)
     //     return bssn::isReMeshBHRadial(pMesh);
 
+    unsigned long long diagnostic[3] = {0, 0, 0};
     std::vector<unsigned int> refine_flags;
     const double r_near[2] = {bssn::BSSN_BH1_AMR_R, bssn::BSSN_BH2_AMR_R};
 
@@ -854,6 +855,18 @@ bool isReMeshWAMR(
                     wtol_vals[vid] = computeWeightedWaveletIndicator(
                         wtol_vals[vid], eVecTmp.data(), isz, hx, vid);
 
+                    if (geometric_scaling &&
+                        (vid == VAR::U_K ||
+                         (vid >= VAR::U_GT0 && vid <= VAR::U_GT2) ||
+                         (vid >= VAR::U_B0 && vid <= VAR::U_B2) ||
+                         (vid >= VAR::U_SYMAT0 && vid <= VAR::U_SYMAT5))) {
+                        // K, Gt, B and At carry inverse-length units. Their
+                        // effect across one grid spacing is dimensionless,
+                        // like the metric, lapse and shift indicators.
+                        const double h = std::max(hx[0], std::max(hx[1], hx[2]));
+                        wtol_vals[vid] *= h;
+                    }
+
                     // early bail if the computed tolerance value is large.
                     if (wtol_vals[vid] > tol_ele) break;
                 }
@@ -863,6 +876,7 @@ bool isReMeshWAMR(
                 // use max wavelet coefficient to decide whether
                 // to coaresen / refine / no change
                 if (l_max > tol_ele) {
+                    ++diagnostic[0];
                     // if under-refined, then refine
                     refine_flags[(ele - eleLocalBegin)] = OCT_SPLIT;
                 } else if (l_max < amr_coarse_fac * tol_ele) {
@@ -895,11 +909,15 @@ bool isReMeshWAMR(
 
             //@milinda: 11/21/2020 : Don't allow to violate the min depth
             if (pNodes[ele].getLevel() < bssn::BSSN_MINDEPTH) {
+                ++diagnostic[1];
                 refine_flags[ele - eleLocalBegin] = OCT_SPLIT;
             } else if (pNodes[ele].getLevel() == bssn::BSSN_MINDEPTH &&
                        refine_flags[ele - eleLocalBegin] == OCT_COARSE) {
                 refine_flags[ele - eleLocalBegin] = OCT_NO_CHANGE;
             }
+
+            // Zero radii disable BH overrides, not the global minimum depth.
+            if (!(r_near[0] > 0.0 || r_near[1] > 0.0)) continue;
 
             // don't overide things away from puntures let wavelets handle that.
             if (d1.abs() > 10 && d2.abs() > 10)
@@ -928,8 +946,12 @@ bool isReMeshWAMR(
                             const double rd1       = d1.abs();
                             const double rd2       = d2.abs();
 
-                            const bool isNearTobh1 = (rd1 <= r_near[0]);
-                            const bool isNearTobh2 = (rd2 <= r_near[1]);
+                            // A nonpositive radius disables the BH override, including
+                            // at a mesh node exactly on the puncture/center.
+                            const bool isNearTobh1 =
+                                (r_near[0] > 0.0 && rd1 <= r_near[0]);
+                            const bool isNearTobh2 =
+                                (r_near[1] > 0.0 && rd2 <= r_near[1]);
 
                             const bool isMidNearTobh1 =
                                 (rd1 > r_near[0] && rd1 <= 10.0 * r_near[0]);
@@ -1080,13 +1102,41 @@ bool isReMeshWAMR(
             }
         }
 
+        for (auto flag : refine_flags)
+            if (flag == OCT_SPLIT) ++diagnostic[2];
         isOctChange = pMesh->setMeshRefinementFlags(refine_flags);
     }
 
+    if (bssn::BSSN_ID_TYPE == 14 && bssn::TEUK_HAM_VERBOSE) {
+        unsigned long long total[3] = {0, 0, 0};
+        MPI_Allreduce(diagnostic, total, 3, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
+                      pMesh->getMPIGlobalCommunicator());
+        if (!pMesh->getMPIRankGlobal())
+            std::cout << "TEUK_AMR split candidates wavelet/minimum/final "
+                      << total[0] << " " << total[1] << " " << total[2] << std::endl;
+    }
     // communicate refinement between cores.
     MPI_Allreduce(&isOctChange, &isOctChange_g, 1, MPI_CXX_BOOL, MPI_LOR,
                   pMesh->getMPIGlobalCommunicator());
     return isOctChange_g;
+}
+
+bool isReMeshWAMR(
+    ot::Mesh* mesh, const double** vars, const unsigned int* ids,
+    const unsigned int count,
+    std::function<double(double, double, double, double*)> tolerance,
+    double coarsen_factor) {
+    return isReMeshWAMRImpl(mesh, vars, ids, count, tolerance,
+                           coarsen_factor, false);
+}
+
+bool isReMeshGeometricWAMR(
+    ot::Mesh* mesh, const double** vars, const unsigned int* ids,
+    const unsigned int count,
+    std::function<double(double, double, double, double*)> tolerance,
+    double coarsen_factor) {
+    return isReMeshWAMRImpl(mesh, vars, ids, count, tolerance,
+                           coarsen_factor, true);
 }
 
 // Don't use this : 1) This is expensive

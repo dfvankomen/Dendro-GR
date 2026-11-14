@@ -477,6 +477,13 @@ int BSSNCtx::initialize() {
             mesh_gpu->dealloc_mesh_on_device(dptr_mesh);
             dptr_mesh = mesh_gpu->alloc_mesh_on_device(m_uiMesh);
 #endif
+            if (bssn::BSSN_ID_TYPE == 14) {
+                // Type 14 has an analytic unsolved seed on every trial mesh.
+                // Refine that seed, not interpolation artifacts accumulated
+                // across transfers. The Hamiltonian solve still runs once,
+                // after the final initial mesh is selected.
+                this->init_grid();
+            }
         }
 
         iterCount += 1;
@@ -1603,11 +1610,14 @@ bool BSSNCtx::is_remesh() {
             return bssn::computeWTolDCoords(x, y, z, hx);
         };
 
-    if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::WAMR) {
-        isRefine =
-            bssn::isReMeshWAMR(m_uiMesh, (const double**)unzipVar, refineVarIds,
-                               bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
-                               bssn::BSSN_DENDRO_AMR_FAC);
+    if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::WAMR ||
+        bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::GEOMETRIC_WAMR) {
+        const auto refine =
+            bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::GEOMETRIC_WAMR
+                ? bssn::isReMeshGeometricWAMR : bssn::isReMeshWAMR;
+        isRefine = refine(m_uiMesh, (const double**)unzipVar, refineVarIds,
+                          bssn::BSSN_NUM_REFINE_VARS, waveletTolFunc,
+                          bssn::BSSN_DENDRO_AMR_FAC);
 
     } else if (bssn::BSSN_REFINEMENT_MODE == bssn::RefinementMode::EH) {
         isRefine = bssn::isRemeshEH(

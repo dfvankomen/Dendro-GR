@@ -214,3 +214,12 @@ absolute paths and a fresh working directory containing `cp`, `prof`, and `vtu`
 subdirectories. It retains t_end=75; initialization convergence can be inspected
 before completing the full evolution. Its restore flag requires initially empty
 checkpoint directories for a fresh Hamiltonian solve.
+
+
+## Reducing unnecessary refinement
+
+See [refinement.md](refinement.md) for the zero-radius BH override fix,
+consistent analytic seed sampling, and the optional cell-scale geometric
+criterion (`BSSN_REFINEMENT_MODE=6`). The short example input is
+[adaptive.geometric.toml](adaptive.geometric.toml). Existing mode 0 retains
+its original field-error criterion.

@@ -82,6 +82,16 @@ bool isReMeshWAMR(
     double amr_coarse_fac);
 
 
+/** Wavelet AMR with inverse-length field errors scaled by local grid spacing.
+ * Uses the same tolerance function and BH/minimum-depth overrides as WAMR.
+ */
+bool isReMeshGeometricWAMR(
+    ot::Mesh* pMesh, const double** unzippedVec, const unsigned int* varIds,
+    const unsigned int numVars,
+    std::function<double(double, double, double, double*)> wavelet_tol,
+    double amr_coarse_fac);
+
+
 
 /**
  * @brief add refinement based on wavelets
