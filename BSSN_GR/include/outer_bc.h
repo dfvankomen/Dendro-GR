@@ -53,4 +53,14 @@ void outer_bc_tail(double *f_rhs, const double *pmin, const double *pmax,
                    const unsigned int *sz, unsigned int pad, unsigned int bflag,
                    double M, double n);
 
+// BSSN_OUTER_GHOST_EXTRAP: fills the padding beyond the physical faces of a
+// block by degree-p Lagrange extrapolation through the face node and the p
+// nodes inside it. Axes go x, y, z, so edge and corner ghosts are tensor-
+// product extrapolations. Call only where outer_ghost_extrap_fits().
+constexpr unsigned int kMaxGhostDegree = 8, kMaxGhostPad = 8;
+bool outer_ghost_extrap_fits(const unsigned int *sz, unsigned int pad,
+                             unsigned int p);
+void outer_ghost_extrap(double *f, const unsigned int *sz, unsigned int pad,
+                        unsigned int bflag, unsigned int p);
+
 }  // namespace bssn

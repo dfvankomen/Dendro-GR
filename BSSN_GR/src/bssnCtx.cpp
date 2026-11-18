@@ -35,6 +35,7 @@
 #include "logger.h"
 #include "mathUtils.h"   // normRMSE, vecMin/vecMax(ptr,n,comm)
 #include "meshUtils.h"   // calculateL2FullMeshIntegration, integrateScalarFieldOnMesh
+#include "outer_bc.h"
 #include "parUtils.h"
 #include "parameters.h"
 
@@ -704,6 +705,7 @@ int BSSNCtx::initialize() {
         // Outer BC options (outer_bc.h): check, then report the choice.
         const unsigned int obc = bssn::BSSN_OUTER_BC;
         const double tail_m    = bssn::BSSN_OUTER_BC_TAIL_MASS;
+        const unsigned int ghost_p = bssn::BSSN_OUTER_GHOST_EXTRAP;
         const char* err        = nullptr;
         if (obc > 3)
             err = "BSSN_OUTER_BC must be 0, 1, 2 or 3";
@@ -713,11 +715,17 @@ int BSSNCtx::initialize() {
             err = "BSSN_OUTER_BC_TAIL_MASS must be finite and >= 0";
         else if (tail_m > 0.0 && (obc == 1 || obc == 2))
             err = "BSSN_OUTER_BC_TAIL_MASS needs BSSN_OUTER_BC = 0 or 3";
+        else if (ghost_p > bssn::kMaxGhostDegree)
+            err = "BSSN_OUTER_GHOST_EXTRAP must be 0-8";
 #ifndef BSSN_RHS_EXPERIMENTAL
-        else if (obc != 0 || tail_m > 0.0)
+        else if (obc != 0 || tail_m > 0.0 || ghost_p > 0)
             err =
-                "BSSN_OUTER_BC and BSSN_OUTER_BC_TAIL_MASS need the "
-                "rhs_experimental.cpp build";
+                "BSSN_OUTER_BC, BSSN_OUTER_BC_TAIL_MASS and "
+                "BSSN_OUTER_GHOST_EXTRAP need the rhs_experimental.cpp build";
+#endif
+#ifndef DENDRO_USE_NEW_DERIVS
+        else if (ghost_p > 0)
+            err = "BSSN_OUTER_GHOST_EXTRAP needs DENDRO_USE_NEW_DERIVS";
 #endif
 #ifdef USE_ROCHESTER_GAUGE
         // outer_bc_hilditch() assumes the standard-gauge B driver
@@ -754,6 +762,11 @@ int BSSNCtx::initialize() {
                           << ", M = " << std::to_string(tail_m);
             if ((obc == 1 || obc == 3) && bssn::BSSN_OUTER_BC_DERIV2)
                 std::cout << ", 2nd-order one-sided d/dn";
+            if (ghost_p > 0)
+                std::cout << ", ghosts extrapolated at degree " << ghost_p
+                          << (bssn::BSSN_OUTER_GHOST_KO
+                                  ? " (KO through ghosts)"
+                                  : " (KO keeps wall rows)");
             std::cout << std::endl;
         }
     }

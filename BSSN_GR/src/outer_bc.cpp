@@ -86,6 +86,18 @@ inline double shift_speed_n(double alpha, const double lambda_f[2]) {
     return 2.0 / std::sqrt(3.0) * shift_speed_t(alpha, lambda_f);
 }
 
+// Weights of the nodes 0..p inside a face for the value at distance `dist`
+// outside it: the degree-p Lagrange polynomial through them, evaluated there.
+void lagrange_extrap_weights(unsigned int p, unsigned int dist,
+                             double *weights) {
+    for (unsigned int n = 0; n <= p; n++) {
+        double w = 1.0;
+        for (unsigned int m = 0; m <= p; m++)
+            if (m != n) w *= (-(double)dist - m) / ((double)n - m);
+        weights[n] = w;
+    }
+}
+
 }  // namespace
 
 void outer_bc_hilditch(const OuterBCFields &u, const OuterBCGrads &g,
@@ -180,6 +192,44 @@ void outer_bc_tail(double *f_rhs, const double *pmin, const double *pmax,
         const double dfs = n * 0.5 * M / (p.r * p.r) * std::pow(q, -n - 1.0);
         f_rhs[p.pp] += dfs + (fs - 1.0) / p.r;
     });
+}
+
+bool outer_ghost_extrap_fits(const unsigned int *sz, unsigned int pad,
+                             unsigned int p) {
+    if (p == 0u || p > kMaxGhostDegree || pad > kMaxGhostPad) return false;
+    for (unsigned int axis = 0; axis < 3; axis++)
+        if (sz[axis] < 2 * pad + p + 1) return false;
+    return true;
+}
+
+void outer_ghost_extrap(double *f, const unsigned int *sz, unsigned int pad,
+                        unsigned int bflag, unsigned int p) {
+    double weights[kMaxGhostPad][kMaxGhostDegree + 1];
+    for (unsigned int ghost = 0; ghost < pad; ghost++)
+        lagrange_extrap_weights(p, ghost + 1, weights[ghost]);
+
+    const size_t stride[3] = {1, sz[0], (size_t)sz[0] * sz[1]};
+    for (unsigned int axis = 0; axis < 3; axis++) {
+        const unsigned int across1 = (axis + 1) % 3, across2 = (axis + 2) % 3;
+        for (unsigned int high = 0; high < 2; high++) {
+            if (!(bflag & (1u << (2 * axis + high)))) continue;
+            const size_t face = high ? sz[axis] - pad - 1 : pad;
+            const long inward = high ? -(long)stride[axis] : (long)stride[axis];
+            for (unsigned int k = 0; k < sz[across2]; k++)
+                for (unsigned int j = 0; j < sz[across1]; j++) {
+                    double *face_node = f + face * stride[axis] +
+                                        j * stride[across1] +
+                                        k * stride[across2];
+                    for (unsigned int ghost = 0; ghost < pad; ghost++) {
+                        const double *w = weights[ghost];
+                        double v        = 0.0;
+                        for (long n = 0; n <= (long)p; n++)
+                            v += w[n] * face_node[n * inward];
+                        face_node[-(long)(ghost + 1) * inward] = v;
+                    }
+                }
+        }
+    }
 }
 
 }  // namespace bssn

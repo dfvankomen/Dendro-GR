@@ -166,8 +166,8 @@ void bssnRHS(double **uzipVarsRHS, const double **uZipVars,
  *----------------------------------------------------------------------*/
 void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
              const unsigned int &offset, const double *pmin, const double *pmax,
-             const unsigned int *sz, const unsigned int &bflag, const double t,
-             const double **uZipConstVars) {
+             const unsigned int *sz, const unsigned int &bflag_phys,
+             const double t, const double **uZipConstVars) {
     const double *const alpha = &uZipVars[VAR::U_ALPHA][offset];
     const double *const chi   = &uZipVars[VAR::U_CHI][offset];
     const double *const K     = &uZipVars[VAR::U_K][offset];
@@ -263,6 +263,21 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 
     const unsigned int PW                = bssn::BSSN_PADDING_WIDTH;
     const unsigned int n                 = sz[0] * sz[1] * sz[2];
+
+    // With ghosts filled, derivatives treat the block as interior; the outer
+    // BC still acts on the physical faces. The unzipped padding at a physical
+    // face is scratch, so the ghosts are written into the input in place.
+    const unsigned int ghost_degree      = bssn::BSSN_OUTER_GHOST_EXTRAP;
+    const bool ghosts_filled =
+        ghost_degree > 0 && bflag_phys != 0 &&
+        bssn::outer_ghost_extrap_fits(sz, PW, ghost_degree);
+    if (ghosts_filled)
+        for (unsigned int v = 0; v < bssn::BSSN_NUM_VARS; v++)
+            bssn::outer_ghost_extrap(const_cast<double *>(uZipVars[v]) + offset,
+                                     sz, PW, bflag_phys, ghost_degree);
+    const unsigned int bflag = ghosts_filled ? 0u : bflag_phys;
+    const unsigned int bflag_ko =
+        ghosts_filled && !bssn::BSSN_OUTER_GHOST_KO ? bflag_phys : bflag;
 
 #ifdef DENDRO_USE_NEW_DERIVS
     // Route this block's derivs through the explicit fallback if a puncture
@@ -513,7 +528,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
 #endif  // BSSN_USE_CASCADE_AVX* branches
     bssn::timer::t_rhs.stop();
 
-    if (bflag != 0) {
+    if (bflag_phys != 0) {
         bssn::timer::t_bdyc.start();
         const unsigned int obc = bssn::BSSN_OUTER_BC;
 
@@ -540,7 +555,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                 {Gt_rhs0, Gt_rhs1, Gt_rhs2},
                 {At_rhs00, At_rhs01, At_rhs02, At_rhs11, At_rhs12, At_rhs22},
                 {B_rhs0, B_rhs1, B_rhs2}};
-            bssn::outer_bc_hilditch(bu, bg, br, pmin, pmax, sz, PW, bflag,
+            bssn::outer_bc_hilditch(bu, bg, br, pmin, pmax, sz, PW, bflag_phys,
                                     lambda_f, bssn::BSSN_OUTER_BC_DERIV2);
         }
 
@@ -552,7 +567,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
                           double f_inf, BCSpeed v) {
                 const double *const g[3] = {g0, g1, g2};
                 bssn::outer_bc_speed(rhs, f, g, alpha, pmin, pmax, sz, PW,
-                                     bflag, falloff, f_inf, v, lambda_f);
+                                     bflag_phys, falloff, f_inf, v, lambda_f);
             };
             bc(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha, 1.0, 1.0,
                BCSpeed::Gauge);
@@ -621,85 +636,85 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
             if (legacy & kAlpha) {
                 bssn::timer::t_rhs_a.start();
                 bssn_bcs(a_rhs, alpha, grad_0_alpha, grad_1_alpha, grad_2_alpha,
-                         pmin, pmax, 1.0, 1.0, sz, bflag);
+                         pmin, pmax, 1.0, 1.0, sz, bflag_phys);
                 if (tail_m > 0.0)
-                    bssn::outer_bc_tail(a_rhs, pmin, pmax, sz, PW, bflag,
+                    bssn::outer_bc_tail(a_rhs, pmin, pmax, sz, PW, bflag_phys,
                                         tail_m, 2.0);
                 bssn::timer::t_rhs_a.stop();
             }
             if (legacy & kChi) {
                 bssn::timer::t_rhs_chi.start();
                 bssn_bcs(chi_rhs, chi, grad_0_chi, grad_1_chi, grad_2_chi, pmin,
-                         pmax, 1.0, 1.0, sz, bflag);
+                         pmax, 1.0, 1.0, sz, bflag_phys);
                 if (tail_m > 0.0)
-                    bssn::outer_bc_tail(chi_rhs, pmin, pmax, sz, PW, bflag,
+                    bssn::outer_bc_tail(chi_rhs, pmin, pmax, sz, PW, bflag_phys,
                                         tail_m, 4.0);
                 bssn::timer::t_rhs_chi.stop();
             }
             if (legacy & kOther) {
                 bssn::timer::t_rhs_K.start();
                 bssn_bcs(K_rhs, K, grad_0_K, grad_1_K, grad_2_K, pmin, pmax,
-                         1.0, 0.0, sz, bflag);
+                         1.0, 0.0, sz, bflag_phys);
                 bssn::timer::t_rhs_K.stop();
             }
             if (legacy & kBeta) {
                 bssn::timer::t_rhs_b.start();
                 bssn_bcs(b_rhs0, beta0, grad_0_beta0, grad_1_beta0,
-                         grad_2_beta0, pmin, pmax, 1.0, 0.0, sz, bflag);
+                         grad_2_beta0, pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(b_rhs1, beta1, grad_0_beta1, grad_1_beta1,
-                         grad_2_beta1, pmin, pmax, 1.0, 0.0, sz, bflag);
+                         grad_2_beta1, pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(b_rhs2, beta2, grad_0_beta2, grad_1_beta2,
-                         grad_2_beta2, pmin, pmax, 1.0, 0.0, sz, bflag);
+                         grad_2_beta2, pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn::timer::t_rhs_b.stop();
             }
             if (legacy & kOther) {
                 bssn::timer::t_rhs_Gt.start();
                 bssn_bcs(Gt_rhs0, Gt0, grad_0_Gt0, grad_1_Gt0, grad_2_Gt0, pmin,
-                         pmax, 2.0, 0.0, sz, bflag);
+                         pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(Gt_rhs1, Gt1, grad_0_Gt1, grad_1_Gt1, grad_2_Gt1, pmin,
-                         pmax, 2.0, 0.0, sz, bflag);
+                         pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(Gt_rhs2, Gt2, grad_0_Gt2, grad_1_Gt2, grad_2_Gt2, pmin,
-                         pmax, 2.0, 0.0, sz, bflag);
+                         pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn::timer::t_rhs_Gt.stop();
 
                 bssn::timer::t_rhs_B.start();
                 bssn_bcs(B_rhs0, B0, grad_0_B0, grad_1_B0, grad_2_B0, pmin,
-                         pmax, 1.0, 0.0, sz, bflag);
+                         pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(B_rhs1, B1, grad_0_B1, grad_1_B1, grad_2_B1, pmin,
-                         pmax, 1.0, 0.0, sz, bflag);
+                         pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(B_rhs2, B2, grad_0_B2, grad_1_B2, grad_2_B2, pmin,
-                         pmax, 1.0, 0.0, sz, bflag);
+                         pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn::timer::t_rhs_B.stop();
 
                 bssn::timer::t_rhs_At.start();
                 bssn_bcs(At_rhs00, At0, grad_0_At0, grad_1_At0, grad_2_At0,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(At_rhs01, At1, grad_0_At1, grad_1_At1, grad_2_At1,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(At_rhs02, At2, grad_0_At2, grad_1_At2, grad_2_At2,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(At_rhs11, At3, grad_0_At3, grad_1_At3, grad_2_At3,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(At_rhs12, At4, grad_0_At4, grad_1_At4, grad_2_At4,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn_bcs(At_rhs22, At5, grad_0_At5, grad_1_At5, grad_2_At5,
-                         pmin, pmax, 2.0, 0.0, sz, bflag);
+                         pmin, pmax, 2.0, 0.0, sz, bflag_phys);
                 bssn::timer::t_rhs_At.stop();
             }
             if (legacy & kGt) {
                 bssn::timer::t_rhs_gt.start();
                 bssn_bcs(gt_rhs00, gt0, grad_0_gt0, grad_1_gt0, grad_2_gt0,
-                         pmin, pmax, 1.0, 1.0, sz, bflag);
+                         pmin, pmax, 1.0, 1.0, sz, bflag_phys);
                 bssn_bcs(gt_rhs01, gt1, grad_0_gt1, grad_1_gt1, grad_2_gt1,
-                         pmin, pmax, 1.0, 0.0, sz, bflag);
+                         pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(gt_rhs02, gt2, grad_0_gt2, grad_1_gt2, grad_2_gt2,
-                         pmin, pmax, 1.0, 0.0, sz, bflag);
+                         pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(gt_rhs11, gt3, grad_0_gt3, grad_1_gt3, grad_2_gt3,
-                         pmin, pmax, 1.0, 1.0, sz, bflag);
+                         pmin, pmax, 1.0, 1.0, sz, bflag_phys);
                 bssn_bcs(gt_rhs12, gt4, grad_0_gt4, grad_1_gt4, grad_2_gt4,
-                         pmin, pmax, 1.0, 0.0, sz, bflag);
+                         pmin, pmax, 1.0, 0.0, sz, bflag_phys);
                 bssn_bcs(gt_rhs22, gt5, grad_0_gt5, grad_1_gt5, grad_2_gt5,
-                         pmin, pmax, 1.0, 1.0, sz, bflag);
+                         pmin, pmax, 1.0, 1.0, sz, bflag_phys);
                 bssn::timer::t_rhs_gt.stop();
             }
         }
@@ -746,7 +761,7 @@ void bssnrhs(double **unzipVarsRHS, const double **uZipVars,
         double* wz = grad_0_Gt0;
         auto ko_apply = [&](const double* const in, double* const rhs) {
             bssn::active_derivs()->filter_cako(in, rhs, wx, wy, wz, hx, hy, hz, kf,
-                                           sz, bflag);
+                                           sz, bflag_ko);
         };
 
         if (bssn::BSSN_CAKO_ENABLED) {

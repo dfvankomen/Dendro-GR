@@ -179,6 +179,8 @@ unsigned int BSSN_OUTER_BC                              = 0;
 bool BSSN_OUTER_BC_DERIV2                               = true;
 unsigned int BSSN_OUTER_BC_LEGACY_MASK                  = 15;
 double BSSN_OUTER_BC_TAIL_MASS                          = 0.0;
+unsigned int BSSN_OUTER_GHOST_EXTRAP                    = 0;
+bool BSSN_OUTER_GHOST_KO                                = false;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
 double RIT_ETA_WIDTH                                     = 40.0;
@@ -550,6 +552,9 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
          UseInitialValue},
         {"BSSN_OUTER_BC_TAIL_MASS", bssn::BSSN_OUTER_BC_TAIL_MASS,
          UseInitialValue},
+        {"BSSN_OUTER_GHOST_EXTRAP", bssn::BSSN_OUTER_GHOST_EXTRAP,
+         UseInitialValue},
+        {"BSSN_OUTER_GHOST_KO", bssn::BSSN_OUTER_GHOST_KO, UseInitialValue},
         {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
         // eta power 0 is added later
         {"BSSN_USE_WAVELET_TOL_FUNCTION", bssn::BSSN_USE_WAVELET_TOL_FUNCTION},

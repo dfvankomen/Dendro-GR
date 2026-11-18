@@ -43,6 +43,13 @@ extern unsigned int BSSN_OUTER_BC_LEGACY_MASK;
 /**@brief > 0: the legacy condition on alpha and chi holds the static puncture
  * tail (1 + M/2r)^-2, ^-4 with this mass M (use the ADM mass); 0: off */
 extern double BSSN_OUTER_BC_TAIL_MASS;
+/**@brief > 0: degree of the Lagrange extrapolation that fills the padding at
+ * physical faces before derivatives, which then use the interior operator
+ * (outer_ghost_extrap); 0: one-sided closures (default) */
+extern unsigned int BSSN_OUTER_GHOST_EXTRAP;
+/**@brief with BSSN_OUTER_GHOST_EXTRAP: KO also runs through the ghosts;
+ * false (default): KO keeps its wall rows */
+extern bool BSSN_OUTER_GHOST_KO;
 
 #ifdef DENDRO_USE_NEW_DERIVS
 /**
