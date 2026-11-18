@@ -145,6 +145,7 @@ if(BSSN_USE_CASCADE OR BSSN_USE_NAIVE OR BSSN_USE_CASCADE_AVX OR
    BSSN_USE_CASCADE_IR_AVX OR BSSN_USE_CASCADE_IR_AVX512_FUSED OR
    BSSN_USE_CASCADE_IR_AVX_FUSED OR DENDRO_USE_NEW_DERIVS)
   set(BSSN_RHS_SRC src/rhs_experimental.cpp)
+  add_definitions(-DBSSN_RHS_EXPERIMENTAL)
   message(STATUS "BSSN RHS source: src/rhs_experimental.cpp (experimental flags set)")
 else()
   set(BSSN_RHS_SRC src/rhs.cpp)
@@ -156,6 +157,7 @@ set(BSSN_SRC_FILES
   src/grUtils.cpp
   ${BSSN_RHS_SRC}
   src/sommerfeld_bcs.cpp
+  src/outer_bc.cpp
   src/derivs.cpp
   src/physcon.cpp
   src/profile_params.cpp

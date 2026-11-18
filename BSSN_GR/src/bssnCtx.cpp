@@ -700,6 +700,63 @@ int BSSNCtx::initialize() {
                   << std::endl;
 #endif
     }
+    {
+        // Outer BC options (outer_bc.h): check, then report the choice.
+        const unsigned int obc = bssn::BSSN_OUTER_BC;
+        const double tail_m    = bssn::BSSN_OUTER_BC_TAIL_MASS;
+        const char* err        = nullptr;
+        if (obc > 3)
+            err = "BSSN_OUTER_BC must be 0, 1, 2 or 3";
+        else if (bssn::BSSN_OUTER_BC_LEGACY_MASK > 15)
+            err = "BSSN_OUTER_BC_LEGACY_MASK must be 0-15";
+        else if (!(tail_m >= 0.0) || std::isinf(tail_m))
+            err = "BSSN_OUTER_BC_TAIL_MASS must be finite and >= 0";
+        else if (tail_m > 0.0 && (obc == 1 || obc == 2))
+            err = "BSSN_OUTER_BC_TAIL_MASS needs BSSN_OUTER_BC = 0 or 3";
+#ifndef BSSN_RHS_EXPERIMENTAL
+        else if (obc != 0 || tail_m > 0.0)
+            err =
+                "BSSN_OUTER_BC and BSSN_OUTER_BC_TAIL_MASS need the "
+                "rhs_experimental.cpp build";
+#endif
+#ifdef USE_ROCHESTER_GAUGE
+        // outer_bc_hilditch() assumes the standard-gauge B driver
+        else if (obc == 1 || obc == 3)
+            err =
+                "BSSN_OUTER_BC = 1, 3 are not supported with the Rochester "
+                "gauge";
+#endif
+        if (err) {
+            if (!rank_global) std::cerr << err << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        if (!rank_global) {
+            static const char* const names[] = {
+                "legacy Sommerfeld, all fields",
+                "per-field Sommerfeld (arXiv:1212.2901 Eqs. 26-30)",
+                "legacy Sommerfeld, all fields, per-field speeds",
+                "hybrid: per-field on K, Gt, At, B; legacy mask "};
+            std::cout << "Outer BC: " << names[obc];
+            if (obc == 3)
+                std::cout << bssn::BSSN_OUTER_BC_LEGACY_MASK
+                          << " (1 alpha, 2 beta, 4 chi, 8 gt)";
+            // the tail rides on the legacy condition: in mode 3 only on the
+            // masked alpha (1) and chi (4)
+            const unsigned int tail_on =
+                obc == 3 ? (bssn::BSSN_OUTER_BC_LEGACY_MASK & 5u) : 5u;
+            if (tail_m > 0.0)
+                std::cout << ", static tail on "
+                          << (tail_on == 5u   ? "alpha, chi"
+                              : tail_on == 1u ? "alpha"
+                              : tail_on == 4u ? "chi"
+                                              : "nothing (mask has no alpha, chi)")
+                          << ", M = " << std::to_string(tail_m);
+            if ((obc == 1 || obc == 3) && bssn::BSSN_OUTER_BC_DERIV2)
+                std::cout << ", 2nd-order one-sided d/dn";
+            std::cout << std::endl;
+        }
+    }
 
     return 0;
 }

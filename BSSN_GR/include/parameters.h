@@ -27,6 +27,22 @@
 #include "memory_pool.h"
 
 namespace bssn {
+/**@brief outer boundary condition (rhs_experimental.cpp builds only; see
+ * outer_bc.h). 0: legacy Sommerfeld on every field (default). 1: per-field
+ * Sommerfeld of arXiv:1212.2901 Eqs. (26)-(30) on K, Gt, At, B; the other
+ * fields keep their interior equations. 2: legacy on every field, each at its
+ * own speed. 3: as 1, plus legacy on the groups in BSSN_OUTER_BC_LEGACY_MASK.
+ */
+extern unsigned int BSSN_OUTER_BC;
+/**@brief BSSN_OUTER_BC = 1, 3: second-order one-sided normal derivative on
+ * face nodes (default true) */
+extern bool BSSN_OUTER_BC_DERIV2;
+/**@brief BSSN_OUTER_BC = 3: groups kept on the legacy condition, bits
+ * 1 alpha, 2 beta, 4 chi, 8 gt (default 15) */
+extern unsigned int BSSN_OUTER_BC_LEGACY_MASK;
+/**@brief > 0: the legacy condition on alpha and chi holds the static puncture
+ * tail (1 + M/2r)^-2, ^-4 with this mass M (use the ADM mass); 0: off */
+extern double BSSN_OUTER_BC_TAIL_MASS;
 
 #ifdef DENDRO_USE_NEW_DERIVS
 /**

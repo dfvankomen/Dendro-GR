@@ -175,6 +175,10 @@ std::string BSSN_DERIV_PUNCTURE_FALLBACK_SECOND         = "auto";
 bool BSSN_DERIV_BDY_EXPLICIT_SECOND                     = false;
 #endif
 
+unsigned int BSSN_OUTER_BC                              = 0;
+bool BSSN_OUTER_BC_DERIV2                               = true;
+unsigned int BSSN_OUTER_BC_LEGACY_MASK                  = 15;
+double BSSN_OUTER_BC_TAIL_MASS                          = 0.0;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
 double RIT_ETA_WIDTH                                     = 40.0;
@@ -540,6 +544,12 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_DERIV_BDY_EXPLICIT_SECOND",
          bssn::BSSN_DERIV_BDY_EXPLICIT_SECOND, UseInitialValue},
 #endif
+        {"BSSN_OUTER_BC", bssn::BSSN_OUTER_BC, UseInitialValue},
+        {"BSSN_OUTER_BC_DERIV2", bssn::BSSN_OUTER_BC_DERIV2, UseInitialValue},
+        {"BSSN_OUTER_BC_LEGACY_MASK", bssn::BSSN_OUTER_BC_LEGACY_MASK,
+         UseInitialValue},
+        {"BSSN_OUTER_BC_TAIL_MASS", bssn::BSSN_OUTER_BC_TAIL_MASS,
+         UseInitialValue},
         {"BSSN_ETA_R0", bssn::BSSN_ETA_R0},
         // eta power 0 is added later
         {"BSSN_USE_WAVELET_TOL_FUNCTION", bssn::BSSN_USE_WAVELET_TOL_FUNCTION},
