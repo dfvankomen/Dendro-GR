@@ -1,6 +1,6 @@
 ---
 title: Outer boundary experiments, handoff
-updated: 2026-11-18
+updated: 2026-11-23
 owner: Nate Garey
 advisor: David Van Komen
 branch: exp/bssn-outer-bc (experiments only; changes are cherry-picked into experimental once proven)
@@ -115,14 +115,38 @@ Run them in order, and stop to talk with David after each step. One BYU job at a
 **Step 2: to 60 M** (`FROM=<step-1 job> TEND=60.0 sbatch restore_arms.sbatch`).
 - *Pass:* still below mask 5 + tail, with no growth. The mask 5 + tail reference goes to 60 M.
 
-**Step 3: through merger and ringdown, past 300 M.**
-- *Arms:* the ghost arm and a mask 5 + tail arm, both A6 or both E6, chained with `restore_arms.sbatch` in 5 h pieces. We have no mask 5 + tail run through merger, so you need both.
-- *Track:*
-  - the constraint norms;
-  - apparent-horizon masses and the merger time;
-  - $\Psi_4$ $(\ell, m) = (2, 2)$ at the extraction radii: amplitude and phase against mask 5 + tail.
-- *Pass:* no constraint growth anywhere, and $\Psi_4$ differences smaller than the resolution error from step 4.
-- *This is the result that would let us switch.* Plan it with David first: it is the expensive one.
+**Step 3: through merger and ringdown, to 1000 M (production length).**
+The kit parfiles already use the production grid: they are `BSSN_GR/pars/q1.par.toml` (depth 15, ±400 M) plus the outer-BC keys. For a merger run you only change the length, switch the horizon finder back on, and write VTUs less often.
+
+- *Arms:* `ghost_E6` and `mask5tail_E6`. E6 first, because it is the production operator and your November E6/E6 run to 1000 M (current BC) is a free third reference. A6 comes after steps 1–2 show its edge growth is gone.
+- *Parfiles:* make long copies, so the 30 M ones stay as they are:
+  ```
+  cd pars
+  for a in ghost_E6 mask5tail_E6; do
+    sed -e 's/^BSSN_RK_TIME_END = .*/BSSN_RK_TIME_END = 1000.0/' \
+        -e 's/^AEH_SOLVER_FREQ = .*/AEH_SOLVER_FREQ = 50/' \
+        -e 's/^BSSN_IO_OUTPUT_FREQ = .*/BSSN_IO_OUTPUT_FREQ = 4000/' $a.par.toml > ${a}_long.par.toml
+  done
+  diff ../../../pars/q1.par.toml ghost_E6_long.par.toml
+  ```
+  The diff should show only the derivative types, `BSSN_RESTORE_SOLVER`, `BSSN_ASYNC_COMM_K`, the end time, the VTU frequency and the outer-BC keys. VTUs every 4000 steps is about every 16 M. At the kit's 400 an arm would write a few hundred GB by 1000 M (a rough guess from 9.4 GB per 30 M).
+- *First piece* (4 nodes per arm, as in production):
+  ```
+  ARMS="ghost_E6_long mask5tail_E6_long" NPA=4 sbatch --nodes=8 run_arms.sbatch
+  ```
+  Five hours at ~22 M/h gets to about 100 M, so this piece also covers steps 1 and 2 for E6. Check it with `compare.py` against `ref/E6_*` at 30 and 60 M before going on, and talk to David.
+- *The rest:* continue from the last job's checkpoints, one piece at a time:
+  ```
+  FROM=<last job id> TEND=1000.0 ARMS="ghost_E6_long mask5tail_E6_long" NPA=4 sbatch --nodes=8 restore_arms.sbatch
+  ```
+  `FROM` is always the job just before, not the first one. Expect about 7 pieces (roughly 18 h to merger at 22 M/h, then about twice as fast; a guess for the ghost arm). After each piece, check `exit.txt` and the restart line in the `.out`, and copy `dat/` and `bah/` somewhere safe: `nobackup/autodelete` purges old files.
+- *What to look at, at these times:* the gauge pulse reaches the face centers at ≈ 280 M, the edges at ≈ 400 M and the corners at ≈ 490 M; junk radiation reaches the faces at ≈ 400 M; merger is at ≈ 390 M and its signal reaches the faces at ≈ 795 M.
+  1. **Constraints**: `compare.py` with both arms and your November E6/E6 run, `C_HAM_rms_far` and `C_HAM_maxabs_far`. Does either arm jump at those times?
+  2. **Horizons**: merger time and final mass should match between the arms. If they don't, the boundary is reaching the binary. AH1/AH2 failing after merger is expected.
+  3. **$\Psi_4$ (2,2)** at r = 100: amplitude and phase, ghost vs mask 5 + tail. Compare phase only for t < 560 M (later it is noise). Every November run shows a ~10× amplitude jump at ~785 M, maybe junk reflecting off the wall. Does it shrink with the new BC?
+  4. **The faces**: pull VTU frames near 250, 290, 400, 500, 600 and 800 M with `scripts/select_vtu.py` and look at C_HAM on the outer faces and edges. The mask 5 + tail arm holds α to a one-puncture profile; if it is going to break, it should show up when the gauge pulse arrives.
+- *Pass:* the ghost arm stays below mask 5 + tail, with no growth at any of those times, and its $\Psi_4$ differs from mask 5 + tail by less than the resolution error from step 4.
+- *Untested:* ghosts next to a face during big remeshes (there is a ~4× mesh cliff at ~588 M). If the ghost arm blows up there, say so first, before anything else.
 
 **Step 4: resolution.** Repeat the step-3 arms one depth higher or lower. This gives a resolution error to compare the boundary effect against.
 

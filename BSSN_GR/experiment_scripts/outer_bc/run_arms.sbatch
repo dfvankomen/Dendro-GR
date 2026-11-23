@@ -11,13 +11,14 @@
 # Outer-BC arms of the q1 BBH from fresh initial data, 2 nodes (256 ranks) per arm.
 #   sbatch run_arms.sbatch                       # ARMS default: ghost_A6 ghost_E6
 #   ARMS="ghost_A6 ghost_E6 perfield_A6" sbatch --nodes=6 run_arms.sbatch
-# Each arm name is a parfile pars/<arm>.par.toml. Set --nodes to 2 x the number of arms.
+# Each arm name is a parfile pars/<arm>.par.toml. Set --nodes to NPA x the number of arms.
 # Edit the four paths below once for your account.
 SRC=$HOME/Dendro-GR                     # this repository, branch exp/bssn-outer-bc
 BUILD=$HOME/build_obc                    # build directory (made on first use)
 DENDROLIB=$HOME/dendrolib                # dendrolib, branch experimental
 ID=$HOME/id/tp_q001_tpid_sol.bin        # TwoPunctures q1 initial data
 ARMS=${ARMS:-"ghost_A6 ghost_E6"}
+NPA=${NPA:-2}                            # nodes per arm (128 ranks each); production q1 uses 4
 
 source ~/gr_env.sh                       # modules: compilers, MPI, ...
 ulimit -c 0
@@ -44,13 +45,13 @@ run_arm() {  # arm host_pair
     mkdir -p $dir/cp $dir/bah $dir/dat $dir/vtu
     cp $KIT/pars/$1.par.toml $dir/q1.par.toml
     cp $ID $dir/
-    (cd $dir && srun --mpi=pmix --exact -N2 -n256 -w $2 $BIN q1.par.toml > run.log 2>&1
+    (cd $dir && srun --mpi=pmix --exact -N$NPA -n$((NPA * 128)) -w $2 $BIN q1.par.toml > run.log 2>&1
      echo "exit=$?" > exit.txt)
 }
 i=0
 for arm in $ARMS; do
-    run_arm $arm "${HOSTS[$i]},${HOSTS[$((i + 1))]}" &
-    i=$((i + 2))
+    run_arm $arm "$(IFS=,; echo "${HOSTS[*]:$i:$NPA}")" &
+    i=$((i + NPA))
 done
 
 # The startup line must name the configuration each arm was meant to run.

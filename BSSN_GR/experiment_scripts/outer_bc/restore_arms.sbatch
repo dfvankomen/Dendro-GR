@@ -16,6 +16,7 @@
 SRC=$HOME/Dendro-GR
 BUILD=$HOME/build_obc                    # must be the binary that wrote the checkpoints
 ARMS=${ARMS:-"ghost_A6 ghost_E6"}
+NPA=${NPA:-2}                            # nodes per arm (128 ranks each); production q1 uses 4
 : "${FROM:?set FROM=<job id of the run to continue>}" "${TEND:?set TEND=<new end time>}"
 
 source ~/gr_env.sh
@@ -34,13 +35,13 @@ restore_arm() {  # arm host_pair
     rm -f $dir/exit.txt && mv $dir/run.log $dir/run_before_restore.log
     sed -i -e "s/^BSSN_RESTORE_SOLVER = .*/BSSN_RESTORE_SOLVER = 1/" \
            -e "s/^BSSN_RK_TIME_END = .*/BSSN_RK_TIME_END = $TEND/" $dir/q1.par.toml
-    (cd $dir && srun --mpi=pmix --exact -N2 -n256 -w $2 $BIN q1.par.toml > run.log 2>&1
+    (cd $dir && srun --mpi=pmix --exact -N$NPA -n$((NPA * 128)) -w $2 $BIN q1.par.toml > run.log 2>&1
      echo "exit=$?" > exit.txt)
 }
 i=0
 for arm in $ARMS; do
-    restore_arm $arm "${HOSTS[$i]},${HOSTS[$((i + 1))]}" &
-    i=$((i + 2))
+    restore_arm $arm "$(IFS=,; echo "${HOSTS[*]:$i:$NPA}")" &
+    i=$((i + NPA))
 done
 
 # Rows after the checkpoint are recomputed; the first one must match the original.
