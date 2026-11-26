@@ -54,6 +54,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: "true"
+      - name: Trust the checkout for git
+        # the container runs as root but the mounted checkout is the runner
+        # user's; checkout's own safe.directory lives in a temporary HOME
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: CMake Configuration (CUDA)
         # architecture is pinned because the runner has no GPU to detect from
         # build dir is relative to the checkout: in a container github.workspace
