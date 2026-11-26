@@ -2515,7 +2515,7 @@ void ko_deriv21_y(double *const Du, const double *const u, const double dy,
         }
     }
 
-    if (bflag & (1u << OCT_DIR_LEFT)) {
+    if (bflag & (1u << OCT_DIR_DOWN)) {
         for (int k = kb; k < ke; k++) {
 #ifdef DERIV_ENABLE_AVX
 #ifdef __INTEL_COMPILER
@@ -2534,7 +2534,7 @@ void ko_deriv21_y(double *const Du, const double *const u, const double dy,
         }
     }
 
-    if (bflag & (1u << OCT_DIR_RIGHT)) {
+    if (bflag & (1u << OCT_DIR_UP)) {
         for (int k = kb; k < ke; k++) {
 #ifdef DERIV_ENABLE_AVX
 #ifdef __INTEL_COMPILER
@@ -2621,7 +2621,7 @@ void ko_deriv21_z(double *const Du, const double *const u, const double dz,
         }
     }
 
-    if (bflag & (1u << OCT_DIR_LEFT)) {
+    if (bflag & (1u << OCT_DIR_BACK)) {
         for (int j = jb; j < je; j++) {
 #ifdef DERIV_ENABLE_AVX
 #ifdef __INTEL_COMPILER
@@ -2640,7 +2640,7 @@ void ko_deriv21_z(double *const Du, const double *const u, const double dz,
         }
     }
 
-    if (bflag & (1u << OCT_DIR_RIGHT)) {
+    if (bflag & (1u << OCT_DIR_FRONT)) {
         for (int j = jb; j < je; j++) {
 #ifdef DERIV_ENABLE_AVX
 #ifdef __INTEL_COMPILER

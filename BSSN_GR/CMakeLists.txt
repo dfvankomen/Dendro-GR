@@ -175,6 +175,8 @@ bssn_add_executable(bssnSolver src/bssngr_main.cpp src/bssnAEH.cpp src/bssnCtx.c
 bssn_add_executable(tpid src/TPID.cpp)
 bssn_add_executable(bssnWAMRTest src/gr_wamr_test.cpp)
 bssn_add_executable(checkDerivs src/checkDerivatives.cpp)
+# serial regression check for the padding-2 KO closures; exits nonzero on fail
+bssn_add_executable(testKODeriv21Faces src/testKODeriv21Faces.cpp)
 
 if(WITH_CUDA)
   # Helper macro for CUDA executables so we guarantee RDC is on!
