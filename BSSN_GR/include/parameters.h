@@ -243,10 +243,6 @@ extern unsigned int BSSN_VTU_OUTPUT_EVOL_INDICES[BSSN_NUM_VARS];
 /**@brief constraint variable IDs written to vtu files*/
 extern unsigned int BSSN_VTU_OUTPUT_CONST_INDICES[BSSN_CONSTRAINT_NUM_VARS];
 
-/**@brief solution output gap (instead of freq. we can use to output the
- * solution if currentTime > lastIOOutputTime + BSSN_IO_OUTPUT_GAP)*/
-extern double BSSN_IO_OUTPUT_GAP;
-
 /**@brief prefered grain sz to use when selecting active npes*/
 extern unsigned int BSSN_DENDRO_GRAIN_SZ;
 
@@ -415,9 +411,6 @@ extern double ETA_DAMPING_EXP;
 
 /**@brief: chi floor value */
 extern double CHI_FLOOR;
-
-/**@brief: dissipation type */
-extern unsigned int DISSIPATION_TYPE;
 
 /**@brief: Kreiss-Oliger dissipation */
 extern double KO_DISS_SIGMA;

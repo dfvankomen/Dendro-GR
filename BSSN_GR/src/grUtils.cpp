@@ -234,8 +234,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
         sout << YLW
              << "\tBSSN_VTKHDF_COMPRESSION :" << bssn::BSSN_VTKHDF_COMPRESSION
              << NRM << std::endl;
-        sout << YLW << "\tBSSN_IO_OUTPUT_GAP :" << bssn::BSSN_IO_OUTPUT_GAP
-             << NRM << std::endl;
         sout << YLW << "\tBSSN_DENDRO_GRAIN_SZ :" << bssn::BSSN_DENDRO_GRAIN_SZ
              << NRM << std::endl;
         sout << YLW << "\tBSSN_ASYNC_COMM_K :" << bssn::BSSN_ASYNC_COMM_K << NRM
@@ -318,8 +316,6 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         sout << YLW << "\tCHI_FLOOR :" << bssn::CHI_FLOOR << NRM << std::endl;
         sout << YLW << "\tBSSN_TRK0 :" << bssn::BSSN_TRK0 << NRM << std::endl;
-        sout << YLW << "\tDISSIPATION_TYPE :" << bssn::DISSIPATION_TYPE << NRM
-             << std::endl;
         sout << YLW << "\tKO_DISS_SIGMA :" << bssn::KO_DISS_SIGMA << NRM
              << std::endl;
 

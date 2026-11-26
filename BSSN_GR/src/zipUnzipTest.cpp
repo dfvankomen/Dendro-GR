@@ -59,8 +59,6 @@ int main(int argc, char** argv) {
                   << bssn::BSSN_CHKPT_FILE_PREFIX << NRM << std::endl;
         std::cout << YLW << "\tBSSN_PROFILE_FILE_PREFIX :"
                   << bssn::BSSN_PROFILE_FILE_PREFIX << NRM << std::endl;
-        std::cout << YLW << "\tBSSN_IO_OUTPUT_GAP :" << bssn::BSSN_IO_OUTPUT_GAP
-                  << NRM << std::endl;
         std::cout << YLW
                   << "\tBSSN_DENDRO_GRAIN_SZ :" << bssn::BSSN_DENDRO_GRAIN_SZ
                   << NRM << std::endl;

@@ -13,8 +13,6 @@
             "BSSN_REMESH_TEST_FREQ": 10,
             "__comment__" : "frequency for checkpoint output",
             "BSSN_CHECKPT_FREQ": 10,
-            "__comment__" : "VTU file output gap. (Not currently used. Might be usefull in adaptive timestepping)",
-            "BSSN_IO_OUTPUT_GAP": 1,
             "__comment__" : "file prefix for the vtu files",
             "BSSN_VTU_FILE_PREFIX": "bssn_gr",
             "__comment__" : "file prefix for the checkpoint files",

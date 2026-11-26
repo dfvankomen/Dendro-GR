@@ -35,9 +35,6 @@ BSSN_TIME_STEP_OUTPUT_FREQ = 128
 # Frequency for outputting a full checkpoint
 BSSN_CHECKPT_FREQ = 128
 
-# VTU File Output gap, (NOT CURRENTLY IN USE, useful for adaptive timestepping)
-BSSN_IO_OUTPUT_GAP = 1
-
 # VTU File Prefix, can be absolute or relative paths
 BSSN_VTU_FILE_PREFIX = "vtu/bssn_gr"
 
