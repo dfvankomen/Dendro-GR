@@ -527,7 +527,7 @@ void dumpParamFile(std::ostream& sout, int root, MPI_Comm comm) {
              << std::endl;
         quickPrintVector(AEH::NTHETA_ARRAY, sout,
                          std::string(YLW) + "\t\tNTHETA_ARRAY");
-        sout << YLW << "\t\tNPHI_MAX: " << AEH::NTHETA_MAX << NRM << std::endl;
+        sout << YLW << "\t\tNPHI_MAX: " << AEH::NPHI_MAX << NRM << std::endl;
         quickPrintVector(AEH::NPHI_ARRAY, sout,
                          std::string(YLW) + "\t\tNPHI_ARRAY");
         sout << YLW << "\t\tAEH_SAVE_DIR: " << AEH::AEH_SAVE_DIR << NRM
