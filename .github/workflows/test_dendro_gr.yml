@@ -54,10 +54,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: "true"
+      - name: Trust the checkout for git
+        # the container runs as root but the mounted checkout is the runner
+        # user's; checkout's own safe.directory lives in a temporary HOME
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: CMake Configuration (CUDA)
         # architecture is pinned because the runner has no GPU to detect from
+        # build dir is relative to the checkout: in a container github.workspace
+        # is the host path, and CheckGit.cmake needs the repo above its cwd
         run: |
-          cmake -S . -B ${{github.workspace}}/build-cuda -G Ninja \
+          cmake -S . -B build-cuda -G Ninja \
             -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
             -DWITH_CUDA=ON \
             -DCMAKE_CUDA_ARCHITECTURES=80 \
@@ -65,4 +71,4 @@ jobs:
             -DBSSN_ENABLE_VTU_OUTPUT=OFF \
             -DBSSN_EXTRACT_GRAVITATIONAL_WAVES=OFF
       - name: Build bssnSolverCUDA
-        run: cmake --build ${{github.workspace}}/build-cuda --parallel $(nproc) --target bssnSolverCUDA
+        run: cmake --build build-cuda --parallel $(nproc) --target bssnSolverCUDA
