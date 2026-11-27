@@ -579,8 +579,7 @@ int main(int argc, char** argv) {
         ets->dump_pt(outfile);
         // bssnCtx->dump_pt(outfile);
 #endif
-        bool is_merge_executed = false;
-        double t1              = MPI_Wtime();
+        double t1 = MPI_Wtime();
 
         bssnaeh::initialize_aeh();
 
