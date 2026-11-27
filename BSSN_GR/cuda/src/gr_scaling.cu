@@ -174,10 +174,9 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
 
         ts::TSInfo ts_gw_output;
         ts::TSInfo ts_curr;
-        bool is_gw_written     = false;
+        bool is_gw_written = false;
 
-        bool is_merge_executed = false;
-        double t1              = MPI_Wtime();
+        double t1          = MPI_Wtime();
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
             const DendroIntL step            = ets->curr_step();
             const DendroScalar time          = ets->curr_time();
@@ -194,7 +193,7 @@ int bssn_driver(MPI_Comm comm, unsigned int num_step, unsigned int warm_up,
             const unsigned int rank_global   = ets->get_global_rank();
 
             const bool is_merged             = bssnCtx->is_bh_merged(0.1);
-            if (is_merged && !is_merge_executed) {
+            if (is_merged) {
                 bssn::BSSN_REMESH_TEST_FREQ =
                     3 * bssn::BSSN_REMESH_TEST_FREQ_AFTER_MERGER;
                 bssn::BSSN_MINDEPTH = 5;

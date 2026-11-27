@@ -337,10 +337,9 @@ int main(int argc, char** argv) {
         ts::TSInfo ts_gw_output;
         ts::TSInfo ts_curr;
         // nothing to consume until the first GW step issues a copy
-        bool is_gw_written     = true;
+        bool is_gw_written = true;
 
-        bool is_merge_executed = false;
-        double t1              = MPI_Wtime();
+        double t1          = MPI_Wtime();
         while (ets->curr_time() < bssn::BSSN_RK_TIME_END) {
             const DendroIntL step            = ets->curr_step();
             const DendroScalar time          = ets->curr_time();
@@ -357,7 +356,7 @@ int main(int argc, char** argv) {
             const unsigned int rank_global   = ets->get_global_rank();
 
             const bool is_merged             = bssnCtx->is_bh_merged(0.1);
-            if (is_merged && !is_merge_executed) {
+            if (is_merged) {
                 // mirrors the CPU driver (bssngr_main.cpp)
                 bssnCtx->set_is_merged(time, step);
                 bssn::BSSN_REMESH_TEST_FREQ =
