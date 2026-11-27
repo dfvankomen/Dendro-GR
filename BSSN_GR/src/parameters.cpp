@@ -39,7 +39,6 @@ unsigned int BSSN_REMESH_TEST_FREQ = 10;
 unsigned int BSSN_REMESH_TEST_FREQ_AFTER_MERGER        = 10;
 unsigned int BSSN_MAX_MESH_ELEMENTS                    = 0;
 unsigned int BSSN_GW_EXTRACT_FREQ_AFTER_MERGER         = 10;
-double BSSN_IO_OUTPUT_GAP                              = 1.0;
 
 unsigned int BSSN_USE_WAVELET_TOL_FUNCTION             = 0;
 double BSSN_WAVELET_TOL                                = 0.0001;
@@ -178,8 +177,6 @@ bool BSSN_DERIV_BDY_EXPLICIT_SECOND                     = false;
 double RIT_ETA_OUTER                                     = 0.25;
 double RIT_ETA_CENTRAL                                   = 2.0;
 double RIT_ETA_WIDTH                                     = 40.0;
-
-unsigned int DISSIPATION_TYPE                            = 0;
 
 unsigned int BSSN_DENDRO_GRAIN_SZ                        = 1000;
 
@@ -470,8 +467,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_IO_OUTPUT_FREQ", bssn::BSSN_IO_OUTPUT_FREQ},
         {"BSSN_REMESH_TEST_FREQ", bssn::BSSN_REMESH_TEST_FREQ},
         {"BSSN_CHECKPT_FREQ", bssn::BSSN_CHECKPT_FREQ},
-        // {"BSSN_IO_OUTPUT_GAP", bssn::BSSN_IO_OUTPUT_GAP, true}, // this
-        // is actually unused!
         {"BSSN_VTU_FILE_PREFIX", bssn::BSSN_VTU_FILE_PREFIX},
         {"BSSN_CHKPT_FILE_PREFIX", bssn::BSSN_CHKPT_FILE_PREFIX},
         {"BSSN_PROFILE_FILE_PREFIX", bssn::BSSN_PROFILE_FILE_PREFIX},
@@ -616,7 +611,6 @@ void readParamTOMLFile(const char* fName, MPI_Comm comm) {
         {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER, UseInitialValue},
         {"BSSN_HYBRID_RHS_SCHEDULE", bssn::BSSN_HYBRID_RHS_SCHEDULE,
          UseInitialValue},
-        {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE, UseInitialValue},
         {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR, UseInitialValue},
         {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY, UseInitialValue},
         {"BSSN_VTU_X_SLICE", bssn::BSSN_VTU_X_SLICE, UseInitialValue},
@@ -1337,7 +1331,6 @@ void writeParamTOMLFile(const char* fName, MPI_Comm comm) {
             {"BSSN_EPSILON_CAKO_OTHER", bssn::BSSN_EPSILON_CAKO_OTHER},
             {"BSSN_CAHD_C", bssn::BSSN_CAHD_C},
             {"BSSN_ELE_ORDER", bssn::BSSN_ELE_ORDER},
-            {"DISSIPATION_TYPE", bssn::DISSIPATION_TYPE},
             {"BSSN_CFL_FACTOR", bssn::BSSN_CFL_FACTOR},
             {"BSSN_VTU_Z_SLICE_ONLY", bssn::BSSN_VTU_Z_SLICE_ONLY},
             {"BSSN_VTU_X_SLICE", bssn::BSSN_VTU_X_SLICE},

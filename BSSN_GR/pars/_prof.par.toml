@@ -36,9 +36,6 @@ BSSN_EH_COARSEN_VAL = 0.6
 # Frequency for outputting a full checkpoint (recommended a few thousand, it takes time and saves a lot)
 BSSN_CHECKPT_FREQ = 1000000
 
-# VTU File Output gap, (NOT CURRENTLY IN USE, useful for adaptive timestepping)
-BSSN_IO_OUTPUT_GAP = 1
-
 # VTU File Prefix, can be absolute or relative paths
 BSSN_VTU_FILE_PREFIX = "bssn_"
 
@@ -159,9 +156,6 @@ BSSN_REFINE_VARIABLE_INDICES = [
   23,
 ]
 
-# FD Intergrid transfer mode
-BSSN_USE_FD_GRID_TRANSFER = false
-
 # Which refinement mode to use
 # 0 - WAMR
 # 1 - EH
@@ -214,7 +208,6 @@ BSSN_LAMBDA_F = [1.0, 0.0]
 BSSN_XI = [0, 0, 0]
 BSSN_ETA_POWER = [2.0, 2.0]
 
-ANG_PAR = 0.01
 CHI_FLOOR = 0.0001
 BSSN_TRK0 = 0.0
 KO_DISS_SIGMA = 0.4
